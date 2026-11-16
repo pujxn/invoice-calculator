@@ -106,10 +106,10 @@ React web app (Vite)  --JSON-->  Node API (Express)  --code-->   SMS provider (c
 
 ## Branding
 
-The product is called **Ledgerly**. The logo is a ledger mark (a vertical rule, a longer debit bar, a shorter amber credit bar and a total line, which also reads as an L) next to the wordmark in Inter SemiBold, outlined so the SVGs need no fonts.
+The product is called **Ledgerly**. The logo is a ledger mark (a vertical rule, a longer debit bar, a shorter yellow credit bar and a total line, which also reads as an L) next to the wordmark in Inter SemiBold, outlined so the SVGs need no fonts.
 
 - **Files:** `client/public/brand/` holds the lockup and the mark, each in light and dark, plus the favicon, `apple-touch-icon.png` and the PWA icons. `client/assets/` holds the Capacitor sources: `icon-only`, `icon-foreground` and `icon-background` (1024 px) and `splash` and `splash-dark` (2732 px). A preview is in `docs/brand/logo-preview.png`.
-- **Colour:** ledger green `#0b6b5d` (primary), credit amber `#f5b544` (decoration only), ink `#0e2b27` on `#f6f9f8`. Dark theme uses mint `#4fd1b5` on `#0f1b1a`. The dark theme follows the device setting.
+- **Colour:** a pink UI with green and yellow accents on white. Light theme: ledger pink `#c2185b` (primary, white text on it), blush white `#fff7fa` background, plum ink `#2b1020` text, credit green `#145c33` on `#e1f5e8` (success and credit), credit yellow `#ffc83d` (decoration only, such as the header rule and the credit bar in the logo). Dark theme: soft pink `#ff8fb8` on deep plum `#1c0f16`, with surfaces `#2a1822` and text `#fbeaf1`. The dark theme follows the device setting. Logo, icons and splash are generated from the palette by `npm run brand`.
 - **Type:** Inter if installed, else the system font; no web font is downloaded.
 - **Accessibility:** text and controls meet WCAG AA (4.5:1 text, 3:1 control outlines), buttons are at least 48 px tall, the logo has the alt text "Ledgerly", and focus rings are always visible. Contrast ratios of the colour tokens are checked by tests.
 - **Where it shows:** browser tab title and icon, sign-in screen, the header of every signed-in page, and the SMS text ("Your Ledgerly code is ...").
@@ -194,3 +194,4 @@ The build can start without these answers; each has a default assumed in bracket
 | 2026-11-16 | 0.2 | SMS login built (AUTH-1 to AUTH-5). Added `GET /api/auth/me`, the `AUTH_SECRET` setting and the specific rate limits; clarified 429 and lockout behaviour. |
 | 2026-11-16 | 0.3 | Login UI made mobile first (touch targets, numeric keypad, SMS autofill); web plus iOS and Android via Capacitor recorded as the platform plan; testing rule: UI, client and server tests for every feature. |
 | 2026-11-16 | 0.4 | Product named Ledgerly. Added the Branding section (logo, palette, icons, accessibility), the web app manifest, and icon and splash sources for the Capacitor wrapper. |
+| 2026-11-16 | 0.5 | Rebranded to a pink palette (pink, green, yellow, white) with a matching dark theme, requested by the manager. New logo colours, icons, splash and favicon; no layout or behaviour changes. |
