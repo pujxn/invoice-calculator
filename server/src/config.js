@@ -1,9 +1,17 @@
+import path from 'node:path';
+
 // Central place for environment configuration. Providers (SMS, vision) read
 // their own settings from here so nothing else touches process.env directly.
 // Reads a positive whole number from the environment, else the fallback.
 function positiveInt(value, fallback) {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+// Reads a positive number (decimals allowed, e.g. 0.5), else the fallback.
+function positiveNumber(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 export function loadConfig(env = process.env) {
@@ -33,6 +41,13 @@ export function loadConfig(env = process.env) {
         authToken: env.TWILIO_AUTH_TOKEN || '',
         fromNumber: env.TWILIO_FROM_NUMBER || '',
       },
+    },
+    uploads: {
+      // Where invoice pictures are kept. A relative path is relative to where the server starts.
+      dir: env.UPLOAD_DIR || path.resolve(import.meta.dirname, '../uploads'),
+      maxBytes: Math.floor(positiveNumber(env.UPLOAD_MAX_MB, 10) * 1024 * 1024),
+      ttlMs: positiveNumber(env.UPLOAD_TTL_HOURS, 24) * 60 * 60 * 1000,
+      maxPerUser: positiveInt(env.UPLOAD_MAX_PER_USER, 50),
     },
     vision: {
       provider: env.VISION_PROVIDER || (anthropicKey ? 'claude' : 'mock'),

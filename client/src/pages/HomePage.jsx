@@ -1,10 +1,10 @@
 import { useAuth } from '../auth/AuthContext.jsx';
 import AppHeader from '../components/AppHeader.jsx';
+import InvoiceUpload from '../invoices/InvoiceUpload.jsx';
 import useDocumentTitle from '../useDocumentTitle.js';
 
-// Protected landing page. The upload, review and result screens replace the
-// placeholder below in later steps. The header sits outside <main> so it is
-// exposed as the page's banner landmark.
+// Protected landing page: the upload screen. Review and result screens follow in later steps.
+// The header sits outside <main> so it is exposed as the page's banner landmark.
 export default function HomePage() {
   const { user, logout } = useAuth();
   useDocumentTitle();
@@ -20,7 +20,7 @@ export default function HomePage() {
         <p>
           Signed in as <strong>{user.phone}</strong>.
         </p>
-        <p className="hint">Invoice upload comes next.</p>
+        <InvoiceUpload />
       </main>
     </>
   );

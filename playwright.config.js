@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { defineConfig } from '@playwright/test';
 
 // UI tests run against a throwaway API (:4100, console SMS) and the Vite dev server (:5273),
@@ -37,6 +39,8 @@ export default defineConfig({
         PORT: String(API_PORT),
         SMS_PROVIDER: 'console',
         AUTH_SECRET: 'e2e-secret',
+        // Pictures uploaded by the tests go to a throwaway folder, not server/uploads.
+        UPLOAD_DIR: path.join(tmpdir(), 'invoice-calculator-e2e-uploads'),
         // The three device projects share one IP, so lift the per-IP caps (per-number limits stay on).
         AUTH_IP_REQUEST_LIMIT: '1000',
         AUTH_IP_VERIFY_LIMIT: '1000',

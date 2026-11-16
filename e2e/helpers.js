@@ -28,11 +28,45 @@ export async function latestCode(phone) {
 export async function shot(page, name) {
   if (!process.env.SCREENSHOTS) return;
   const device = test.info().project.name;
-  await page.screenshot({ path: `${SCREENSHOT_DIR}${device}/${name}.png` });
+  await page.screenshot({ path: `${SCREENSHOT_DIR}${device}/${name}.png`, fullPage: true });
 }
 
 export async function requestCodeFor(page, phone) {
   await page.getByLabel('Mobile number').fill(phone);
   await page.getByRole('button', { name: 'Send code' }).click();
   await expect(page.getByLabel('6-digit code')).toBeVisible();
+}
+
+// Signs in through the real login page with a fresh number and returns that number.
+export async function signIn(page, phone = uniquePhone()) {
+  await page.goto('/login');
+  await requestCodeFor(page, phone);
+  await page.getByLabel('6-digit code').fill(await latestCode(phone));
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { name: 'Upload your invoice' })).toBeVisible();
+  return phone;
+}
+
+export async function expectNoSideScroll(page) {
+  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+}
+
+const MIN_TAP = 44; // px; Apple asks for 44, Google for 48
+
+export async function expectTouchFriendly(page) {
+  for (const control of await page.locator('button:visible, input:visible').all()) {
+    const box = await control.boundingBox();
+    expect(box.height, await control.evaluate((el) => el.outerHTML)).toBeGreaterThanOrEqual(
+      MIN_TAP,
+    );
+  }
+  // 16px or larger stops iOS Safari from zooming the page when an input gets focus.
+  for (const input of await page.locator('input:visible').all()) {
+    const size = await input.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(size).toBeGreaterThanOrEqual(16);
+  }
 }
