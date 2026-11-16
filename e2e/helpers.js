@@ -6,7 +6,7 @@ const SERVER_LOG = fileURLToPath(new URL('./.server.log', import.meta.url));
 // Screenshots are for reviewing, not for the repo: they go to a git-ignored folder
 // (or wherever SCREENSHOT_DIR points).
 const SCREENSHOT_DIR = (
-  process.env.SCREENSHOT_DIR || fileURLToPath(new URL('./.screenshots', import.meta.url))
+  process.env.SCREENSHOT_DIR || fileURLToPath(new URL('../test-screenshots', import.meta.url))
 ).replace(/\/?$/, '/');
 
 // A fresh number per sign-in keeps the per-number rate limits (one code per 30 seconds, five an

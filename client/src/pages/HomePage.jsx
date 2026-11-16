@@ -16,6 +16,7 @@ export default function HomePage() {
         </button>
       </AppHeader>
       <main className="shell">
+        <h1>Welcome</h1>
         <p>
           Signed in as <strong>{user.phone}</strong>.
         </p>
