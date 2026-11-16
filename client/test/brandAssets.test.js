@@ -55,6 +55,50 @@ describe('brand SVGs', () => {
   });
 });
 
+describe('brand colours', () => {
+  const css = read('src/styles.css');
+  const token = (name, block) => block.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, 'i'))[1];
+  const [lightBlock] = css.match(/:root\s*\{[\s\S]*?\n\}/);
+  const [darkBlock] = css.match(/@media \(prefers-color-scheme: dark\)\s*\{[\s\S]*?\n\}\n/);
+
+  it('light logos use the primary pink for the tile and yellow for the credit bar', () => {
+    const svg = read('public/brand/logo.svg').toLowerCase();
+    expect(svg).toContain(`rx="14" fill="${token('primary', lightBlock)}"`);
+    expect(svg).toContain('#ffc83d');
+  });
+
+  it('dark logos use a light tile with the light-theme pink bars', () => {
+    const svg = read('public/brand/logo-dark.svg').toLowerCase();
+    expect(svg).toContain(`fill="${token('primary', lightBlock)}"`);
+    expect(svg).toContain(`fill="${token('text', darkBlock)}"`); // wordmark
+  });
+
+  it('no leftover green-theme colours from the previous brand', () => {
+    for (const f of [
+      'src/styles.css',
+      'index.html',
+      'public/manifest.webmanifest',
+      'public/brand/logo.svg',
+      'public/brand/logo-dark.svg',
+      'public/brand/logo-mark.svg',
+      'public/brand/logo-mark-dark.svg',
+      'public/brand/favicon.svg',
+    ]) {
+      expect(read(f).toLowerCase(), f).not.toMatch(/0b6b5d|4fd1b5|0f1b1a|f5b544|f6f9f8/);
+    }
+  });
+
+  it('manifest and theme-color metas match the tokens', () => {
+    const manifest = JSON.parse(read('public/manifest.webmanifest'));
+    expect(manifest.theme_color).toBe(token('primary', lightBlock));
+    expect(manifest.background_color).toBe(token('bg', lightBlock));
+    const html = read('index.html');
+    expect(html).toContain(
+      `content="${token('bg', darkBlock)}" media="(prefers-color-scheme: dark)"`,
+    );
+  });
+});
+
 describe('index.html', () => {
   const html = read('index.html');
 
@@ -75,7 +119,7 @@ describe('web app manifest', () => {
 
   it('names the app and uses the brand colours', () => {
     expect(manifest.name).toBe('Ledgerly');
-    expect(manifest.theme_color).toBe('#0b6b5d');
+    expect(manifest.theme_color).toBe('#c2185b');
     expect(manifest.display).toBe('standalone');
   });
 
@@ -90,6 +134,6 @@ describe('web app manifest', () => {
     const html = read('index.html');
     expect(html).toContain('<link rel="manifest" href="/manifest.webmanifest" />');
     expect(html).toContain('viewport-fit=cover');
-    expect(html).toMatch(/theme-color" content="#0f1b1a" media="\(prefers-color-scheme: dark\)"/);
+    expect(html).toMatch(/theme-color" content="#1c0f16" media="\(prefers-color-scheme: dark\)"/);
   });
 });

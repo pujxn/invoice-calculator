@@ -60,9 +60,11 @@ Things worth trying:
 ### See the branding
 
 - **Sign-in screen:** http://localhost:5173/login (sign out first if you are signed in) shows the logo, the tagline, the browser tab title and the tab icon. After signing in, the logo is in the header of the home page.
-- **Dark mode:** switch your computer to dark mode, or in Chrome press F12, open the three-dot menu, then **More tools**, **Rendering**, and set _Emulate CSS prefers-color-scheme_ to dark. The logo and colours switch by themselves.
+- **Dark mode:** switch your computer to dark mode, or in Chrome press F12, open the three-dot menu, then **More tools**, **Rendering**, and set _Emulate CSS prefers-color-scheme_ to dark. The logo and colours switch by themselves (pink on blush white by day, soft pink on deep plum at night).
 - **Phone size:** in Chrome press F12, then Ctrl+Shift+M (Cmd+Shift+M on Mac), and pick a phone such as iPhone SE or iPhone 14.
+- **Green and yellow:** after you click **Send code**, the "We sent a code" notice is green. Once signed in, a thin yellow line runs under the header.
 - Logo files are in `client/public/brand/`; a preview sheet is in [docs/brand/logo-preview.png](docs/brand/logo-preview.png). Colours and type are tokens at the top of `client/src/styles.css`.
+- **Changing the colours:** edit those tokens and the palette at the top of `scripts/build-brand.mjs`, then run `npm run brand` to rebuild the logos, icons and splash images.
 
 ### Try it on your phone
 
@@ -97,6 +99,7 @@ Create a free Twilio account, then put `SMS_PROVIDER=twilio` and your `TWILIO_AC
 | `npm test`                | Run server tests (Node's built-in runner)                |
 | `npm run test:ui`         | Run browser UI tests (Playwright, see below)             |
 | `npm run test:ui:screens` | Same, and refresh the screenshots in `docs/screenshots/` |
+| `npm run brand`           | Rebuild logos, icons and splash images from the palette  |
 | `npm run lint`            | ESLint across the repo                                   |
 | `npm run format`          | Format with Prettier (`format:check` to verify)          |
 
