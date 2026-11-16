@@ -3,11 +3,25 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 
 const SERVER_LOG = fileURLToPath(new URL('./.server.log', import.meta.url));
-const SCREENSHOT_DIR = fileURLToPath(new URL('../test-screenshots/', import.meta.url));
+// Screenshots are for reviewing, not for the repo: they go to a git-ignored folder
+// (or wherever SCREENSHOT_DIR points).
+const SCREENSHOT_DIR = (
+  process.env.SCREENSHOT_DIR || fileURLToPath(new URL('../test-screenshots', import.meta.url))
+).replace(/\/?$/, '/');
 
-// A fresh number per test keeps the per-number rate limits from interfering.
+// A fresh number per sign-in keeps the per-number rate limits (one code per 30 seconds, five an
+// hour) from interfering. Nine random digits plus a never-repeating counter, so two sign-ins can
+// never get the same number (random five-digit numbers collided about once in 20 runs).
+const usedPhones = new Set();
 export function uniquePhone() {
-  return `+4477009${String(Math.floor(Math.random() * 1e5)).padStart(5, '0')}`;
+  for (;;) {
+    const digits = String(Math.floor(Math.random() * 1e9)).padStart(9, '0');
+    const phone = `+447${digits}`;
+    if (!usedPhones.has(phone)) {
+      usedPhones.add(phone);
+      return phone;
+    }
+  }
 }
 
 // Reads the latest code the console SMS provider printed for this number.

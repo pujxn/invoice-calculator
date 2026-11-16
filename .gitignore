@@ -8,3 +8,4 @@ test-results/
 playwright-report/
 server/uploads/
 test-screenshots/
+e2e/.screenshots/

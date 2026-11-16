@@ -4,7 +4,7 @@
 > [Ledgerly: Product Spec](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs).
 > This file is a snapshot of it for the repo. Change the doc first, then update this file and the changelog.
 
-Version 0.6 · 2026-11-16
+Version 0.7 · 2026-11-16
 
 ## Overview
 
@@ -20,7 +20,7 @@ Ledgerly (the working title was Invoice Calculator) reads a photo of a standardi
 - The user checks and corrects the amounts, then sees the final net amount.
 - Runs locally with no paid credentials (mock SMS and manual entry), and with real SMS and AI once keys are added.
 
-**Not in the prototype:** saved history, multiple currencies, multi-line invoices, user profiles, a production database, deployment, and native mobile apps. These are tracked in the Roadmap.
+**Not in the prototype:** saved history, converting between currencies, adding up long multi-line invoices (the lines are read and shown, but the net uses the printed totals), user profiles, a production database, deployment, and native mobile apps. These are tracked in the Roadmap.
 
 ## User flow
 
@@ -29,7 +29,7 @@ A user goes from phone number to net result in five screens, with a chance to fi
 1. **Enter phone number.** The user types a mobile number in international format (for example +44 7700 900123) and taps Send code.
 2. **Enter code.** A 6-digit code arrives by SMS. The user enters it; a wrong code shows an error, and Resend is available after 30 seconds.
 3. **Upload invoice.** The user picks or takes a photo (JPEG, PNG, WebP or HEIC, up to 10 MB) and sees a preview.
-4. **Review amounts.** AI reads the Debit and Credit amounts and pre-fills two fields. The user can edit either field, clear one, or upload a different photo.
+4. **Review amounts.** The user presses Read amounts; AI reads the Debit and Credit amounts and pre-fills two fields, with a confidence note, anything to double check and the lines it found. The user can edit either field, clear one, type the amounts by hand instead, or upload a different photo.
 5. **See result.** The app shows the net amount and labels it Net Debit, Net Credit, or Balanced, with the working (Debit minus Credit). The user can start a new invoice or sign out.
 
 ## From the whiteboard sketch
@@ -57,10 +57,10 @@ The prototype has 17 requirements across five areas; the Status column tracks ea
 | UP-1 | Upload | Only signed-in users can upload. | Built |
 | UP-2 | Upload | Accepts JPEG, PNG, WebP and HEIC up to 10 MB; on phones the camera can be used. | Built |
 | UP-3 | Upload | Shows a preview of the chosen image before extraction (HEIC shows a "No preview" note in browsers that cannot draw it), with progress, cancel, replace and remove. | Built |
-| AI-1 | Extraction | A vision AI model returns the Debit and Credit amounts as numbers, or null when a value is not on the invoice. | Planned |
-| AI-2 | Extraction | The response includes a confidence note and the currency if one is shown. | Planned |
-| AI-3 | Extraction | If the AI is not configured or fails, the user can still type the amounts by hand. | Planned |
-| AI-4 | Extraction | Uploaded images are kept only briefly: deleted when the user removes or replaces them, and automatically after 24 hours (`UPLOAD_TTL_HOURS`). The extraction step should also delete the image once it has been read. (Changed in 0.4: images are now stored so they can be uploaded and fetched.) | Planned |
+| AI-1 | Extraction | A vision AI model (Claude; model set by `ANTHROPIC_MODEL`) reads the uploaded picture and returns the Debit and Credit amounts as exact decimal strings (for example `"1250.50"`), or null when a value is not on the invoice. If the picture lists lines, they are returned too, with the total of each column. The answer is checked against a strict schema; anything off-shape is rejected. An amount that could be read two ways (`1,234`), is negative or has more than 2 decimals is returned as null with a warning, never guessed. HEIC is converted to JPEG first. | Built |
+| AI-2 | Extraction | The response includes a confidence level (high, medium, low), a short note, warnings for anything to check, and the currency code if one is shown. | Built |
+| AI-3 | Extraction | If the AI is not configured (mock mode shows demo values), is busy, times out or fails, the user sees a clear message, can retry, or can type the amounts by hand. Unreadable pictures, missing amounts and ambiguous values are reported the same way. | Built |
+| AI-4 | Extraction | Uploaded images are kept only briefly: deleted when the user removes or replaces them, automatically after 24 hours (`UPLOAD_TTL_HOURS`), and as soon as the amounts have been read (or the user chooses to type them). A failed reading keeps the picture so the user can retry. The image is sent only to the AI provider, resized and stripped of location data. | Built |
 | CALC-1 | Calculation | User can edit both amounts before calculating; amounts must be 0 or more with up to 2 decimals. | Planned |
 | CALC-2 | Calculation | Net = Debit minus Credit, using the rules in Calculation rules. | Planned |
 | CALC-3 | Calculation | Calculation uses exact decimal maths (cents), not floating point. | Planned |
@@ -128,10 +128,10 @@ The Node server exposes JSON endpoints under `/api`; all except the two code cal
 | `GET /api/invoices/:id` | none | the same details, or 404 |
 | `GET /api/invoices/:id/image` | none | the picture bytes, or 404 |
 | `DELETE /api/invoices/:id` | none | `{ ok: true }`, or 404 |
-| `POST /api/invoices/extract` | multipart form, field `image` | `{ debit, credit, currency, confidence, provider }` (amounts are numbers or null) |
+| `POST /api/invoices/:id/extract` | none | `{ invoiceId, provider, model, imageDeleted, debit, credit, currency, confidence, notes, warnings, lineItems, itemTotals }`; amounts are decimal strings or null. Deletes the picture on success |
 | `POST /api/invoices/calculate` | `{ debit, credit }` | `{ debit, credit, net, type }` where `type` is `debit`, `credit` or `balanced` and `net` is never negative |
 
-Errors use HTTP status codes (400 bad input, 401 not signed in, 404 not found or not yours, 413 file too large, 415 not a supported picture, 429 too many requests, 502 AI or SMS provider failed) with a body of `{ error: "message" }`. A 429 from the auth calls also carries `retryAfterSeconds` and a `Retry-After` header. A wrong code is 401; after 5 wrong tries the code is locked and further tries get 429 until a new code is requested.
+Errors use HTTP status codes (400 bad input, 401 not signed in, 404 not found or not yours, 413 file too large, 415 not a supported picture, 409 already being read, 422 picture or invoice could not be read, 429 too many requests or AI busy, 502 AI or SMS provider failed, 504 AI too slow) with a body of `{ error: "message" }`. A 429 from the auth calls also carries `retryAfterSeconds` and a `Retry-After` header. A wrong code is 401; after 5 wrong tries the code is locked and further tries get 429 until a new code is requested.
 
 A `GET /api/health` endpoint (no auth) reports that the server is up and which providers are configured.
 
@@ -156,16 +156,20 @@ The prototype runs with no settings at all: codes print to the server log and am
 | `VISION_PROVIDER` | `claude` if a key is set, else `mock` | Which AI reads the image; `mock` skips AI |
 | `ANTHROPIC_API_KEY` | none | Key for Claude vision |
 | `ANTHROPIC_MODEL` | `claude-opus-5-5` | Claude model used for extraction |
+| `ANTHROPIC_EFFORT` | `medium` | How hard the model thinks (`low` to `max`, or `none`) |
+| `ANTHROPIC_TIMEOUT_SECONDS` | 60 | One AI call is abandoned after this long |
+| `ANTHROPIC_FALLBACKS` | none | `default` lets the API retry a declined request on another model |
+| `EXTRACT_PER_USER_PER_HOUR` | 30 | Readings one user can start per hour |
 
 ## Security and privacy
 
-The prototype keeps no invoice images and stores codes only as hashes, but it is not production-ready until the items marked later are done.
+The prototype keeps invoice images only briefly (see AI-4) and stores codes only as hashes, but it is not production-ready until the items marked later are done.
 
 - Codes are stored hashed, compared in constant time, expire after 5 minutes and lock after 5 wrong tries.
 - Code requests are rate limited per phone number (one per 30 seconds, 5 per hour) and per IP address (20 per 15 minutes); code checks are limited to 40 per IP per 15 minutes. This limits SMS cost abuse and guessing.
 - Codes are keyed hashes (HMAC-SHA256 with a server secret) tied to the phone number, and are single use.
 - Session tokens are random 32-byte values held in server memory (only their SHA-256 is kept); restarting the server signs everyone out. The web app keeps the token in the browser's localStorage, so a script injected into the page could read it; moving to an HttpOnly cookie is a later hardening item.
-- Uploaded pictures are checked by their bytes (not their name), stored under a hashed owner folder with random file names, readable only by their owner, and deleted after 24 hours or when removed. They are sent only to the configured AI provider.
+- Uploaded pictures are checked by their bytes (not their name), stored under a hashed owner folder with random file names, readable only by their owner, and deleted after 24 hours or when removed. They are sent only to the configured AI provider, after being converted to a JPEG of at most 2000 px with location data removed, and are deleted as soon as they have been read. Reading is limited per user per hour because each real reading costs money; the AI's answer is validated before it reaches the user, and text inside a picture is treated as data, never as instructions.
 - API keys live in environment variables and never reach the browser.
 - Later, before real users: HTTPS everywhere, a persistent session store, audit logging, and a review of the AI provider's data retention terms.
 
@@ -204,3 +208,4 @@ The build can start without these answers; each has a default assumed in bracket
 | 2026-11-16 | 0.4 | Product named Ledgerly. Added the Branding section (logo, palette, icons, accessibility), the web app manifest, and icon and splash sources for the Capacitor wrapper. |
 | 2026-11-16 | 0.5 | Rebranded to a pink palette (pink, green, white) with a matching dark theme, requested by the manager. New logo colours, icons, splash and favicon; no layout or behaviour changes. |
 | 2026-11-16 | 0.6 | Invoice picture upload built (UP-1 to UP-3): upload, fetch and delete endpoints, size and type checks, per-user storage with automatic deletion, upload screen with camera, preview, progress, replace and remove. AI-4 changed: pictures are stored briefly instead of kept only in memory. Added 404 and 415 status codes and the `UPLOAD_*` settings. |
+| 2026-11-16 | 0.7 | AI amount extraction built (AI-1 to AI-4): `POST /api/invoices/:id/extract`, Claude vision provider with a deterministic mock mode, HEIC to JPEG conversion, strict output validation, exact decimal amounts (strings, not numbers), line items, warnings and confidence, per-user hourly limit, picture deleted after reading. Web: Read amounts, loading and cancel, editable Debit and Credit with checks, type by hand. Endpoint changed from a multipart `extract` to `:id/extract` on the already uploaded picture. |

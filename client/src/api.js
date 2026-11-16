@@ -7,7 +7,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function api(path, { method = 'GET', body, token } = {}) {
+export async function api(path, { method = 'GET', body, token, signal } = {}) {
   let res;
   try {
     res = await fetch(`/api${path}`, {
@@ -17,8 +17,10 @@ export async function api(path, { method = 'GET', body, token } = {}) {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal,
     });
-  } catch {
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err; // the caller cancelled; not a network problem
     throw new ApiError(0, 'Cannot reach the server. Check your connection and try again.');
   }
   const data = await res.json().catch(() => ({}));
