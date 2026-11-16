@@ -451,3 +451,78 @@ progress {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* The final amount (step 5). The label says Net Debit / Net Credit / Balanced in words;
+   the coloured edge is only a second cue. */
+.final {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 0.5rem solid var(--primary);
+  border-radius: var(--radius);
+}
+
+.final.credit {
+  border-left-color: var(--good-text);
+}
+
+.final.balanced,
+.final.none {
+  border-left-color: var(--border);
+}
+
+.final p {
+  margin: 0;
+}
+
+.final-label {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.final.debit .final-label {
+  color: var(--primary);
+}
+
+.final.credit .final-label {
+  color: var(--good-text);
+}
+
+.final-amount {
+  margin-top: 0.25rem;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere; /* a very large total wraps instead of widening the page */
+}
+
+.final-working {
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.breakdown {
+  margin-top: 1rem;
+}
+
+.breakdown tbody th,
+.breakdown tfoot th {
+  width: 55%;
+}
+
+.final-screen h3 {
+  margin: 1.5rem 0 0;
+  font-size: 1.1rem;
+}
+
+.copy-status {
+  min-height: 1.25rem;
+  margin: 0.5rem 0 0;
+}

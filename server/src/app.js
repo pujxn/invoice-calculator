@@ -5,6 +5,7 @@ import { createSessionStore } from './auth/sessions.js';
 import { createRateLimiter } from './auth/rateLimiter.js';
 import { createUploadStore } from './invoices/store.js';
 import { createInvoiceRouter } from './invoices/routes.js';
+import { createCalculateRouter } from './calculate/routes.js';
 import { createExtractor, createVisionProvider } from './extraction/index.js';
 import { createAuthRouter, createRequireAuth } from './auth/routes.js';
 
@@ -60,6 +61,8 @@ export function createApp(config, deps = {}) {
     createAuthRouter({ otp, sessions, requireAuth, ipRequestLimiter, ipVerifyLimiter }),
   );
 
+  app.use('/api/invoices/calculate', createCalculateRouter({ requireAuth }));
+
   app.use(
     '/api/invoices',
     createInvoiceRouter({
@@ -76,6 +79,9 @@ export function createApp(config, deps = {}) {
   app.use((err, _req, res, _next) => {
     if (err.type === 'entity.parse.failed') {
       return res.status(400).json({ error: 'Request body is not valid JSON.' });
+    }
+    if (err.type === 'entity.too.large') {
+      return res.status(413).json({ error: 'That request is too large.' });
     }
     console.error(err);
     res.status(500).json({ error: 'Something went wrong.' });

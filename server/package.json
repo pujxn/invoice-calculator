@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
+    "@ledgerly/money": "*",
     "express": "^4.21.0",
     "heic-convert": "^2.1.0",
     "multer": "^2.5.0",

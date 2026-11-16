@@ -14,13 +14,14 @@ The product spec is [SPEC.md](SPEC.md), a snapshot of the
 
 ## Status
 
-SMS one-time-code login, invoice picture upload and AI reading of the Debit and Credit amounts work end to end. After a picture is uploaded, **Read amounts** shows the detected Debit and Credit (editable), the lines found and anything to double check. The final net calculation is the next step; requirement status is tracked in SPEC.md.
+SMS one-time-code login, invoice picture upload and AI reading of the Debit and Credit amounts work end to end. After a picture is uploaded, **Read amounts** shows the detected Debit and Credit (editable), the lines found and anything to double check. **Calculate final amount** then shows the net as a Net Debit, Net Credit or Balanced, with the working, and updates as you correct the amounts. Requirement status is tracked in SPEC.md.
 
 ## Layout
 
 ```
 client/   React 18 + Vite web app (dev server on :5173, proxies /api to :4000)
 server/   Node + Express API (:4000)
+shared/   Exact-decimal money maths used by both (the calculation lives here)
 SPEC.md   Product spec, source of truth
 ```
 
@@ -114,6 +115,26 @@ Things worth trying:
 - Upload a photo that is not an invoice (a selfie, a blank wall): you get a message and the picture stays so you can retry or type the amounts.
 - If an amount is unclear (for example `1,234`, which could mean 1,234 or 1.234) the box is left empty and a "Please check" note explains why. The app never guesses an amount.
 
+### Try the final amount (about 3 minutes)
+
+Sign in, upload a picture and press **Read amounts** (steps above). This works in mock mode, with no AI key.
+
+1. On **Amounts we found**, press **Calculate final amount**. The **Final amount** screen shows a label (**Net Debit**, **Net Credit** or **Balanced**), the amount in large type, and the working, for example `Debit £1,250.50 − Credit £400.00 = £850.50`. A table below shows how it was worked out.
+2. Under **Change an amount**, change the Credit box to a bigger number than the Debit. The result flips to **Net Credit** straight away, with no button to press. Make them equal for **Balanced**.
+3. Press **Copy result**, then paste somewhere (a notes app, a message). You get one line such as `Net Debit £850.50 (Debit £1,250.50 − Credit £400.00)`.
+4. Refresh the page: you stay on the result with your edits. Press **Back to the invoice** to see the amounts screen again, or **Start a new invoice** to go back to upload (you stay signed in).
+
+Things worth trying:
+
+- Clear one box: a blank counts as none, so a Debit alone gives a Net Debit of that amount. Clear both: it says "Enter at least one amount".
+- Type `0` in both boxes: **Balanced** `0.00` (zero is a real amount).
+- Type `0.30` and `0.10`: exactly `0.20` (computers that use ordinary decimals get `0.19999999999999998`).
+- Type `1,000,000.07` and `0.01`, or `999999999999.99`: large amounts keep every digit and are grouped with commas.
+- Try `-5`, `12.345` or `abc`: the result is replaced by a clear message instead of a wrong number.
+- Press **Type the amounts instead** on the upload screen to try your own numbers with no picture at all (no currency symbol is shown then).
+
+The same maths is available on the server: while signed in, `POST /api/invoices/calculate` with `{"debit":"1250.50","credit":"400.00"}` (or `{"items":["1000.50","250.00","-400.00"]}` for a list of lines, where a minus sign means a Credit) answers with the exact result.
+
 ### Try it on your phone
 
 Your computer and phone must be on the same Wi-Fi. Start the app with `npm run dev -w server` in one terminal and `npm run dev -w client -- --host` in another. The second command prints a `Network:` address such as `http://192.168.1.20:5173`. Open that address on your phone. The code still appears in the computer's terminal.
@@ -122,7 +143,7 @@ Your computer and phone must be on the same Wi-Fi. Start the app with `npm run d
 
 | Command                           | What it checks                                                                                                       |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `npm test`                        | Server and web app unit and component tests (fast)                                                                   |
+| `npm test`                        | Shared money maths, server and web app unit and component tests (fast)                                               |
 | `npx playwright install chromium` | One-time download of the test browser                                                                                |
 | `npm run test:ui`                 | Opens real browser windows in the background and clicks through login on a phone, a small phone and a desktop window |
 | `npm run test:ui:screens`         | Same, and saves screenshots to `test-screenshots/` (not committed)                                                   |
@@ -144,14 +165,14 @@ Create a free Twilio account, then put `SMS_PROVIDER=twilio` and your `TWILIO_AC
 | `npm run dev`             | Start API and web app together with reload                               |
 | `npm run build`           | Production build of the web app (`client/dist`)                          |
 | `npm start`               | Start the API only                                                       |
-| `npm test`                | Run server tests (Node's built-in runner)                                |
+| `npm test`                | Run shared, server and web app tests                                     |
 | `npm run test:ui`         | Run browser UI tests (Playwright, see below)                             |
 | `npm run test:ui:screens` | Same, and refresh the screenshots in `test-screenshots/` (not committed) |
 | `npm run brand`           | Rebuild logos, icons and splash images from the palette                  |
 | `npm run lint`            | ESLint across the repo                                                   |
 | `npm run format`          | Format with Prettier (`format:check` to verify)                          |
 
-CI runs lint, format check, server tests, client tests, build and UI tests on every pull request.
+CI runs lint, format check, shared, server and client tests, build and UI tests on every pull request.
 
 ## UI tests
 
@@ -233,10 +254,22 @@ Files are stored as `<UPLOAD_DIR>/<hash of the owner>/<random id>.<ext>` with no
 - **How it works** (`server/src/extraction/`): `prepareImage.js` turns the picture into a JPEG of at most 2000 px (converts HEIC, applies phone rotation, drops location data); a provider (`providers/claude.js` or `providers/mock.js`) returns JSON; `schema.js` rejects anything that is not exactly the agreed shape; `normalize.js` and `money.js` turn it into exact decimals and warnings. Pick the provider with `VISION_PROVIDER` (`claude` or `mock`). Tests inject a fake provider, so no test calls the real API.
 - On the web page, `<InvoiceFlow />` (`client/src/invoices/`) shows the upload screen and then the editable results; the reading is kept in this browser tab's session storage so a reload keeps edits.
 
+## The calculation
+
+The maths lives in `shared/` (package `@ledgerly/money`), a small dependency-free module that the server and the web app both import, so the screen and the API always give the same answer.
+
+- **Exact money.** Amounts are decimal strings (`"1250.50"`) and are held as whole minor units (cents) in `BigInt`. Nothing is ever turned into a floating point number.
+- **Signed line items.** `totalLines(items)` takes a list where a positive amount is a Debit line and a negative amount is a Credit line, and returns the Debit total, the Credit total, the net (never negative), the signed net and the type (`debit`, `credit` or `balanced`). `calculateNet({ debit, credit })` is the usual invoice as a list of two. A blank or missing side counts as 0, but at least one must be given.
+- **Rules.** Amounts typed or sent must have at most 2 decimals (more is refused with a message, unless the caller passes `round: true`, which rounds each line half away from zero), may use thousands commas (`1,250.50`, or `12,50,000` in lakh style), and one amount is at most 999,999,999,999.99. A list may hold up to 5,000 lines.
+- **Showing it.** `formatAmount("1250.5", "GBP")` is `£1,250.50`; unknown currency codes are written before the number, and rupees use lakh grouping. `describeResult` builds the label, the working and the line that Copy result copies.
+- **API.** `POST /api/invoices/calculate` (signed in) takes `{ "debit": "1250.50", "credit": "400.00" }` or `{ "items": ["1000.50", "-400.00"] }` and answers `{ debit, credit, net, signedNet, type, lineCount }`. Amounts must be text: a JSON number is refused because it has already been through floating point.
+- **Tests.** `shared/test/` (maths, formatting), `server/test/calculate.test.js` (API), `client/test/Result.test.jsx` (screen) and `e2e/calculate.spec.js` (whole flow in a browser).
+- On the web page, `<ResultScreen />` (`client/src/invoices/`) is step 5; `<InvoiceFlow />` moves between upload, review and result.
+
 ## Build order
 
 1. Repo setup and scaffold
 2. SMS one-time-code login
 3. Invoice upload
-4. AI amount extraction (this step)
-5. Review and calculation of the net amount
+4. AI amount extraction
+5. Review and calculation of the net amount (this step)

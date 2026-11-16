@@ -1,24 +1,40 @@
-import { checkAmount } from './amounts.js';
+import { useState } from 'react';
+import { calculateNet } from '@ledgerly/money';
+import useFocusOnMount from '../useFocusOnMount.js';
+import AmountFields from './AmountFields.jsx';
 
 const CONFIDENCE = { high: 'High', medium: 'Medium', low: 'Low' };
 
 // Shows what was read from the picture: the Debit and Credit boxes (editable), anything to
 // double check, and the lines found on the invoice. The values live in the parent so they
 // survive a reload; this component only draws them.
-export default function ExtractedAmounts({ result, values, onChange, onReset, onStartOver }) {
-  const checks = {
-    debit: checkAmount(values.debit),
-    credit: checkAmount(values.credit),
-  };
+export default function ExtractedAmounts({
+  result,
+  values,
+  onChange,
+  onReset,
+  onStartOver,
+  onCalculate,
+}) {
+  const headingRef = useFocusOnMount();
+  const [problem, setProblem] = useState('');
   const edited = ['debit', 'credit'].some((f) => values[f] !== (result[f] ?? ''));
   const demo = result.provider === 'mock';
   const manual = result.provider === 'manual';
   const currency = result.currency;
   const hasItems = result.lineItems.length > 0;
 
+  function calculate() {
+    const outcome = calculateNet(values);
+    if (outcome.ok) onCalculate();
+    else setProblem(outcome.message);
+  }
+
   return (
     <section className="results" aria-labelledby="results-title">
-      <h2 id="results-title">{manual ? 'Enter the amounts' : 'Amounts we found'}</h2>
+      <h2 id="results-title" ref={headingRef} tabIndex={-1}>
+        {manual ? 'Enter the amounts' : 'Amounts we found'}
+      </h2>
       <p className="hint">
         {manual
           ? 'Type the Debit and Credit from your invoice. Leave one blank if the invoice has none.'
@@ -54,45 +70,14 @@ export default function ExtractedAmounts({ result, values, onChange, onReset, on
         </div>
       )}
 
-      <form className="amounts" onSubmit={(e) => e.preventDefault()} noValidate>
-        {['debit', 'credit'].map((field) => {
-          const check = checks[field];
-          const label = field === 'debit' ? 'Debit' : 'Credit';
-          const missing = !manual && result[field] === null && values[field] === '';
-          return (
-            <div className="field" key={field}>
-              <label htmlFor={`amount-${field}`}>
-                {label}
-                {currency && <span className="hint"> ({currency})</span>}
-              </label>
-              <input
-                id={`amount-${field}`}
-                name={field}
-                inputMode="decimal"
-                autoComplete="off"
-                placeholder="None"
-                value={values[field]}
-                onChange={(e) => onChange(field, e.target.value)}
-                aria-invalid={!check.ok}
-                aria-describedby={`amount-${field}-hint`}
-              />
-              <p
-                id={`amount-${field}-hint`}
-                className={check.ok ? 'hint' : 'field-error'}
-                role={check.ok ? undefined : 'alert'}
-              >
-                {check.ok
-                  ? missing
-                    ? `No ${label} amount found. Leave blank if the invoice has none.`
-                    : values[field] === ''
-                      ? 'Blank counts as none.'
-                      : ' '
-                  : check.message}
-              </p>
-            </div>
-          );
-        })}
-      </form>
+      <AmountFields
+        result={result}
+        values={values}
+        onChange={(field, text) => {
+          setProblem('');
+          onChange(field, text);
+        }}
+      />
 
       {hasItems && (
         <div className="items">
@@ -129,9 +114,16 @@ export default function ExtractedAmounts({ result, values, onChange, onReset, on
         </div>
       )}
 
-      <p className="hint">Working out the final amount comes in the next step.</p>
+      {problem && (
+        <div className="status bad" role="alert">
+          {problem}
+        </div>
+      )}
 
       <div className="actions">
+        <button type="button" onClick={calculate}>
+          Calculate final amount
+        </button>
         {edited && (
           <button type="button" className="secondary" onClick={onReset}>
             Reset to what was found
