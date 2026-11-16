@@ -10,12 +10,11 @@ const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
 export const OUTPUT_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['readable', 'debit', 'credit', 'currency', 'confidence', 'notes', 'line_items'],
+  required: ['readable', 'debit', 'credit', 'confidence', 'notes', 'line_items'],
   properties: {
     readable: { type: 'boolean' },
     debit: nullableString,
     credit: nullableString,
-    currency: nullableString,
     confidence: { type: 'string', enum: CONFIDENCE },
     notes: { type: 'string' },
     line_items: {
@@ -66,9 +65,6 @@ export function validateModelOutput(raw) {
   if (typeof raw.readable !== 'boolean') throw bad('readable must be true or false');
   const debit = optionalString(raw.debit, 'debit', 40);
   const credit = optionalString(raw.credit, 'credit', 40);
-  const currency = optionalString(raw.currency, 'currency', 3);
-  if (currency !== null && !/^[A-Z]{3}$/.test(currency))
-    throw bad('currency is not a 3-letter code');
   if (!CONFIDENCE.includes(raw.confidence)) throw bad('confidence is not high, medium or low');
   if (typeof raw.notes !== 'string' || raw.notes.length > 2000)
     throw bad('notes is not valid text');
@@ -92,7 +88,6 @@ export function validateModelOutput(raw) {
     readable: raw.readable,
     debit,
     credit,
-    currency,
     confidence: raw.confidence,
     notes: raw.notes.trim(),
     lineItems,

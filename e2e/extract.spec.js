@@ -29,7 +29,7 @@ const sample = (over = {}) => ({
   imageDeleted: true,
   debit: '1250.50',
   credit: '400.00',
-  currency: 'GBP',
+  currency: 'INR',
   confidence: 'high',
   notes: '',
   warnings: [],
@@ -247,15 +247,19 @@ test('edit the amounts, see errors for bad entries, and keep edits after a reloa
   await uploadAndRead(page);
   const found = [await debit(page).inputValue(), await credit(page).inputValue()];
 
-  await debit(page).fill('12.345');
-  await expect(page.getByText('Use at most 2 decimal places.')).toBeVisible();
+  await debit(page).fill('1.2345678901234');
+  await expect(page.getByText('Use at most 12 decimal places.')).toBeVisible();
   await expect(debit(page)).toHaveAttribute('aria-invalid', 'true');
   await shot(page, 'extract-07-edit-error');
   await debit(page).fill('-5');
   await expect(page.getByText('Amounts cannot be negative.')).toBeVisible();
   await debit(page).fill('abc');
-  await expect(page.getByText('Enter a number such as 1250.50.')).toBeVisible();
+  await expect(page.getByText(/^Enter a number such as 1250\.50/)).toBeVisible();
 
+  // an amount with many decimals is fine: nothing is refused or rounded
+  await debit(page).fill('12.345');
+  await expect(debit(page)).toHaveAttribute('aria-invalid', 'false');
+  await expect(page.getByText('Use at most')).toBeHidden();
   await debit(page).fill('1300.5');
   await credit(page).fill('');
   await expect(page.getByText('Use at most')).toBeHidden();
@@ -321,8 +325,8 @@ for (const scheme of ['light', 'dark']) {
     await readButton(page).click();
     await expect(resultsHeading(page)).toBeVisible();
     await check();
-    await debit(page).fill('12.345');
-    await expect(page.getByText('Use at most 2 decimal places.')).toBeVisible();
+    await debit(page).fill('1.2345678901234');
+    await expect(page.getByText('Use at most 12 decimal places.')).toBeVisible();
     await check();
   });
 }

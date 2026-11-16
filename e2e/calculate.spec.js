@@ -21,7 +21,7 @@ const reading = (over = {}) => ({
   imageDeleted: true,
   debit: '1250.50',
   credit: '400.00',
-  currency: 'GBP',
+  currency: 'INR',
   confidence: 'high',
   notes: '',
   warnings: [],
@@ -84,9 +84,9 @@ test('read an invoice, calculate, and see the final amount', async ({ page }) =>
   await expect(finalHeading(page)).toBeFocused();
   const want = expectedNet(d, c);
   await expect(final(page)).toContainText(want.label);
-  // The demo amounts are in GBP; the total is grouped with commas.
+  // The demo amounts are in rupees; the total is grouped the Indian way (lakh, crore).
   await expect(final(page).locator('.final-amount')).toHaveText(
-    `£${Number(want.amount.split('.')[0]).toLocaleString('en')}.${want.amount.split('.')[1]}`,
+    `₹${Number(want.amount.split('.')[0]).toLocaleString('en-IN')}.${want.amount.split('.')[1]}`,
   );
   const table = page.getByRole('table', { name: 'How it was worked out' });
   await expect(table.getByRole('row')).toHaveCount(3);
@@ -98,55 +98,55 @@ test('read an invoice, calculate, and see the final amount', async ({ page }) =>
 test('editing an amount updates the result straight away', async ({ page }) => {
   await openResult(page, { debit: '1250.50', credit: '400.00' });
   await expect(final(page)).toContainText('Net Debit');
-  await expect(final(page).locator('.final-amount')).toHaveText('£850.50');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹850.50');
 
   await credit(page).fill('975.50');
-  await expect(final(page).locator('.final-amount')).toHaveText('£275.00');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹275.00');
 
   await credit(page).fill('2000');
   await expect(final(page)).toContainText('Net Credit');
-  await expect(final(page).locator('.final-amount')).toHaveText('£749.50');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹749.50');
 });
 
 test('Net Credit, Balanced, and one-sided invoices', async ({ page }) => {
   await openResult(page, { debit: '300.00', credit: '975.50' });
   await expect(final(page)).toContainText('Net Credit');
-  await expect(final(page).locator('.final-amount')).toHaveText('£675.50');
-  await expect(final(page)).toContainText('Debit £300.00 − Credit £975.50 = −£675.50');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹675.50');
+  await expect(final(page)).toContainText('Debit ₹300.00 − Credit ₹975.50 = −₹675.50');
   await shot(page, 'calc-03-result-net-credit');
 
   await debit(page).fill('975.50');
   await expect(final(page)).toContainText('Balanced');
-  await expect(final(page).locator('.final-amount')).toHaveText('£0.00');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹0.00');
   await shot(page, 'calc-04-result-balanced');
 
   await debit(page).fill('720');
   await credit(page).fill('');
   await expect(final(page)).toContainText('Net Debit');
-  await expect(final(page).locator('.final-amount')).toHaveText('£720.00');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹720.00');
 
   await debit(page).fill('');
   await credit(page).fill('99.99');
   await expect(final(page)).toContainText('Net Credit');
-  await expect(final(page).locator('.final-amount')).toHaveText('£99.99');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹99.99');
 });
 
 test('exact decimals, thousands separators and very large amounts', async ({ page }) => {
   await openResult(page, { debit: '0.30', credit: '0.10' });
-  await expect(final(page).locator('.final-amount')).toHaveText('£0.20'); // floats give 0.19999999999999998
+  await expect(final(page).locator('.final-amount')).toHaveText('₹0.20'); // floats give 0.19999999999999998
 
   await debit(page).fill('1,000,000.07');
   await credit(page).fill('0.01');
-  await expect(final(page).locator('.final-amount')).toHaveText('£1,000,000.06');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹10,00,000.06');
 
   await debit(page).fill('999999999999.99');
   await credit(page).fill('0.01');
-  await expect(final(page).locator('.final-amount')).toHaveText('£999,999,999,999.98');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹9,99,99,99,99,999.98');
   await expectNoSideScroll(page);
   await shot(page, 'calc-05-result-large-amount');
 });
 
-test('zero, blanks, negatives and too many decimals', async ({ page }) => {
+test('zero, blanks, negatives, junk and amounts beyond the limits', async ({ page }) => {
   await openResult(page, { debit: '10.00', credit: '4.00' });
 
   await debit(page).fill('0');
@@ -164,11 +164,78 @@ test('zero, blanks, negatives and too many decimals', async ({ page }) => {
   await expect(final(page)).toContainText('Amounts cannot be negative');
   await expect(debit(page)).toHaveAttribute('aria-invalid', 'true');
 
-  await debit(page).fill('12.345');
-  await expect(final(page)).toContainText('Use at most 2 decimal places');
+  await debit(page).fill('1.0000000000001');
+  await expect(final(page)).toContainText('Use at most 12 decimal places');
+
+  await debit(page).fill('£5');
+  await expect(final(page)).toContainText('Ledgerly works in rupees');
+
+  await debit(page).fill('1e');
+  await expect(final(page)).toContainText('Enter a number such as 1250.50');
+
+  await debit(page).fill('9'.repeat(16));
+  await expect(final(page)).toContainText('at most 15 digits');
+  await expect(debit(page)).toHaveAttribute('aria-invalid', 'true');
 
   await debit(page).fill('12.34');
   await expect(final(page)).toContainText('Net Debit');
+});
+
+test('any amount is accepted: the exact figure is kept, the shown one is rounded with a note', async ({
+  page,
+}) => {
+  await openResult(page, { debit: '1250.50', credit: '400.00' });
+  const amount = final(page).locator('.final-amount');
+  const note = page.getByTestId('rounded-note');
+  await expect(note).toBeHidden(); // 850.50 needs no rounding
+
+  await debit(page).fill('12.345');
+  await credit(page).fill('');
+  await expect(debit(page)).toHaveAttribute('aria-invalid', 'false');
+  await expect(amount).toHaveText('₹12.35');
+  await expect(note).toContainText('Shown rounded to 2 decimal places');
+  await expect(note).toContainText('The exact amount is ₹12.345.');
+  await expect(final(page)).toContainText('Debit ₹12.345 − Credit ₹0.00 = ₹12.345');
+  await expectNoSideScroll(page);
+  await expect(page.getByText(/Type any amount in rupees/)).toContainText('15 digits');
+  await expect(page.getByText(/Type any amount in rupees/)).toContainText('12 decimal places');
+  await shot(page, 'calc-11-any-amount-rounded-note');
+
+  // [typed Debit, typed Credit, label, big figure, exact amount (or null when not rounded)]
+  const cases = [
+    ['0.001', '', 'Net Debit', '₹0.00', '₹0.001'],
+    ['', '0.001', 'Net Credit', '₹0.00', '₹0.001'],
+    ['2.675', '', 'Net Debit', '₹2.68', '₹2.675'], // a float would round this to 2.67
+    ['1e3', '250.5', 'Net Debit', '₹749.50', null],
+    ['0.1', '0.3', 'Net Credit', '₹0.20', null],
+    ['10.005', '0.004', 'Net Debit', '₹10.00', '₹10.001'],
+    ['1,23,456.789', '', 'Net Debit', '₹1,23,456.79', '₹1,23,456.789'],
+    ['₹ 1,00,000', 'Rs. 500/-', 'Net Debit', '₹99,500.00', null],
+    ['0.123456789012', '', 'Net Debit', '₹0.12', '₹0.123456789012'], // 12 decimals, the most allowed
+    ['999999999999999.99', '0.01', 'Net Debit', '₹99,99,99,99,99,99,999.98', null], // 15 digits, the most allowed
+    ['0.005', '0.005', 'Balanced', '₹0.00', null],
+  ];
+  for (const [d, c, label, figure, exact] of cases) {
+    await debit(page).fill(d);
+    await credit(page).fill(c);
+    await expect(final(page), `${d} and ${c}`).toContainText(label);
+    await expect(amount, `${d} and ${c}`).toHaveText(figure);
+    if (exact) await expect(note).toContainText(exact);
+    else await expect(note).toBeHidden();
+    await expect(debit(page)).toHaveAttribute('aria-invalid', 'false');
+  }
+});
+
+test('an amount with many decimals is not blanked or refused on the review screen', async ({
+  page,
+}) => {
+  await readInvoice(page, { debit: '1234.567', credit: '0.001' });
+  await expect(debit(page)).toHaveValue('1234.567');
+  await expect(credit(page)).toHaveValue('0.001');
+  await expect(page.getByRole('alert')).toBeHidden();
+  await calculateButton(page).click();
+  await expect(final(page).locator('.final-amount')).toHaveText('₹1,234.57');
+  await expect(page.getByTestId('rounded-note')).toContainText('₹1,234.566');
 });
 
 test('with both boxes blank, Calculate asks for an amount and stays on the screen', async ({
@@ -194,7 +261,7 @@ test('amounts typed by hand work the same way', async ({ page }) => {
   await credit(page).fill('20');
   await calculateButton(page).click();
   await expect(final(page)).toContainText('Net Debit');
-  await expect(final(page).locator('.final-amount')).toHaveText('800.40'); // no currency known
+  await expect(final(page).locator('.final-amount')).toHaveText('₹800.40');
 });
 
 test('the result and the edits survive a reload; Back keeps them', async ({ page }) => {
@@ -203,13 +270,13 @@ test('the result and the edits survive a reload; Back keeps them', async ({ page
   await page.reload();
   await expect(finalHeading(page)).toBeVisible();
   await expect(credit(page)).toHaveValue('50');
-  await expect(final(page).locator('.final-amount')).toHaveText('£1,200.50');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹1,200.50');
 
   await page.getByRole('button', { name: 'Back to the invoice' }).click();
   await expect(page.getByRole('heading', { name: 'Amounts we found' })).toBeFocused();
   await expect(credit(page)).toHaveValue('50');
   await calculateButton(page).click();
-  await expect(final(page).locator('.final-amount')).toHaveText('£1,200.50');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹1,200.50');
 });
 
 test('Reset to what was found restores the original amounts', async ({ page }) => {
@@ -218,7 +285,7 @@ test('Reset to what was found restores the original amounts', async ({ page }) =
   await debit(page).fill('1');
   await page.getByRole('button', { name: 'Reset to what was found' }).click();
   await expect(debit(page)).toHaveValue('1250.50');
-  await expect(final(page).locator('.final-amount')).toHaveText('£850.50');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹850.50');
 });
 
 test('Start a new invoice returns to upload without signing in again', async ({ page }) => {
@@ -237,7 +304,7 @@ test('Copy result puts the answer on the clipboard', async ({ page, context, bro
   await page.getByRole('button', { name: 'Copy result' }).click();
   await expect(page.getByText('Copied to the clipboard.')).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    'Net Debit £850.50 (Debit £1,250.50 − Credit £400.00)',
+    'Net Debit ₹850.50 (Debit ₹1,250.50 − Credit ₹400.00)',
   );
   await shot(page, 'calc-08-copied');
 });
@@ -253,7 +320,24 @@ test('the calculate API gives the same answer as the screen', async ({ page }) =
     data: { debit: '0.30', credit: '0.10' },
   });
   expect(ok.status()).toBe(200);
-  expect(await ok.json()).toMatchObject({ net: '0.20', type: 'debit' });
+  expect(await ok.json()).toMatchObject({ net: '0.20', type: 'debit', rounded: false });
+  const long = await page.request.post('/api/invoices/calculate', {
+    headers,
+    data: { debit: '12.345', credit: '0.001' },
+  });
+  expect(long.status()).toBe(200);
+  expect(await long.json()).toMatchObject({
+    net: '12.344',
+    netRounded: '12.34',
+    rounded: true,
+    type: 'debit',
+  });
+  const tooLong = await page.request.post('/api/invoices/calculate', {
+    headers,
+    data: { debit: '1.0000000000001' },
+  });
+  expect(tooLong.status()).toBe(400);
+  expect((await tooLong.json()).error).toMatch(/at most 12 decimal places/);
   const lines = await page.request.post('/api/invoices/calculate', {
     headers,
     data: { items: ['1000.50', '250.00', '-400.00'] },
@@ -283,6 +367,11 @@ for (const scheme of ['light', 'dark']) {
     await check();
     await debit(page).fill('975.50'); // Balanced
     await check();
+    await debit(page).fill('12.345'); // the rounded-figure note
+    await credit(page).fill('');
+    await expect(page.getByTestId('rounded-note')).toBeVisible();
+    await check();
+    await shot(page, `calc-12-rounded-note-${scheme}`);
     await debit(page).fill('-1'); // an error state
     await check();
     await shot(page, `calc-10-result-error-${scheme}`);

@@ -21,7 +21,6 @@ export default function ExtractedAmounts({
   const edited = ['debit', 'credit'].some((f) => values[f] !== (result[f] ?? ''));
   const demo = result.provider === 'mock';
   const manual = result.provider === 'manual';
-  const currency = result.currency;
   const hasItems = result.lineItems.length > 0;
 
   function calculate() {
@@ -47,13 +46,8 @@ export default function ExtractedAmounts({
 
       {!manual && (
         <p className={`confidence ${result.confidence}`}>
-          Confidence: <strong>{CONFIDENCE[result.confidence]}</strong>
-          {currency && (
-            <>
-              {' '}
-              · Currency: <strong>{currency}</strong>
-            </>
-          )}
+          Confidence: <strong>{CONFIDENCE[result.confidence]}</strong> · Amounts in rupees (
+          <strong>₹</strong>)
         </p>
       )}
 

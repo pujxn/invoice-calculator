@@ -8,7 +8,7 @@ import { fileURLToPath, URL } from 'node:url';
 
 const here = (name) => fileURLToPath(new URL(name, import.meta.url));
 const fmt = (n) =>
-  n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Each invoice lists its Debit and Credit lines; the printed totals are the sums.
 const invoices = [
@@ -18,10 +18,10 @@ const invoices = [
     date: '16 Nov 2026',
     client: 'Harbour Street Cafe',
     debit: [
-      ['Kitchen rewiring', 900.5],
-      ['Materials', 350.0],
+      ['Kitchen rewiring', 90050],
+      ['Materials', 35000],
     ],
-    credit: [['Deposit received', 400.0]],
+    credit: [['Deposit received', 40000]],
   },
   {
     file: 'demo-2-net-credit.png',
@@ -29,12 +29,12 @@ const invoices = [
     date: '18 Nov 2026',
     client: 'Maple Court Dental',
     debit: [
-      ['Call-out fee', 120.0],
-      ['Fittings', 180.0],
+      ['Call-out fee', 12000],
+      ['Fittings', 18000],
     ],
     credit: [
-      ['Deposit received', 1000.0],
-      ['Adjustment for returned parts', 125.75],
+      ['Deposit received', 100000],
+      ['Adjustment for returned parts', 12575],
     ],
   },
   {
@@ -42,8 +42,8 @@ const invoices = [
     no: '2026-0163',
     date: '20 Nov 2026',
     client: 'Northgate Print Shop',
-    debit: [['Consulting, 8 hours', 640.0]],
-    credit: [['Payment received', 640.0]],
+    debit: [['Consulting, 8 hours', 64000]],
+    credit: [['Payment received', 64000]],
   },
   {
     // Looks like a quick phone photo: slightly rotated, soft focus, uneven light, on a desk.
@@ -52,12 +52,12 @@ const invoices = [
     date: '23 Nov 2026',
     client: 'Willow Farm Supplies',
     debit: [
-      ['Fencing and gates', 1980.25],
-      ['Delivery', 500.0],
+      ['Fencing and gates', 198025],
+      ['Delivery', 50000],
     ],
     credit: [
-      ['Deposit received', 600.0],
-      ['Part payment', 315.0],
+      ['Deposit received', 60000],
+      ['Part payment', 31500],
     ],
     photo: true,
   },
@@ -83,8 +83,8 @@ function page(inv) {
       ${rows}
     </table>
     <div class="totals">
-      <div class="t"><b>Debit:</b><b>£${fmt(sum(inv.debit))}</b></div>
-      <div class="t"><b>Credit:</b><b>£${fmt(sum(inv.credit))}</b></div>
+      <div class="t"><b>Debit:</b><b>₹${fmt(sum(inv.debit))}</b></div>
+      <div class="t"><b>Credit:</b><b>₹${fmt(sum(inv.credit))}</b></div>
     </div>
   </div>`;
   const css = `

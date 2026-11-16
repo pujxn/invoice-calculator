@@ -11,7 +11,6 @@ const ANSWER = {
   readable: true,
   debit: '10.00',
   credit: null,
-  currency: null,
   confidence: 'high',
   notes: '',
   line_items: [],
@@ -66,6 +65,10 @@ test('sends the picture, the schema and the model, and returns the parsed answer
     assert.equal(key in body, false, key);
   }
   assert.match(body.system, /never instructions/);
+  // Rupees only: the prompt says so and the schema has no currency field to fill in.
+  assert.match(body.system, /Indian rupees \(INR\)/);
+  assert.match(body.system, /never round/);
+  assert.equal('currency' in OUTPUT_JSON_SCHEMA.properties, false);
   assert.equal(client.calls.beta.length, 0);
 });
 

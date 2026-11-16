@@ -106,8 +106,15 @@ test('the whole journey: sign in, upload, read, calculate, start again, sign out
   await credit(page).fill('40.5');
   await button(page, 'Calculate final amount').click();
   await expect(final(page)).toContainText('Net Debit');
-  await expect(final(page).locator('.final-amount')).toHaveText('59.50');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹59.50');
   await shot(page, 'journey-07-typed-by-hand');
+
+  // Any amount is accepted: a long decimal is kept exactly and the shown figure says it is rounded.
+  await debit(page).fill('100.005');
+  await credit(page).fill('40.5');
+  await expect(final(page).locator('.final-amount')).toHaveText('₹59.51');
+  await expect(page.getByTestId('rounded-note')).toContainText('The exact amount is ₹59.505.');
+  await debit(page).fill('100');
 
   // 7. Sign out: back on the sign-in screen, and the protected page stays closed.
   await button(page, 'Sign out').click();
@@ -398,7 +405,7 @@ test('with text enlarged to 200% nothing overlaps, runs off the screen or stops 
   expect(label[0]).toBeLessThanOrEqual(label[1]);
   await calculate.click();
   await expect(heading(page, 'Final amount')).toBeVisible();
-  await debit(page).fill('999999999999.99');
+  await debit(page).fill('999999999999999.999999999999');
   await credit(page).fill('0.01');
   await expectNoSideScroll(page);
   for (const name of ['Copy result', 'Back to the invoice', 'Start a new invoice']) {

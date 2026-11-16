@@ -25,7 +25,7 @@ const reading = {
   imageDeleted: true,
   debit: '1250.50',
   credit: '400.00',
-  currency: 'GBP',
+  currency: 'INR',
   confidence: 'high',
   notes: '',
   warnings: [],

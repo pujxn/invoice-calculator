@@ -1,4 +1,4 @@
-import { parseAmount, sumAmounts, toCents } from './money.js';
+import { parseAmount, sameAmount, sumAmounts } from './money.js';
 
 const LEVELS = ['low', 'medium', 'high'];
 const lower = (a, b) => (LEVELS.indexOf(a) <= LEVELS.indexOf(b) ? a : b);
@@ -44,7 +44,7 @@ export function normalizeExtraction(model) {
     for (const field of ['debit', 'credit']) {
       const stated = field === 'debit' ? debit : credit;
       const hasItems = lineItems.some((i) => i.column === field);
-      if (stated !== null && hasItems && toCents(stated) !== toCents(itemTotals[field])) {
+      if (stated !== null && hasItems && !sameAmount(stated, itemTotals[field])) {
         warnings.push({
           field,
           code: 'items_mismatch',
@@ -73,7 +73,7 @@ export function normalizeExtraction(model) {
   return {
     debit,
     credit,
-    currency: model.currency,
+    currency: 'INR', // Ledgerly works in Indian rupees only
     confidence,
     notes: model.notes,
     warnings,

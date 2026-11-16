@@ -24,14 +24,14 @@ Be honest in mock mode. The screen itself says "Demo values (no AI key is set), 
 
 Made-up inputs, not screenshots. Regenerate with `node docs/demo/make-demo-invoices.mjs`.
 
-| File                       | Printed Debit | Printed Credit | Expected final amount  | Mock mode: type these |
-| -------------------------- | ------------- | -------------- | ---------------------- | --------------------- |
-| `demo-1-net-debit.png`     | 1,250.50      | 400.00         | **Net Debit 850.50**   | `1250.50` / `400.00`  |
-| `demo-2-net-credit.png`    | 300.00        | 1,125.75       | **Net Credit 825.75**  | `300.00` / `1125.75`  |
-| `demo-3-balanced.png`      | 640.00        | 640.00         | **Balanced 0.00**      | `640.00` / `640.00`   |
-| `demo-4-tricky-blurry.jpg` | 2,480.25      | 915.00         | **Net Debit 1,565.25** | `2480.25` / `915.00`  |
+| File                       | Printed Debit | Printed Credit | Expected final amount      | Mock mode: type these    |
+| -------------------------- | ------------- | -------------- | -------------------------- | ------------------------ |
+| `demo-1-net-debit.png`     | ₹1,25,050.00  | ₹40,000.00     | **Net Debit ₹85,050.00**   | `125050.00` / `40000.00` |
+| `demo-2-net-credit.png`    | ₹30,000.00    | ₹1,12,575.00   | **Net Credit ₹82,575.00**  | `30000` / `112575`       |
+| `demo-3-balanced.png`      | ₹64,000.00    | ₹64,000.00     | **Balanced ₹0.00**         | `64000` / `64000`        |
+| `demo-4-tricky-blurry.jpg` | ₹2,48,025.00  | ₹91,500.00     | **Net Debit ₹1,56,525.00** | `248025` / `91500`       |
 
-Both modes show a pound sign on the result (`£850.50`), because the reading carries a currency (GBP). If you use **Type the amounts instead**, no currency symbol is shown.
+Ledgerly works in Indian rupees only, so every result shows the ₹ sign with lakh grouping (`₹85,050.00`), in both modes and when you use **Type the amounts instead**. The sample invoices are in rupees too.
 
 **What has and has not been checked.** Mode B (mock) and the whole screen flow were run end to end on `main` while writing this, on desktop and phone sizes. Mode A (real AI) was not run, because no API key was available: the Mode A results in this script are what the app should show, so do one rehearsal with your key first.
 
@@ -78,23 +78,24 @@ Optional 10 seconds if asked about security: type a wrong code ("Wrong code. 4 t
 ### 4. The AI reads the amounts (about 1 minute). **Live**
 
 1. Press **Read amounts**. **Expect:** a spinner and "Reading your invoice..." (a few seconds in Mode A, instant in Mode B), then **Amounts we found**.
-2. **Mode A, expect:** Debit `1250.50`, Credit `400.00`, Currency GBP, a confidence line (High on a clean picture), and a **Lines found on the invoice** table showing Kitchen rewiring 900.50, Materials 350.00 and Deposit received 400.00, with "Lines add up to" 1250.50 and 400.00. **Say:** "It read the totals and every line, and the lines add up to the totals, which is a cross-check."
-3. **Mode B, expect:** the notice "Demo values (no AI key is set), not read from your picture", and boxes with unrelated numbers such as `1484.91` and `147.63`. **Say:** "AI is off in this run, so these are placeholders. This is exactly where an agent would check the AI's work." Move straight on to step 5. Skip the lines table; in mock mode it lists made-up lines.
+2. **Mode A, expect:** Debit `125050.00`, Credit `40000.00`, "Amounts in rupees (₹)", a confidence line (High on a clean picture), and a **Lines found on the invoice** table showing Kitchen rewiring 90050.00, Materials 35000.00 and Deposit received 40000.00, with "Lines add up to" 125050.00 and 40000.00. **Say:** "It read the totals and every line, and the lines add up to the totals, which is a cross-check."
+3. **Mode B, expect:** the notice "Demo values (no AI key is set), not read from your picture", and boxes with unrelated numbers such as `1484.91` and `147.63` (the demo values are small rupee amounts). **Say:** "AI is off in this run, so these are placeholders. This is exactly where an agent would check the AI's work." Move straight on to step 5. Skip the lines table; in mock mode it lists made-up lines.
 
 ### 5. Check and correct (about 1 minute). **Live**
 
 **Say:** "The AI never has the last word. Every amount is an editable box."
 
-1. In **Debit** type `12.345`. **Expect:** a red message "Use at most 2 decimal places." Then type `abc`: also refused. **Say:** "It will not accept a number it cannot add exactly."
-2. Mode B: set Debit to `1250.50` and Credit to `400.00` (the figures printed on the picture). Mode A: the figures are already right; to show a fix, change Credit to `450.00`, then use **Reset to what was found** to get `400.00` back.
+1. In **Debit** type `12.345`. **Expect:** no error: any amount is accepted, with up to 12 decimal places and 15 digits before the point (the line under the boxes says so). Then type `abc` or `£5`: a red message explains why they are refused (`£5`: "Ledgerly works in rupees"). **Say:** "People can type whatever amount they like. It only refuses what is not a number, and it never rounds behind your back."
+2. Mode B: set Debit to `125050.00` and Credit to `40000.00` (the figures printed on the picture). Mode A: the figures are already right; to show a fix, change Credit to `45000.00`, then use **Reset to what was found** to get `40000.00` back.
 3. Optional: refresh the page. **Expect:** your edits are still there. (The picture itself is already deleted from the server once read. **Say:** "We do not keep invoice pictures after reading them.")
 
 ### 6. The final amount (about 1 minute). **Live**
 
-1. Press **Calculate final amount**. **Expect:** **Final amount**, the label **NET DEBIT**, `£850.50` in large type, the working `Debit £1,250.50 − Credit £400.00 = £850.50`, and **How it was worked out**.
-2. Under **Change an amount**, set Credit to `2000`. **Expect:** it flips to **NET CREDIT** immediately, no button needed. Set Credit equal to Debit (`1250.50`): **BALANCED**. Put Credit back to `400`.
-3. Press **Copy result** and paste into any notes app. **Expect:** one line such as `Net Debit £850.50 (Debit £1,250.50 − Credit £400.00)`. **Say:** "That is the line an agent can paste straight into their system."
-4. **Say (one sentence):** "The sums are done in whole pence, never floating point, so `0.30 + 0.10` is exactly `0.40`."
+1. Press **Calculate final amount**. **Expect:** **Final amount**, the label **NET DEBIT**, `₹85,050.00` in large type, the working `Debit ₹1,25,050.00 − Credit ₹40,000.00 = ₹85,050.00`, and **How it was worked out**.
+2. Under **Change an amount**, set Credit to `200000`. **Expect:** it flips to **NET CREDIT** immediately, no button needed. Set Credit equal to Debit (`125050`): **BALANCED**. Put Credit back to `40000`.
+3. Show an amount with many decimals: set Debit to `12.345` and clear Credit. **Expect:** `₹12.35` in large type with the note "Shown rounded to 2 decimal places. The exact amount is ₹12.345." and the working showing `₹12.345`. **Say:** "The big figure is rounded to 2 decimals for reading; the working keeps every decimal, and nothing is rounded in the maths." Put the amounts back.
+4. Press **Copy result** and paste into any notes app. **Expect:** one line such as `Net Debit ₹85,050.00 (Debit ₹1,25,050.00 − Credit ₹40,000.00)`. **Say:** "That is the line an agent can paste straight into their system."
+5. **Say (one sentence):** "The sums are exact decimals, never floating point, so `0.30 + 0.10` is exactly `0.40`."
 
 Optional, if time: press **Start a new invoice** and run `demo-2-net-credit.png` (Net Credit 825.75) or `demo-4-tricky-blurry.jpg` (the rough photo).
 

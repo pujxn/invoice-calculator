@@ -1,6 +1,12 @@
-// Exact money handling. Amounts travel as decimal strings ("1234.50") and are added as whole
-// minor units (cents) in BigInt, so there is never a floating point sum like 0.1 + 0.2.
-const MAX_CENTS = 99_999_999_999_999n; // 999,999,999,999.99
+// Reads the amounts the AI printed, as exact decimal strings ("1234.50", "12.345"). Ledgerly
+// works in Indian rupees only, so any currency mark is ignored, and every decimal the invoice
+// shows is kept: nothing is ever rounded. The exact arithmetic lives in the shared money module.
+import {
+  parseAmount as parseTyped,
+  sumAmounts as sumExact,
+  toUnits,
+  unitsToString,
+} from '@ledgerly/money';
 
 // Standard grouping (1,234,567) and Indian lakh grouping (12,34,567).
 const GROUPED = /^\d{1,3}(?:SEP\d{3})+$/;
@@ -10,33 +16,22 @@ const grouped = (digits, sep) =>
   new RegExp(GROUPED_INDIAN.source.replaceAll('SEP', `\\${sep}`)).test(digits);
 
 const fail = (reason, message) => ({ ok: false, reason, message });
-const done = (cents) =>
-  cents > MAX_CENTS
-    ? fail('too_large', 'That amount is too large to be an invoice amount.')
-    : { ok: true, value: centsToString(cents) };
+// A plain "1234.5" -> the exact string, or the shared module's reason (too large, too precise).
+const done = (plain) => {
+  const parsed = parseTyped(plain);
+  if (!parsed.ok) return fail(parsed.reason, parsed.message);
+  return { ok: true, value: unitsToString(parsed.units) };
+};
 
-export function centsToString(cents) {
-  const negative = cents < 0n;
-  const abs = negative ? -cents : cents;
-  const whole = abs / 100n;
-  const frac = String(abs % 100n).padStart(2, '0');
-  return `${negative ? '-' : ''}${whole}.${frac}`;
-}
+export const sumAmounts = sumExact;
+// True when two decimal strings are the same amount ("10.50" and "10.5").
+export const sameAmount = (a, b) => toUnits(a) === toUnits(b);
 
-// "1234.50" -> 123450n. Only for strings this module produced (or any plain decimal).
-export function toCents(amount) {
-  const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(String(amount));
-  if (!m) throw new TypeError(`Not a plain amount: ${amount}`);
-  return BigInt(m[1]) * 100n + BigInt((m[2] || '').padEnd(2, '0') || '0');
-}
-
-export function sumAmounts(amounts) {
-  return centsToString(amounts.reduce((total, a) => total + toCents(a), 0n));
-}
-
-// Turns whatever the model printed ("£1,234.50", "1.234,50", "1 234,5", null) into
+// Turns whatever the model printed ("₹1,234.50", "Rs. 12,34,567/-", "1.234,50", "0.001", null) into
 //   { ok: true, value: "1234.50" | null }   or   { ok: false, reason, message }.
-// Anything that could be read two ways ("1,234" is 1234 or 1.234) is refused, never guessed.
+// Any number of decimals is fine when the number is plainly a decimal ("1234.567", "0.001").
+// Only a value that could be read two ways ("1,234" is 1234 or 1.234, "12.345" is 12345 or 12.345)
+// is refused with both readings, never guessed.
 export function parseAmount(input) {
   if (input === null || input === undefined) return { ok: true, value: null };
   if (typeof input === 'number') {
@@ -49,6 +44,7 @@ export function parseAmount(input) {
   let text = input.trim();
   if (text === '') return { ok: true, value: null };
 
+  text = text.replace(/\s*\/-\s*$/, ''); // Rs 500/- is 500, not a trailing minus
   const negative = /^[-−(]/.test(text) || /-\s*$/.test(text) || /^\(.*\)$/.test(text);
   if (negative)
     return fail(
@@ -59,6 +55,7 @@ export function parseAmount(input) {
   // Drop currency symbols and codes and any spaces, apostrophes or thin spaces used as grouping.
   text = text
     .replace(/[A-Za-z]{3}/g, '')
+    .replace(/\bRs\.?/gi, '')
     .replace(/[£$€¥₹¢₩₽฿₪₫]/g, '')
     .replace(/[\s\u00a0\u202f\u2009'\u2019]/g, '');
   if (!/^[0-9.,]+$/.test(text) || !/\d/.test(text)) {
@@ -104,15 +101,14 @@ export function parseAmount(input) {
           `"${input.trim()}" could mean ${Number(asThousands).toLocaleString('en')} or ${asDecimal}.`,
         );
       } else {
-        return fail('too_precise', `"${input.trim()}" has more than 2 decimal places.`);
+        // 1234.567, 0.001, 12.3456: too long to be a thousands group, so plainly a decimal.
+        whole = head;
+        frac = tail;
       }
     }
   } else {
     whole = text;
   }
 
-  whole = whole.replace(/^0+(?=\d)/, '');
-  if (whole.length > 12)
-    return fail('too_large', 'That amount is too large to be an invoice amount.');
-  return done(BigInt(whole) * 100n + BigInt(frac.padEnd(2, '0') || '0'));
+  return done(frac === '' ? whole : `${whole}.${frac}`);
 }

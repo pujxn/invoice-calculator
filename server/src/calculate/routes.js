@@ -4,9 +4,12 @@ import { calculateNet, totalLines } from '@ledgerly/money';
 // POST /api/invoices/calculate
 //   { debit, credit }  the usual invoice: decimal strings or null for "none"
 //   { items: [...] }   a list of signed line items: "1250.50" is a Debit line, "-400.00" a Credit line
-// Answers { debit, credit, net, signedNet, type, lineCount } with every amount as an exact
-// decimal string; `net` is never negative and `type` is "debit", "credit" or "balanced".
-// Amounts must be strings: a JSON number has already been through floating point.
+// Answers { debit, credit, net, netRounded, rounded, signedNet, type, lineCount } with every
+// amount as an exact decimal string; `net` is never negative, keeps every decimal ("10.001"),
+// and `type` is "debit", "credit" or "balanced". `netRounded` is the same figure rounded to 2
+// decimals for showing, and `rounded` says whether that changed it. Amounts are in rupees; any
+// number of decimals up to 12 and up to 15 digits before the point are accepted (see
+// @ledgerly/money). Amounts must be strings: a JSON number has already been through floating point.
 export function createCalculateRouter({ requireAuth }) {
   const router = Router();
 
@@ -36,8 +39,8 @@ export function createCalculateRouter({ requireAuth }) {
         ...(result.line ? { line: result.line } : {}),
       });
     }
-    const { debit, credit, net, signedNet, type, lineCount } = result;
-    res.json({ debit, credit, net, signedNet, type, lineCount });
+    const { debit, credit, net, netRounded, rounded, signedNet, type, lineCount } = result;
+    res.json({ debit, credit, net, netRounded, rounded, signedNet, type, lineCount });
   });
 
   return router;

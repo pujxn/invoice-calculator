@@ -10,7 +10,6 @@ const good = (over = {}) => ({
   readable: true,
   debit: '1250.00',
   credit: '400.00',
-  currency: 'GBP',
   confidence: 'high',
   notes: '',
   line_items: [],
@@ -52,8 +51,7 @@ test('validation rejects anything that is not exactly the agreed shape', () => {
   rejects(good({ readable: 'yes' }), /readable/);
   rejects(good({ debit: 1250 }), /debit must be a string or null/);
   rejects(good({ credit: {} }), /credit/);
-  rejects(good({ currency: 'pounds' }), /currency/);
-  rejects(good({ currency: 'gbp' }), /currency/);
+  rejects(good({ currency: 'INR' }), /unexpected field "currency"/); // rupees only: not asked for
   rejects(good({ confidence: 'certain' }), /confidence/);
   rejects(good({ notes: 5 }), /notes/);
   rejects(good({ line_items: 'none' }), /line_items must be a list/);
@@ -72,10 +70,10 @@ test('validation rejects anything that is not exactly the agreed shape', () => {
 });
 
 test('normalising turns text amounts into exact decimals', () => {
-  const r = normalizeExtraction(validateModelOutput(good({ debit: '£1,250.5', credit: '400' })));
+  const r = normalizeExtraction(validateModelOutput(good({ debit: '₹1,250.5', credit: '400' })));
   assert.equal(r.debit, '1250.50');
   assert.equal(r.credit, '400.00');
-  assert.equal(r.currency, 'GBP');
+  assert.equal(r.currency, 'INR');
   assert.equal(r.confidence, 'high');
   assert.deepEqual(r.warnings, []);
   assert.equal(r.itemTotals, null);
@@ -108,14 +106,51 @@ test('an ambiguous amount becomes null with a warning and lowers confidence', ()
   assert.match(r.warnings[0].message, /1,234 or 1\.234/);
 });
 
-test('negative, over-precise and garbage amounts are flagged, not passed on', () => {
-  const r = normalizeExtraction(validateModelOutput(good({ debit: '-5.00', credit: '12.3456' })));
+test('a plain number with extra decimals is kept exactly, not blanked', () => {
+  const r = normalizeExtraction(validateModelOutput(good({ debit: '1234.567', credit: '0.001' })));
+  assert.equal(r.debit, '1234.567');
+  assert.equal(r.credit, '0.001');
+  assert.deepEqual(r.warnings, []);
+  assert.equal(r.confidence, 'high');
+});
+
+test('a 3-decimal amount that could be a thousands group is flagged Please check', () => {
+  const r = normalizeExtraction(validateModelOutput(good({ debit: '12.345' })));
+  assert.equal(r.debit, null);
+  assert.equal(r.confidence, 'low');
+  assert.deepEqual(
+    r.warnings.map((w) => [w.field, w.code]),
+    [['debit', 'ambiguous']],
+  );
+  assert.match(r.warnings[0].message, /12,345 or 12\.345/);
+});
+
+test('negative, over-long and garbage amounts are flagged, not passed on', () => {
+  const r = normalizeExtraction(
+    validateModelOutput(good({ debit: '-5.00', credit: '1.2345678901234' })),
+  );
   assert.equal(r.debit, null);
   assert.equal(r.credit, null);
   assert.deepEqual(
     r.warnings.map((w) => w.code),
     ['negative', 'too_precise'],
   );
+});
+
+test('line items with extra decimals add up exactly and are checked against the totals', () => {
+  const items = [
+    { description: 'A', column: 'debit', amount: '0.001' },
+    { description: 'B', column: 'debit', amount: '0.0004' },
+  ];
+  const ok = normalizeExtraction(
+    validateModelOutput(good({ debit: '0.0014', credit: null, line_items: items })),
+  );
+  assert.deepEqual(ok.itemTotals, { debit: '0.0014', credit: '0.00' });
+  assert.deepEqual(ok.warnings, []);
+  const off = normalizeExtraction(
+    validateModelOutput(good({ debit: '0.002', credit: null, line_items: items })),
+  );
+  assert.equal(off.warnings[0].code, 'items_mismatch');
 });
 
 test('line items are summed exactly and checked against the stated totals', () => {
