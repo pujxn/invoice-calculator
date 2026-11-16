@@ -291,3 +291,98 @@ test('bad bodies get 400 with an error message', async () => {
     app.close();
   }
 });
+
+test('verify-otp trims whitespace around the code and accepts a spaced phone number', async () => {
+  const app = await startTestApp();
+  try {
+    await app.call('POST', '/api/auth/request-otp', { body: { phone: '+44 (7700) 900-123' } });
+    assert.equal(app.sent[0].to, PHONE);
+    const res = await app.call('POST', '/api/auth/verify-otp', {
+      body: { phone: PHONE, code: ` ${app.lastCode()} ` },
+    });
+    assert.equal(res.status, 200);
+  } finally {
+    app.close();
+  }
+});
+
+test('verify-otp rejects non-string, non-numeric and missing input with 400', async () => {
+  const app = await startTestApp();
+  try {
+    for (const body of [
+      { phone: PHONE, code: 123456 },
+      { phone: PHONE, code: '12ab56' },
+      { phone: PHONE, code: '' },
+      { code: '123456' },
+      { phone: 'nope', code: '123456' },
+      {},
+    ]) {
+      const res = await app.call('POST', '/api/auth/verify-otp', { body });
+      assert.equal(res.status, 400, JSON.stringify(body));
+      assert.equal(typeof res.body.error, 'string');
+    }
+  } finally {
+    app.close();
+  }
+});
+
+test('request-otp rejects a missing or non-string phone', async () => {
+  const app = await startTestApp();
+  try {
+    for (const body of [{}, { phone: null }, { phone: 4477009 }, { phone: ['+447700900123'] }]) {
+      assert.equal((await app.call('POST', '/api/auth/request-otp', { body })).status, 400);
+    }
+    assert.equal(app.sent.length, 0);
+  } finally {
+    app.close();
+  }
+});
+
+test('verify attempts per IP are limited', async () => {
+  const app = await startTestApp();
+  try {
+    for (let i = 0; i < 40; i++) {
+      const res = await app.call('POST', '/api/auth/verify-otp', {
+        body: { phone: PHONE, code: '000000' },
+      });
+      assert.equal(res.status, 401);
+    }
+    const res = await app.call('POST', '/api/auth/verify-otp', {
+      body: { phone: PHONE, code: '000000' },
+    });
+    assert.equal(res.status, 429);
+    assert.ok(res.headers.get('retry-after'));
+  } finally {
+    app.close();
+  }
+});
+
+test('two sign-ins give independent sessions; logging out one leaves the other', async () => {
+  const app = await startTestApp();
+  try {
+    const tokens = [];
+    for (const phone of [PHONE, '+14155552671']) {
+      await app.call('POST', '/api/auth/request-otp', { body: { phone } });
+      const res = await app.call('POST', '/api/auth/verify-otp', {
+        body: { phone, code: app.lastCode() },
+      });
+      tokens.push(res.body.token);
+    }
+    await app.call('POST', '/api/auth/logout', { token: tokens[0] });
+    assert.equal((await app.call('GET', '/api/auth/me', { token: tokens[0] })).status, 401);
+    const me = await app.call('GET', '/api/auth/me', { token: tokens[1] });
+    assert.equal(me.body.phone, '+14155552671');
+  } finally {
+    app.close();
+  }
+});
+
+test('responses never contain the code or other secrets', async () => {
+  const app = await startTestApp();
+  try {
+    const res = await app.call('POST', '/api/auth/request-otp', { body: { phone: PHONE } });
+    assert.equal(JSON.stringify(res.body).includes(app.lastCode()), false);
+  } finally {
+    app.close();
+  }
+});

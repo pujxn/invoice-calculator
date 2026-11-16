@@ -4,7 +4,7 @@
 > [Invoice Calculator: Product Spec](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs).
 > This file is a snapshot of it for the repo. Change the doc first, then update this file and the changelog.
 
-Version 0.2 · 2026-11-16
+Version 0.3 · 2026-11-16
 
 ## Overview
 
@@ -98,10 +98,10 @@ React web app (Vite)  --JSON-->  Node API (Express)  --code-->   SMS provider (c
                                    calculator, in-memory store
 ```
 
-- **Client:** React 18 with Vite, plain CSS, works in mobile browsers.
+- **Client:** React 18 with Vite, plain CSS, mobile first (touch-sized controls, numeric keypad, SMS code autofill). The product must run on web and mobile; the plan is this responsive web app wrapped with Capacitor for iOS and Android, which is a later step.
 - **Server:** Node 20+ with Express; multer for uploads; the Anthropic SDK for Claude vision.
 - **Repo:** one GitHub repo, `invoice-calculator`, with `client/` and `server/` folders and one `npm run dev` that starts both.
-- **Tests:** Node's built-in test runner for the calculator and auth logic.
+- **Tests:** Node's built-in test runner for the calculator and auth logic, and Playwright UI tests (`e2e/`) for every feature, with screenshots of each screen kept in `docs/screenshots/`.
 
 ## API endpoints
 
@@ -132,6 +132,8 @@ The prototype runs with no settings at all: codes print to the server log and am
 | `TWILIO_AUTH_TOKEN` | none | Twilio secret, needed for `twilio` |
 | `TWILIO_FROM_NUMBER` | none | Sending number in E.164 format |
 | `AUTH_SECRET` | random per start | Key used to hash one-time codes; set it to keep codes valid across restarts |
+| `AUTH_IP_REQUEST_LIMIT` | 20 | Code requests allowed per IP per 15 minutes |
+| `AUTH_IP_VERIFY_LIMIT` | 40 | Code checks allowed per IP per 15 minutes |
 | `VISION_PROVIDER` | `claude` if a key is set, else `mock` | Which AI reads the image; `mock` skips AI |
 | `ANTHROPIC_API_KEY` | none | Key for Claude vision |
 | `ANTHROPIC_MODEL` | `claude-opus-5-5` | Claude model used for extraction |
@@ -179,3 +181,4 @@ The build can start without these answers; each has a default assumed in bracket
 | --- | --- | --- |
 | 2026-11-16 | 0.1 | First draft of the prototype spec. |
 | 2026-11-16 | 0.2 | SMS login built (AUTH-1 to AUTH-5). Added `GET /api/auth/me`, the `AUTH_SECRET` setting and the specific rate limits; clarified 429 and lockout behaviour. |
+| 2026-11-16 | 0.3 | Login UI made mobile first (touch targets, numeric keypad, SMS autofill); web plus iOS and Android via Capacitor recorded as the platform plan; testing rule: UI, client and server tests for every feature. |
