@@ -28,16 +28,32 @@ SPEC.md   Product spec, source of truth
 
 ## Run it on your computer
 
-You need [Node.js](https://nodejs.org) version 20.12 or newer. Check with `node -v`.
+Want to show it to someone? See the demo script, [docs/DEMO.md](docs/DEMO.md), with sample invoice pictures in [docs/demo/](docs/demo/).
 
-1. Open a terminal in the project folder.
-2. Install everything (once): `npm install`
-3. Start the app: `npm run dev`
+You need [Node.js](https://nodejs.org) version 20.12 or newer (the "LTS" download is fine). Check with `node -v`; it should print `v20.12` or higher. Node 22 is tested too.
+
+1. Open a terminal in the project folder (the folder that contains `package.json`).
+2. Install everything (once, about a minute): `npm install`. Some "vulnerabilities" or "deprecated" warnings are normal; ignore them.
+3. Start the app: `npm run dev`. Wait for the line `API listening on http://localhost:4000 (sms: console, vision: mock)`.
 4. Open http://localhost:5173 in your browser.
 
-No accounts or keys are needed. This is "mock mode": no real text message is sent. Instead the code is printed in the terminal where `npm run dev` is running. To stop the app, press `Ctrl+C` in that terminal.
+No accounts or keys are needed. This is "mock mode": no real text message is sent and no AI is used. Instead the sign-in code is printed in the terminal where `npm run dev` is running, and the amounts the "AI" finds are made-up demo values. To stop the app, press `Ctrl+C` in that terminal.
 
 Optional: `cp server/.env.example server/.env` lets you change settings later (see the table below). You can skip it.
+
+### If something goes wrong
+
+| What you see                                                         | What it means and what to do                                                                                                                                                                                                         |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `process.loadEnvFile is not a function` right after `npm run dev`    | Your Node is too old (18 or older). Install Node 20.12 or newer from https://nodejs.org, open a **new** terminal, check `node -v`, then run `npm install` again.                                                                     |
+| `npm: command not found` or `node: command not found`                | Node is not installed, or the terminal was opened before you installed it. Install Node and open a new terminal.                                                                                                                     |
+| `Error: listen EADDRINUSE: address already in use 0.0.0.0:4000`      | Something is already using port 4000, often an earlier `npm run dev` still running. Find the terminal that is running it and press `Ctrl+C`. Mac/Linux: `lsof -i :4000` shows the program. Windows: `netstat -ano \| findstr :4000`. |
+| `Port 5173 is in use, trying another one...`                         | Another copy of the web app is running. Vite moves to 5174 and prints the new address; open that one, or stop the old copy first so you always get 5173.                                                                             |
+| The page loads but sign-in says it cannot reach the server           | The API is not running (see the `EADDRINUSE` row), or you started only the web app. Run `npm run dev` from the project root so both start.                                                                                           |
+| You are suddenly back on the Sign in page                            | Sessions live in server memory, so restarting `npm run dev` (it restarts itself when you save a server file) signs everyone out. Sign in again; the new code is in the terminal.                                                     |
+| Where is the code?                                                   | In the terminal running `npm run dev`, on a line such as `[sms:console] to +44...: Your Ledgerly code is 106950.` Scroll up if more output has appeared since.                                                                       |
+| "Please wait 30 seconds" or "too many requests"                      | Normal limits on codes. Wait, or restart `npm run dev` to reset them.                                                                                                                                                                |
+| `npm install` fails with a permissions error or on a company network | Do not use `sudo`. Make sure the folder is somewhere you own (not `C:\Program Files`), and ask IT about the npm registry if it is blocked.                                                                                           |
 
 ### Try the login (about 2 minutes)
 
@@ -109,6 +125,8 @@ Sign in and upload a picture first (steps above). The app starts in **mock mode*
 
 To go back to mock mode, empty the key line (or set `VISION_PROVIDER=mock`) and restart. The key stays on the server and is never sent to the browser. Tests never use the key.
 
+**What it costs (rough estimate, not measured).** The default model, `claude-opus-5-5`, is priced at about $4 per million input tokens and $20 per million output tokens. One picture is a few thousand tokens in and one to a few thousand out, so expect roughly 2 to 6 US cents per reading, and a ten-minute demo or testing session well under a dollar. Check real usage in the Anthropic console. `EXTRACT_PER_USER_PER_HOUR` (default 30) caps readings per person per hour, and mock mode is free. A key needs billing set up in the console; the real AI path has not yet been checked against the live API by the project, so do one reading before you rely on it.
+
 Things worth trying:
 
 - Upload an iPhone photo (HEIC): it is converted to a normal picture before the AI sees it.
@@ -138,7 +156,16 @@ The same maths is available on the server: while signed in, `POST /api/invoices/
 
 ### Try it on your phone
 
-Your computer and phone must be on the same Wi-Fi. Start the app with `npm run dev -w server` in one terminal and `npm run dev -w client -- --host` in another. The second command prints a `Network:` address such as `http://192.168.1.20:5173`. Open that address on your phone. The code still appears in the computer's terminal.
+Your computer and phone must be on the same Wi-Fi (not a guest network that isolates devices).
+
+1. In one terminal run the API: `npm run dev -w server`
+2. In a second terminal run the web app so other devices can reach it: `npm run dev -w client -- --host`
+3. The second terminal prints a `Network:` address such as `http://192.168.1.20:5173`. Type exactly that address into your phone's browser.
+4. Sign in as usual. The code still appears in the computer's terminal (the first one). On a phone, **Take photo** opens the camera.
+
+If the phone cannot open the page: check both devices are on the same Wi-Fi, allow Node when your computer's firewall asks, and use the address from the `Network:` line (not `localhost`). Press `Ctrl+C` in both terminals to stop.
+
+Or, without a phone: in Chrome press F12, then Ctrl+Shift+M (Cmd+Shift+M on Mac), and pick a phone such as iPhone 14.
 
 ### Run the tests
 
