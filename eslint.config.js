@@ -8,8 +8,17 @@ export default [
   { ignores: ['**/dist/**', '**/node_modules/**'] },
   js.configs.recommended,
   {
-    files: ['server/**/*.js', 'e2e/**/*.js', 'client/*.config.js', '*.js'],
+    files: ['server/**/*.js', 'client/*.config.js', '*.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'module', globals: globals.node },
+  },
+  {
+    // page.evaluate() callbacks run in the browser, so e2e files see both sets of globals.
+    files: ['e2e/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser },
+    },
   },
   {
     files: ['client/**/*.{js,jsx}'],

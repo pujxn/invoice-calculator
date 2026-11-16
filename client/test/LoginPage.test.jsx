@@ -11,6 +11,22 @@ async function enterPhone(user, value = PHONE) {
   await user.click(screen.getByRole('button', { name: 'Send code' }));
 }
 
+describe('LoginPage mobile input hints', () => {
+  it('asks phones for the phone keypad and SMS autofill on the code box', async () => {
+    stubApi({ 'POST /auth/request-otp': [200, { ok: true, resendAfterSeconds: 30 }] });
+    renderApp('/login');
+    const phone = screen.getByLabelText('Mobile number');
+    expect(phone).toHaveAttribute('type', 'tel');
+    expect(phone).toHaveAttribute('inputmode', 'tel');
+    expect(phone).toHaveAttribute('autocomplete', 'tel');
+    await enterPhone(userEvent.setup());
+    const code = await screen.findByLabelText('6-digit code');
+    expect(code).toHaveAttribute('inputmode', 'numeric');
+    expect(code).toHaveAttribute('autocomplete', 'one-time-code');
+    expect(code).toHaveAttribute('pattern', '[0-9]*');
+  });
+});
+
 describe('LoginPage phone step', () => {
   it('disables Send code until something is typed', async () => {
     stubApi({});

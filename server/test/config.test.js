@@ -43,3 +43,13 @@ test('createApp does not advertise Express', async () => {
     server.close();
   }
 });
+
+test('per-IP limits can be tuned from the environment; bad values fall back', () => {
+  const tuned = loadConfig({ AUTH_IP_REQUEST_LIMIT: '1000', AUTH_IP_VERIFY_LIMIT: '7' }).auth
+    .limits;
+  assert.equal(tuned.requestsPerIpPer15Min, 1000);
+  assert.equal(tuned.verifiesPerIpPer15Min, 7);
+  const bad = loadConfig({ AUTH_IP_REQUEST_LIMIT: 'abc', AUTH_IP_VERIFY_LIMIT: '-3' }).auth.limits;
+  assert.equal(bad.requestsPerIpPer15Min, 20);
+  assert.equal(bad.verifiesPerIpPer15Min, 40);
+});

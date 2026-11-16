@@ -1,5 +1,11 @@
 // Central place for environment configuration. Providers (SMS, vision) read
 // their own settings from here so nothing else touches process.env directly.
+// Reads a positive whole number from the environment, else the fallback.
+function positiveInt(value, fallback) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
 export function loadConfig(env = process.env) {
   const anthropicKey = env.ANTHROPIC_API_KEY || '';
   return {
@@ -16,8 +22,8 @@ export function loadConfig(env = process.env) {
       // Abuse limits that cap SMS cost and guessing.
       limits: {
         requestsPerPhonePerHour: 5,
-        requestsPerIpPer15Min: 20,
-        verifiesPerIpPer15Min: 40,
+        requestsPerIpPer15Min: positiveInt(env.AUTH_IP_REQUEST_LIMIT, 20),
+        verifiesPerIpPer15Min: positiveInt(env.AUTH_IP_VERIFY_LIMIT, 40),
       },
     },
     sms: {

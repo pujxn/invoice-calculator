@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const SERVER_LOG = fileURLToPath(new URL('./.server.log', import.meta.url));
 const SCREENSHOT_DIR = fileURLToPath(new URL('../docs/screenshots/', import.meta.url));
@@ -23,9 +23,12 @@ export async function latestCode(phone) {
   return code;
 }
 
-// Saves a screenshot for the PR only when SCREENSHOTS=1 (npm run test:ui:screens).
+// Saves a screenshot for the PR only when SCREENSHOTS=1 (npm run test:ui:screens),
+// in a folder named after the device project (phone, small-phone, desktop).
 export async function shot(page, name) {
-  if (process.env.SCREENSHOTS) await page.screenshot({ path: `${SCREENSHOT_DIR}${name}.png` });
+  if (!process.env.SCREENSHOTS) return;
+  const device = test.info().project.name;
+  await page.screenshot({ path: `${SCREENSHOT_DIR}${device}/${name}.png` });
 }
 
 export async function requestCodeFor(page, phone) {
