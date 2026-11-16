@@ -21,7 +21,7 @@ const reading = (over = {}) => ({
   imageDeleted: true,
   debit: '1250.50',
   credit: '400.00',
-  currency: 'GBP',
+  currency: 'INR',
   confidence: 'high',
   notes: '',
   warnings: [],
@@ -125,12 +125,14 @@ describe('reading the amounts', () => {
     expect(invoiceApi.deleteInvoice).not.toHaveBeenCalled();
   });
 
-  it('shows the detected Debit and Credit, confidence and currency, and drops the picture', async () => {
+  it('shows the detected Debit and Credit, confidence and rupees, and drops the picture', async () => {
     await uploadAPicture();
     await readIt(reading({ notes: 'Slightly blurred.' }));
     expect(debit()).toHaveValue('1250.50');
     expect(credit()).toHaveValue('400.00');
-    expect(screen.getByText(/Confidence:/)).toHaveTextContent('Confidence: High · Currency: GBP');
+    expect(screen.getByText(/Confidence:/)).toHaveTextContent(
+      'Confidence: High · Amounts in rupees (₹)',
+    );
     expect(screen.getByText('Slightly blurred.')).toBeInTheDocument();
     expect(screen.getByText(/Read from your picture by AI/)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
@@ -307,17 +309,23 @@ describe('editing the amounts', () => {
     await uploadAPicture();
     await readIt();
     await user().clear(debit());
-    await user().type(debit(), '12.345');
+    await user().type(debit(), '1.0000000000001');
     expect(debit()).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByText('Use at most 2 decimal places.')).toHaveAttribute('role', 'alert');
+    expect(screen.getByText('Use at most 12 decimal places.')).toHaveAttribute('role', 'alert');
     expect(credit()).toHaveAttribute('aria-invalid', 'false');
+
+    // any other amount is fine, however many decimals it has
+    await user().clear(debit());
+    await user().type(debit(), '12.345');
+    expect(debit()).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.queryByText('Use at most 12 decimal places.')).toBeNull();
 
     await user().clear(debit());
     await user().type(debit(), '-5');
     expect(screen.getByText('Amounts cannot be negative.')).toBeInTheDocument();
     await user().clear(debit());
     await user().type(debit(), 'abc');
-    expect(screen.getByText('Enter a number such as 1250.50.')).toBeInTheDocument();
+    expect(screen.getByText(/^Enter a number such as 1250\.50/)).toBeInTheDocument();
     await user().clear(debit());
     await user().type(debit(), '1,300.5');
     expect(debit()).toHaveAttribute('aria-invalid', 'false');

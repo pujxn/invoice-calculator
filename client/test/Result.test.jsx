@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp, storeSession, stubApi } from './helpers.jsx';
 
@@ -19,7 +19,7 @@ const reading = (over = {}) => ({
   imageDeleted: true,
   debit: '1250.50',
   credit: '400.00',
-  currency: 'GBP',
+  currency: 'INR',
   confidence: 'high',
   notes: '',
   warnings: [],
@@ -70,8 +70,8 @@ describe('Calculate final amount', () => {
     await calculate();
     expect(await screen.findByRole('heading', { name: 'Final amount' })).toHaveFocus();
     expect(final()).toHaveTextContent('Net Debit');
-    expect(final()).toHaveTextContent('£850.50');
-    expect(final()).toHaveTextContent('Debit £1,250.50 − Credit £400.00 = £850.50');
+    expect(final()).toHaveTextContent('₹850.50');
+    expect(final()).toHaveTextContent('Debit ₹1,250.50 − Credit ₹400.00 = ₹850.50');
   });
 
   it('asks for an amount instead of calculating when both boxes are blank', async () => {
@@ -84,27 +84,28 @@ describe('Calculate final amount', () => {
   });
 
   it('does not calculate while an amount is invalid', async () => {
-    await open({ values: { debit: '12.345', credit: '1' } });
+    await open({ values: { debit: '12.x45', credit: '1' } });
     await calculate();
     expect(
       screen
         .getAllByRole('alert')
         .map((a) => a.textContent)
         .join(' '),
-    ).toMatch(/at most 2 decimal places/);
+    ).toMatch(/Enter a number such as/);
     expect(screen.queryByRole('heading', { name: 'Final amount' })).toBeNull();
   });
 });
 
 describe('the result screen', () => {
   it.each([
-    ['1250.50', '400.00', 'Net Debit', '£850.50'],
-    ['300.00', '975.50', 'Net Credit', '£675.50'],
-    ['500.00', '500.00', 'Balanced', '£0.00'],
-    ['720.00', '', 'Net Debit', '£720.00'],
-    ['', '99.99', 'Net Credit', '£99.99'],
-    ['0', '0', 'Balanced', '£0.00'],
-    ['999999999999.99', '0.01', 'Net Debit', '£999,999,999,999.98'],
+    ['1250.50', '400.00', 'Net Debit', '₹850.50'],
+    ['300.00', '975.50', 'Net Credit', '₹675.50'],
+    ['500.00', '500.00', 'Balanced', '₹0.00'],
+    ['720.00', '', 'Net Debit', '₹720.00'],
+    ['', '99.99', 'Net Credit', '₹99.99'],
+    ['0', '0', 'Balanced', '₹0.00'],
+    ['999999999999.99', '0.01', 'Net Debit', '₹9,99,99,99,99,999.98'],
+    ['1234567.50', '0', 'Net Debit', '₹12,34,567.50'],
   ])('Debit %j and Credit %j give %s %s', async (d, c, label, amount) => {
     await open({ stage: 'result', values: { debit: d, credit: c } });
     expect(final()).toHaveTextContent(label);
@@ -114,27 +115,27 @@ describe('the result screen', () => {
   it('shows the breakdown of the inputs', async () => {
     await open({ stage: 'result' });
     const table = screen.getByRole('table', { name: 'How it was worked out' });
-    expect(within(table).getByRole('row', { name: /Debit £1,250.50/ })).toBeInTheDocument();
-    expect(within(table).getByRole('row', { name: /Minus Credit £400.00/ })).toBeInTheDocument();
-    expect(within(table).getByRole('row', { name: /Net Debit £850.50/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /Debit ₹1,250.50/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /Minus Credit ₹400.00/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /Net Debit ₹850.50/ })).toBeInTheDocument();
   });
 
   it('updates as the amounts are edited, and again as they are cleared', async () => {
     await open({ stage: 'result' });
     await type(credit(), '2000');
     expect(final()).toHaveTextContent('Net Credit');
-    expect(final()).toHaveTextContent('£749.50');
-    expect(final()).toHaveTextContent('= −£749.50');
+    expect(final()).toHaveTextContent('₹749.50');
+    expect(final()).toHaveTextContent('= −₹749.50');
     await type(credit(), '1,250.50');
     expect(final()).toHaveTextContent('Balanced');
     await type(credit(), '');
     expect(final()).toHaveTextContent('Net Debit');
-    expect(final()).toHaveTextContent('£1,250.50');
+    expect(final()).toHaveTextContent('₹1,250.50');
   });
 
   it('is exact where floating point is not', async () => {
     await open({ stage: 'result', values: { debit: '0.30', credit: '0.10' } });
-    expect(final()).toHaveTextContent('£0.20');
+    expect(final()).toHaveTextContent('₹0.20');
     expect(final()).not.toHaveTextContent('0.19999');
   });
 
@@ -149,29 +150,80 @@ describe('the result screen', () => {
     await type(debit(), '');
     await type(credit(), '');
     expect(final()).toHaveTextContent('Enter at least one amount');
-    await type(credit(), '12.345');
-    expect(final()).toHaveTextContent('Use at most 2 decimal places');
+    await type(credit(), '1.0000000000001');
+    expect(final()).toHaveTextContent('Use at most 12 decimal places');
     await type(credit(), '7');
     expect(final()).toHaveTextContent('Net Credit');
   });
 
-  it('uses the currency of the invoice, and plain numbers when there is none', async () => {
+  it('always shows rupees, whatever the saved reading says', async () => {
     await open({ stage: 'result', result: reading({ currency: 'USD' }) });
-    expect(final()).toHaveTextContent('$850.50');
-  });
-
-  it('shows plain numbers when no currency was found', async () => {
-    await open({ stage: 'result', result: reading({ currency: null }) });
-    expect(final()).toHaveTextContent('850.50');
+    expect(final()).toHaveTextContent('₹850.50');
     expect(final()).not.toHaveTextContent(/[£$€]/);
+    cleanup();
+    await open({ stage: 'result', result: reading({ currency: null }) });
+    expect(final()).toHaveTextContent('₹850.50');
   });
 
   it('groups rupees the Indian way', async () => {
     await open({
       stage: 'result',
-      result: reading({ currency: 'INR', debit: '1234567.00', credit: '0.00' }),
+      result: reading({ debit: '1234567.00', credit: '0.00' }),
     });
     expect(final()).toHaveTextContent('₹12,34,567.00');
+  });
+
+  it('accepts any amount: the figure is exact, shown to 2 decimals with a note when rounded', async () => {
+    await open({ stage: 'result', values: { debit: '12.345', credit: '' } });
+    expect(final()).toHaveTextContent('Net Debit');
+    expect(final().querySelector('.final-amount')).toHaveTextContent(/^₹12\.35$/);
+    expect(screen.getByTestId('rounded-note')).toHaveTextContent(
+      'Shown rounded to 2 decimal places. The exact amount is ₹12.345.',
+    );
+    expect(final()).toHaveTextContent('Debit ₹12.345 − Credit ₹0.00 = ₹12.345');
+    const table = screen.getByRole('table', { name: 'How it was worked out' });
+    expect(within(table).getByRole('row', { name: /^Debit ₹12.345/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /Net Debit ₹12.345/ })).toBeInTheDocument();
+    // no alert is raised on the amount boxes for the extra decimals
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it.each([
+    ['0.001', '', 'Net Debit', '₹0.00', '₹0.001'],
+    ['', '0.001', 'Net Credit', '₹0.00', '₹0.001'],
+    ['1e3', '0.5', 'Net Debit', '₹999.50', null],
+    ['0.1', '0.3', 'Net Credit', '₹0.20', null],
+    ['10.005', '0.004', 'Net Debit', '₹10.00', '₹10.001'],
+    ['1,00,000.1234', '', 'Net Debit', '₹1,00,000.12', '₹1,00,000.1234'],
+    [
+      '999999999999999.999999999999',
+      '',
+      'Net Debit',
+      '₹1,00,00,00,00,00,00,000.00',
+      '₹99,99,99,99,99,99,999.999999999999',
+    ],
+  ])('Debit %j and Credit %j give %s %s (exact %s)', async (d, c, label, shown, exact) => {
+    await open({ stage: 'result', values: { debit: d, credit: c } });
+    expect(final()).toHaveTextContent(label);
+    expect(final().querySelector('.final-amount').textContent).toBe(shown);
+    if (exact) {
+      expect(screen.getByTestId('rounded-note')).toHaveTextContent(exact);
+    } else {
+      expect(screen.queryByTestId('rounded-note')).toBeNull();
+    }
+  });
+
+  it('shows no rounding note when the result already has 2 decimals or fewer', async () => {
+    await open({ stage: 'result', values: { debit: '10.005', credit: '0.005' } });
+    expect(final().querySelector('.final-amount')).toHaveTextContent('₹10.00');
+    expect(screen.queryByTestId('rounded-note')).toBeNull();
+  });
+
+  it('tells people the limits next to the boxes', async () => {
+    await open({ stage: 'result' });
+    expect(screen.getByText(/Type any amount in rupees/)).toHaveTextContent(
+      /15 digits.*12 decimal places/,
+    );
   });
 
   it('works for amounts typed by hand', async () => {
@@ -190,7 +242,7 @@ describe('the result screen', () => {
     await type(debit(), '1');
     await user.click(screen.getByRole('button', { name: 'Reset to what was found' }));
     expect(debit()).toHaveValue('1250.50');
-    expect(final()).toHaveTextContent('£850.50');
+    expect(final()).toHaveTextContent('₹850.50');
   });
 
   it('remembers the screen and the edits across a reload', async () => {
@@ -222,7 +274,7 @@ describe('moving on from the result', () => {
     expect(await screen.findByRole('heading', { name: 'Amounts we found' })).toHaveFocus();
     expect(screen.getByLabelText(/^Credit/)).toHaveValue('50');
     await calculate();
-    expect(final()).toHaveTextContent('£1,200.50');
+    expect(final()).toHaveTextContent('₹1,200.50');
   });
 
   it('Start a new invoice goes to the upload screen without signing in again', async () => {
@@ -241,8 +293,18 @@ describe('Copy result', () => {
     // userEvent.setup replaces navigator.clipboard, so stub it after setup.
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     await user.click(screen.getByRole('button', { name: 'Copy result' }));
-    expect(writeText).toHaveBeenCalledWith('Net Debit £850.50 (Debit £1,250.50 − Credit £400.00)');
+    expect(writeText).toHaveBeenCalledWith('Net Debit ₹850.50 (Debit ₹1,250.50 − Credit ₹400.00)');
     expect(screen.getByRole('status')).toHaveTextContent('Copied to the clipboard.');
+  });
+
+  it('copies the exact amount too when the shown one is rounded', async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    await open({ stage: 'result', values: { debit: '12.345', credit: '' } });
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    await user.click(screen.getByRole('button', { name: 'Copy result' }));
+    expect(writeText).toHaveBeenCalledWith(
+      'Net Debit ₹12.35 (Debit ₹12.345 − Credit ₹0.00, exact amount ₹12.345)',
+    );
   });
 
   it('says so when the browser refuses, and forgets the message after an edit', async () => {

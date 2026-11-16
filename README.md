@@ -93,7 +93,7 @@ Pictures are saved in `server/uploads/` (change with `UPLOAD_DIR`) and deleted a
 Sign in and upload a picture first (steps above). The app starts in **mock mode**: no AI key is needed, and the numbers shown are demo values made up from your picture's bytes (the same picture always gives the same numbers), so you can try the whole screen for free.
 
 1. With a picture uploaded, press **Read amounts**. A spinner and "Reading your invoice…" appear, then **Amounts we found** shows a Debit box, a Credit box, a confidence line and a table of the lines found.
-2. Change the Debit box to `12.345`: a red message says "Use at most 2 decimal places." Try `-5` and `abc` too. Then type `1300.5`, and press **Reset to what was found** to get the original numbers back.
+2. Change the Debit box to `12.345`: it is accepted as it is (any amount is welcome, up to 15 digits before the decimal point and 12 decimal places, in rupees). Try `-5`, `abc` and `£5` too: a red message explains each. Then type `1300.5`, and press **Reset to what was found** to get the original numbers back.
 3. Refresh the page: your edited numbers are still there. The picture is already gone from the server (it is deleted as soon as it has been read).
 4. Press **Upload a different invoice** to start again.
 5. Upload a picture, then press **Type the amounts instead** to skip the AI and type both amounts yourself.
@@ -113,15 +113,15 @@ Things worth trying:
 - Upload an iPhone photo (HEIC): it is converted to a normal picture before the AI sees it.
 - Press **Cancel** while it reads: nothing is lost and you can press **Read amounts** again.
 - Upload a photo that is not an invoice (a selfie, a blank wall): you get a message and the picture stays so you can retry or type the amounts.
-- If an amount is unclear (for example `1,234`, which could mean 1,234 or 1.234) the box is left empty and a "Please check" note explains why. The app never guesses an amount.
+- If an amount is genuinely unclear (for example `12.345`, which the AI may have read from `12,345`) the box is left empty and a "Please check" note explains why. The app never guesses an amount. A plain number with many decimals (`1234.567`, `0.001`) is kept exactly.
 
 ### Try the final amount (about 3 minutes)
 
 Sign in, upload a picture and press **Read amounts** (steps above). This works in mock mode, with no AI key.
 
-1. On **Amounts we found**, press **Calculate final amount**. The **Final amount** screen shows a label (**Net Debit**, **Net Credit** or **Balanced**), the amount in large type, and the working, for example `Debit £1,250.50 − Credit £400.00 = £850.50`. A table below shows how it was worked out.
+1. On **Amounts we found**, press **Calculate final amount**. The **Final amount** screen shows a label (**Net Debit**, **Net Credit** or **Balanced**), the amount in large type, and the working, for example `Debit ₹1,250.50 − Credit ₹400.00 = ₹850.50`. A table below shows how it was worked out.
 2. Under **Change an amount**, change the Credit box to a bigger number than the Debit. The result flips to **Net Credit** straight away, with no button to press. Make them equal for **Balanced**.
-3. Press **Copy result**, then paste somewhere (a notes app, a message). You get one line such as `Net Debit £850.50 (Debit £1,250.50 − Credit £400.00)`.
+3. Press **Copy result**, then paste somewhere (a notes app, a message). You get one line such as `Net Debit ₹850.50 (Debit ₹1,250.50 − Credit ₹400.00)`.
 4. Refresh the page: you stay on the result with your edits. Press **Back to the invoice** to see the amounts screen again, or **Start a new invoice** to go back to upload (you stay signed in).
 
 Things worth trying:
@@ -129,9 +129,10 @@ Things worth trying:
 - Clear one box: a blank counts as none, so a Debit alone gives a Net Debit of that amount. Clear both: it says "Enter at least one amount".
 - Type `0` in both boxes: **Balanced** `0.00` (zero is a real amount).
 - Type `0.30` and `0.10`: exactly `0.20` (computers that use ordinary decimals get `0.19999999999999998`).
-- Type `1,000,000.07` and `0.01`, or `999999999999.99`: large amounts keep every digit and are grouped with commas.
-- Try `-5`, `12.345` or `abc`: the result is replaced by a clear message instead of a wrong number.
-- Press **Type the amounts instead** on the upload screen to try your own numbers with no picture at all (no currency symbol is shown then).
+- Type `10,00,000.07` and `0.01`, or `999999999999999.99`: large amounts keep every digit and are grouped the Indian way (lakh, crore).
+- Type any amount you like, for example Debit `12.345`: the big figure is shown to 2 decimals (`₹12.35`) with a note under it, "Shown rounded to 2 decimal places. The exact amount is ₹12.345." The working line and the table show every decimal. Also try `0.001`, `2.675`, `1e3` (that is 1000) and `Rs. 500/-`.
+- Try `-5`, `abc`, `£5` or a 16-digit number: the result is replaced by a clear message instead of a wrong number.
+- Press **Type the amounts instead** on the upload screen to try your own numbers with no picture at all.
 
 The same maths is available on the server: while signed in, `POST /api/invoices/calculate` with `{"debit":"1250.50","credit":"400.00"}` (or `{"items":["1000.50","250.00","-400.00"]}` for a list of lines, where a minus sign means a Credit) answers with the exact result.
 
@@ -239,7 +240,7 @@ Files are stored as `<UPLOAD_DIR>/<hash of the owner>/<random id>.<ext>` with no
   "imageDeleted": true,
   "debit": "1250.50",
   "credit": "400.00",
-  "currency": "GBP",
+  "currency": "INR",
   "confidence": "high",
   "notes": "…",
   "warnings": [{ "field": "debit", "code": "ambiguous", "message": "…" }],
@@ -248,7 +249,7 @@ Files are stored as `<UPLOAD_DIR>/<hash of the owner>/<random id>.<ext>` with no
 }
 ```
 
-- **Amounts are decimal strings** (`"1250.50"`) or `null` when not on the invoice, and are added in whole cents, never as floating point. An amount that could be read two ways (`1,234`), has more than 2 decimals, or is negative becomes `null` with a warning instead of a guess.
+- **Amounts are decimal strings** (`"1250.50"`, `"12.345"`) or `null` when not on the invoice, and are added exactly, never as floating point. Every decimal the invoice shows is kept. An amount that could be read two ways (`12.345`, `1,234`), is negative, or is beyond the limits (15 digits before the point, 12 decimals) becomes `null` with a warning instead of a guess. `currency` is always `"INR"`: Ledgerly works in rupees only, and the AI is told so.
 - **The picture is deleted** once it has been read (`imageDeleted`). If reading fails, it is kept so the user can retry.
 - **Errors** (JSON `{ error, code }`): 404 unknown picture, 409 already being read, 422 `unreadable_image` / `unreadable_invoice` / `image_rejected` / `declined`, 429 `rate_limited` (also when a user exceeds `EXTRACT_PER_USER_PER_HOUR`; has `retryAfterSeconds` and `Retry-After`), 502 `provider_unavailable` / `provider_not_configured` / `bad_model_output`, 504 `timeout`. Details of provider failures go to the server log only.
 - **How it works** (`server/src/extraction/`): `prepareImage.js` turns the picture into a JPEG of at most 2000 px (converts HEIC, applies phone rotation, drops location data); a provider (`providers/claude.js` or `providers/mock.js`) returns JSON; `schema.js` rejects anything that is not exactly the agreed shape; `normalize.js` and `money.js` turn it into exact decimals and warnings. Pick the provider with `VISION_PROVIDER` (`claude` or `mock`). Tests inject a fake provider, so no test calls the real API.
@@ -258,11 +259,11 @@ Files are stored as `<UPLOAD_DIR>/<hash of the owner>/<random id>.<ext>` with no
 
 The maths lives in `shared/` (package `@ledgerly/money`), a small dependency-free module that the server and the web app both import, so the screen and the API always give the same answer.
 
-- **Exact money.** Amounts are decimal strings (`"1250.50"`) and are held as whole minor units (cents) in `BigInt`. Nothing is ever turned into a floating point number.
+- **Exact money, in rupees.** Amounts are decimal strings (`"1250.50"`, `"12.345"`) and are held as whole counts of a trillionth of a rupee in `BigInt`. Nothing is ever turned into a floating point number, and nothing is rounded in the maths.
 - **Signed line items.** `totalLines(items)` takes a list where a positive amount is a Debit line and a negative amount is a Credit line, and returns the Debit total, the Credit total, the net (never negative), the signed net and the type (`debit`, `credit` or `balanced`). `calculateNet({ debit, credit })` is the usual invoice as a list of two. A blank or missing side counts as 0, but at least one must be given.
-- **Rules.** Amounts typed or sent must have at most 2 decimals (more is refused with a message, unless the caller passes `round: true`, which rounds each line half away from zero), may use thousands commas (`1,250.50`, or `12,50,000` in lakh style), and one amount is at most 999,999,999,999.99. A list may hold up to 5,000 lines.
-- **Showing it.** `formatAmount("1250.5", "GBP")` is `£1,250.50`; unknown currency codes are written before the number, and rupees use lakh grouping. `describeResult` builds the label, the working and the line that Copy result copies.
-- **API.** `POST /api/invoices/calculate` (signed in) takes `{ "debit": "1250.50", "credit": "400.00" }` or `{ "items": ["1000.50", "-400.00"] }` and answers `{ debit, credit, net, signedNet, type, lineCount }`. Amounts must be text: a JSON number is refused because it has already been through floating point.
+- **Rules.** Any amount may be typed or sent: any number of decimals up to 12 (`12.345`, `0.001`), up to 15 digits before the decimal point, commas as thousands (`1,250.50`, or `12,50,000` in lakh style), `1e3` style, and a pasted `₹`, `Rs.` or `/-`. Not accepted, with a clear message: negatives, other currency signs, non-numbers, more than 12 decimals or 15 whole digits, and input over 100 characters. A list may hold up to 5,000 lines, and a total may go beyond the single-amount limit.
+- **Showing it.** `formatAmount("1250.5")` is `₹1,250.50` (lakh grouping: `₹12,34,567.50`). The figure is rounded to 2 decimals for showing only (half away from zero): `formatAmount("12.345")` is `₹12.35` and `formatAmount("12.345", { exact: true })` is `₹12.345`. `describeResult` builds the label, the working (always exact), a note when the shown figure is rounded, and the line that Copy result copies.
+- **API.** `POST /api/invoices/calculate` (signed in) takes `{ "debit": "1250.50", "credit": "400.00" }` or `{ "items": ["1000.50", "-400.00"] }` and answers `{ debit, credit, net, netRounded, rounded, signedNet, type, lineCount }`: `net` is exact (`"10.001"`), `netRounded` is the same rounded to 2 decimals (`"10.00"`) and `rounded` says whether they differ. Amounts must be text: a JSON number is refused because it has already been through floating point.
 - **Tests.** `shared/test/` (maths, formatting), `server/test/calculate.test.js` (API), `client/test/Result.test.jsx` (screen) and `e2e/calculate.spec.js` (whole flow in a browser).
 - On the web page, `<ResultScreen />` (`client/src/invoices/`) is step 5; `<InvoiceFlow />` moves between upload, review and result.
 

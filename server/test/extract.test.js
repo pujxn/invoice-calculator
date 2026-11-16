@@ -13,7 +13,6 @@ const ANSWER = {
   readable: true,
   debit: '1,250.50',
   credit: '400',
-  currency: 'GBP',
   confidence: 'high',
   notes: 'Clear photo.',
   line_items: [
@@ -93,7 +92,7 @@ test('a good picture returns exact amounts, items and warnings, then the picture
         imageDeleted: true,
         debit: '1250.50',
         credit: '400.00',
-        currency: 'GBP',
+        currency: 'INR',
         confidence: 'high',
         notes: 'Clear photo.',
         warnings: [],
@@ -130,6 +129,7 @@ test('with no key the mock reader answers the same way for the same picture', ()
       .body;
     assert.equal(first.provider, 'mock');
     assert.match(first.debit, /^\d+\.\d\d$/);
+    assert.equal(first.currency, 'INR'); // rupees only
     assert.deepEqual({ ...first, invoiceId: 0 }, { ...second, invoiceId: 0 });
     assert.notEqual(first.debit, other.debit);
     assert.equal((await app.call('GET', '/api/health')).body.providers.vision, 'mock');

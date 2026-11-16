@@ -1,11 +1,10 @@
-import { checkAmount } from './amounts.js';
+import { AMOUNT_HINT, checkAmount } from './amounts.js';
 
 // The two boxes for the Debit and Credit amounts, with their checks. Used on the review screen
 // and again on the result screen, so the amounts can be changed in either place.
 // `result` is what was read from the picture; `values` are the (possibly edited) texts.
 export default function AmountFields({ result, values, onChange, idPrefix = 'amount' }) {
   const manual = result.provider === 'manual';
-  const currency = result.currency;
   return (
     <form className="amounts" onSubmit={(e) => e.preventDefault()} noValidate>
       {['debit', 'credit'].map((field) => {
@@ -16,7 +15,7 @@ export default function AmountFields({ result, values, onChange, idPrefix = 'amo
           <div className="field" key={field}>
             <label htmlFor={`${idPrefix}-${field}`}>
               {label}
-              {currency && <span className="hint"> ({currency})</span>}
+              <span className="hint"> (₹)</span>
             </label>
             <input
               id={`${idPrefix}-${field}`}
@@ -45,6 +44,9 @@ export default function AmountFields({ result, values, onChange, idPrefix = 'amo
           </div>
         );
       })}
+      <p className="hint amount-limits" id={`${idPrefix}-limits`}>
+        {AMOUNT_HINT}
+      </p>
     </form>
   );
 }

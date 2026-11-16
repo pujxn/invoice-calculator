@@ -240,7 +240,7 @@ export default function InvoiceUpload({ onExtracted }) {
       imageDeleted: true,
       debit: null,
       credit: null,
-      currency: null,
+      currency: 'INR',
       confidence: null,
       notes: '',
       warnings: [],

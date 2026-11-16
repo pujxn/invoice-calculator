@@ -501,6 +501,13 @@ progress {
   overflow-wrap: anywhere; /* a very large total wraps instead of widening the page */
 }
 
+.final-note {
+  margin-top: 0.35rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
 .final-working {
   margin-top: 0.5rem;
   color: var(--text-muted);

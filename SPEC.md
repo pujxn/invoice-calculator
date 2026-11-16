@@ -4,7 +4,7 @@
 > [Ledgerly: Product Spec](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs).
 > This file is a snapshot of it for the repo. Change the doc first, then update this file and the changelog.
 
-Version 0.7 · 2026-11-16
+Version 0.9 · 2026-11-16
 
 ## Overview
 
@@ -20,7 +20,7 @@ Ledgerly (the working title was Invoice Calculator) reads a photo of a standardi
 - The user checks and corrects the amounts, then sees the final net amount.
 - Runs locally with no paid credentials (mock SMS and manual entry), and with real SMS and AI once keys are added.
 
-**Not in the prototype:** saved history, converting between currencies, adding up long multi-line invoices on screen (the lines are read and shown, and the calculation and API can already total a list of lines, but the screen's net uses the printed totals), user profiles, a production database, deployment, and native mobile apps. These are tracked in the Roadmap.
+**Not in the prototype:** saved history, other currencies (Ledgerly works in Indian rupees only), adding up long multi-line invoices on screen (the lines are read and shown, and the calculation and API can already total a list of lines, but the screen's net uses the printed totals), user profiles, a production database, deployment, and native mobile apps. These are tracked in the Roadmap.
 
 ## User flow
 
@@ -57,14 +57,14 @@ The prototype has 17 requirements across five areas; the Status column tracks ea
 | UP-1 | Upload | Only signed-in users can upload. | Built |
 | UP-2 | Upload | Accepts JPEG, PNG, WebP and HEIC up to 10 MB; on phones the camera can be used. | Built |
 | UP-3 | Upload | Shows a preview of the chosen image before extraction (HEIC shows a "No preview" note in browsers that cannot draw it), with progress, cancel, replace and remove. | Built |
-| AI-1 | Extraction | A vision AI model (Claude; model set by `ANTHROPIC_MODEL`) reads the uploaded picture and returns the Debit and Credit amounts as exact decimal strings (for example `"1250.50"`), or null when a value is not on the invoice. If the picture lists lines, they are returned too, with the total of each column. The answer is checked against a strict schema; anything off-shape is rejected. An amount that could be read two ways (`1,234`), is negative or has more than 2 decimals is returned as null with a warning, never guessed. HEIC is converted to JPEG first. | Built |
-| AI-2 | Extraction | The response includes a confidence level (high, medium, low), a short note, warnings for anything to check, and the currency code if one is shown. | Built |
+| AI-1 | Extraction | A vision AI model (Claude; model set by `ANTHROPIC_MODEL`) reads the uploaded picture and returns the Debit and Credit amounts, in Indian rupees, as exact decimal strings (for example `"1250.50"` or `"12.345"`; every decimal printed is kept), or null when a value is not on the invoice. If the picture lists lines, they are returned too, with the total of each column. The answer is checked against a strict schema; anything off-shape is rejected. An amount that could be read two ways (`1,234`, `12.345`), is negative, or is beyond the limits (see Calculation rules) is returned as null with a warning, never guessed; a plain number with more decimals (`1234.567`, `0.001`) is kept, not blanked. HEIC is converted to JPEG first. | Built |
+| AI-2 | Extraction | The response includes a confidence level (high, medium, low), a short note, warnings for anything to check, and the currency, which is always INR (the AI is told every invoice is in rupees, and says in the note if one clearly is not). | Built |
 | AI-3 | Extraction | If the AI is not configured (mock mode shows demo values), is busy, times out or fails, the user sees a clear message, can retry, or can type the amounts by hand. Unreadable pictures, missing amounts and ambiguous values are reported the same way. | Built |
 | AI-4 | Extraction | Uploaded images are kept only briefly: deleted when the user removes or replaces them, automatically after 24 hours (`UPLOAD_TTL_HOURS`), and as soon as the amounts have been read (or the user chooses to type them). A failed reading keeps the picture so the user can retry. The image is sent only to the AI provider, resized and stripped of location data. | Built |
-| CALC-1 | Calculation | User can edit both amounts before calculating, and again on the result screen; amounts must be 0 or more with up to 2 decimals (thousands commas are accepted when typing). | Built |
+| CALC-1 | Calculation | User can edit both amounts before calculating, and again on the result screen; any amount may be typed: 0 or more, with any number of decimals (up to 12), up to 15 digits before the decimal point, in rupees. Thousands commas (`1,250.50`, lakh style `12,50,000`), `1e3` style, and a pasted `₹`, `Rs.` or `/-` are accepted. Negatives, other currency signs and non-numbers get a clear message, and the limits are stated next to the boxes. | Built |
 | CALC-2 | Calculation | Net = Debit minus Credit, using the rules in Calculation rules. The calculation works on a list of signed line items (positive is a Debit line, negative is a Credit line); a Debit and a Credit is a list of two. | Built |
-| CALC-3 | Calculation | Calculation uses exact decimal maths (whole cents in BigInt, amounts as decimal strings), not floating point. One shared module is used by the server and the web app. | Built |
-| RES-1 | Result | Shows the net amount, its label (Net Debit, Net Credit, Balanced) and the working, with a breakdown of the inputs. Debit and Credit can be edited on the screen and the result updates as they are typed. The result can be copied. | Built |
+| CALC-3 | Calculation | Calculation uses exact decimal maths (BigInt in units of 10^-12 rupee, amounts as decimal strings), not floating point, and never rounds: the result keeps every decimal. One shared module is used by the server and the web app. | Built |
+| RES-1 | Result | Shows the net amount in rupees (₹, lakh grouping), its label (Net Debit, Net Credit, Balanced) and the working, with a breakdown of the inputs. When the exact result has more than 2 decimals, the big figure is shown rounded to 2 and a note gives the exact amount. Debit and Credit can be edited on the screen and the result updates as they are typed. The result can be copied. | Built |
 | RES-2 | Result | User can start a new invoice without signing in again. | Built |
 
 ## Calculation rules
@@ -78,20 +78,26 @@ net = Debit - Credit
 - A missing value counts as 0, so an invoice with only a Debit gives a Net Debit of that amount, and only a Credit gives a Net Credit.
 - If both values are missing, the app asks the user to enter at least one before calculating.
 - Negative inputs are not allowed; a minus sign read from the image is shown to the user to confirm.
-- Results are rounded to 2 decimal places. Inputs already have at most 2 decimals, so the maths never needs to round: an amount with more than 2 decimals is refused, never silently rounded. (The shared module can round half away from zero line by line when a caller asks for it; nothing uses that yet.)
+- **Any amount is accepted.** An amount may have any number of decimals (up to 12), so `12.345`, `0.001` and `2.675` are valid, and is read exactly. Nothing is rounded in the maths: the net keeps every decimal (`12.345 - 0.001 = 12.344`).
+- **Rounding is for showing only.** The big figure on the result screen is the exact net rounded to 2 decimal places (half away from zero: 12.344 shows as 12.34, 2.675 as 2.68). When that changes the figure, a note under it says "Shown rounded to 2 decimal places. The exact amount is ₹12.344.". The working line, the breakdown table, the copied text and the API's `net` show every decimal, so the working adds up. A result that is exactly 2 decimals or fewer shows no note.
+- **Limits.** One amount may have at most 15 digits before the decimal point (up to ₹99,99,99,99,99,99,999.99 in lakh style) and at most 12 decimal places (trailing zeros do not count), and its text at most 100 characters. Trailing zeros are ignored (`5.000000000000000` is 5). Totals of several lines may go beyond one amount and keep every digit. The limits are written under the Debit and Credit boxes and returned in API error messages. Amounts in scientific notation (`1e3`, `1.5e-3`) are read exactly.
+- **Not accepted**, each with a clear message: negatives, other currency signs ($ £ €), anything that is not a number, more than 12 decimals, more than 15 whole digits, and a JSON number in the API (send text).
 - Zero is a real amount: a Debit of 0 and a Credit of 0 is Balanced 0.00, while two blank boxes is "enter at least one amount".
-- One amount can be up to 999,999,999,999.99. Totals of several lines may go beyond that and keep every digit.
-- Amounts are shown with thousands separators and 2 decimals. The currency symbol is shown when the invoice has a currency code (£ $ € ₹ and similar; an unknown code is written before the number, for example CHF 1,250.00). Indian rupee amounts use lakh grouping (12,34,567.00). With no currency, only the number is shown.
+- **Rupees only.** Ledgerly works in Indian rupees (INR). Amounts are shown with the ₹ sign, 2 decimals and lakh grouping (12,34,567.50). A pasted `₹`, `Rs.`, `INR` or `/-` is ignored when typing; other currency signs are refused with a message. There is no currency choice and no conversion.
 
 **Line items.** The calculation takes a list of signed line items and totals them: net is the sum of the lines, a positive line is a Debit and a negative line a Credit. The usual invoice is a list of two lines (Debit, minus Credit). The screen still works on the printed Debit and Credit; the API (below) already accepts a list of up to 5,000 lines, ready for invoices with many line items.
 
 | Debit | Credit | Result |
 | --- | --- | --- |
-| 1,250.00 | 400.00 | Net Debit 850.00 |
-| 300.00 | 975.50 | Net Credit 675.50 |
-| 500.00 | 500.00 | Balanced 0.00 |
-| 720.00 | (none) | Net Debit 720.00 |
-| (none) | 99.99 | Net Credit 99.99 |
+| 1,250.00 | 400.00 | Net Debit ₹850.00 |
+| 300.00 | 975.50 | Net Credit ₹675.50 |
+| 500.00 | 500.00 | Balanced ₹0.00 |
+| 720.00 | (none) | Net Debit ₹720.00 |
+| (none) | 99.99 | Net Credit ₹99.99 |
+| 12.345 | (none) | Net Debit ₹12.35 (exact ₹12.345) |
+| 10.005 | 0.004 | Net Debit ₹10.00 (exact ₹10.001) |
+| 0.001 | 0.002 | Net Credit ₹0.00 (exact ₹0.001) |
+| 12,34,567.891 | 500 | Net Debit ₹12,34,067.89 (exact ₹12,34,067.891) |
 
 ## Architecture and tech stack
 
@@ -134,7 +140,7 @@ The Node server exposes JSON endpoints under `/api`; all except the two code cal
 | `GET /api/invoices/:id/image` | none | the picture bytes, or 404 |
 | `DELETE /api/invoices/:id` | none | `{ ok: true }`, or 404 |
 | `POST /api/invoices/:id/extract` | none | `{ invoiceId, provider, model, imageDeleted, debit, credit, currency, confidence, notes, warnings, lineItems, itemTotals }`; amounts are decimal strings or null. Deletes the picture on success |
-| `POST /api/invoices/calculate` | `{ debit, credit }` (text or null), or `{ items: [...] }` of signed line items (text, or `{ amount }`) | `{ debit, credit, net, signedNet, type, lineCount }`: all amounts are exact decimal strings, `debit` and `credit` are the totals of each side, `net` is never negative, `signedNet` is Debit minus Credit, and `type` is `debit`, `credit` or `balanced`. Needs a signed-in user. Numbers instead of text are refused (400) |
+| `POST /api/invoices/calculate` | `{ debit, credit }` (text or null), or `{ items: [...] }` of signed line items (text, or `{ amount }`) | `{ debit, credit, net, netRounded, rounded, signedNet, type, lineCount }`: all amounts are exact decimal strings in rupees, `debit` and `credit` are the totals of each side, `net` is never negative and keeps every decimal (`"10.001"`), `netRounded` is the same rounded to 2 decimals for showing (`"10.00"`), `rounded` is true when those differ, `signedNet` is Debit minus Credit, and `type` is `debit`, `credit` or `balanced`. Needs a signed-in user. Amounts follow the rules above (any decimals up to 12, up to 15 whole digits); numbers instead of text, negatives, junk and amounts over the limits are refused (400) with a message |
 
 Errors use HTTP status codes (400 bad input, 401 not signed in, 404 not found or not yours, 413 file or request too large, 415 not a supported picture, 409 already being read, 422 picture or invoice could not be read, 429 too many requests or AI busy, 502 AI or SMS provider failed, 504 AI too slow) with a body of `{ error: "message" }`. A 429 from the auth calls also carries `retryAfterSeconds` and a `Retry-After` header. A wrong code is 401; after 5 wrong tries the code is locked and further tries get 429 until a new code is requested.
 
@@ -185,7 +191,6 @@ These are candidate features after the prototype, unordered and undated until we
 - **Invoice history:** save each result with its image and date, and list past invoices per user.
 - **Database and persistent sessions:** replace in-memory storage (for example PostgreSQL), so restarts keep users signed in.
 - **Running balance:** combine several invoices into one total net position.
-- **Currencies:** detect and show the currency, and keep totals per currency.
 - **Export:** download results as CSV or PDF.
 - **Batch upload:** several invoices at once.
 - **Deployment:** host the app with HTTPS and a real SMS sender number.
@@ -197,7 +202,7 @@ The build can start without these answers; each has a default assumed in bracket
 
 - [ ] Is the superadmin and agent setup from the whiteboard part of this prototype, or the next phase? (Assumed: next phase; the prototype builds single-user upload and calculation first.)
 - [ ] On the whiteboard, what do the crossed-out and ticked amounts mean, and is the total per agent or across all agents?
-- [ ] Which currency or currencies do the invoices use? (Assumed: one currency, symbol shown if printed.)
+- [x] Which currency or currencies do the invoices use? (Decided: Indian rupees only, shown as ₹ with lakh grouping.)
 - [ ] Which SMS provider and which countries should codes go to? (Assumed: Twilio, any country.)
 - [ ] Is the net always Debit minus Credit, or can the invoice say which side wins? (Assumed: Debit minus Credit.)
 - [ ] Can you share 2 or 3 sample invoice photos so the AI can be tested against real layouts? (Assumed: test with generated samples.)
@@ -215,3 +220,4 @@ The build can start without these answers; each has a default assumed in bracket
 | 2026-11-16 | 0.6 | Invoice picture upload built (UP-1 to UP-3): upload, fetch and delete endpoints, size and type checks, per-user storage with automatic deletion, upload screen with camera, preview, progress, replace and remove. AI-4 changed: pictures are stored briefly instead of kept only in memory. Added 404 and 415 status codes and the `UPLOAD_*` settings. |
 | 2026-11-16 | 0.7 | AI amount extraction built (AI-1 to AI-4): `POST /api/invoices/:id/extract`, Claude vision provider with a deterministic mock mode, HEIC to JPEG conversion, strict output validation, exact decimal amounts (strings, not numbers), line items, warnings and confidence, per-user hourly limit, picture deleted after reading. Web: Read amounts, loading and cancel, editable Debit and Credit with checks, type by hand. Endpoint changed from a multipart `extract` to `:id/extract` on the already uploaded picture. |
 | 2026-11-16 | 0.8 | Final amount calculation and result screen built (CALC-1 to CALC-3, RES-1, RES-2). New shared `@ledgerly/money` package (exact BigInt minor units, signed line items, formatting) used by the server and the web app. `POST /api/invoices/calculate` now built, also accepts a list of signed line items and returns `signedNet` and `lineCount`. Web: Calculate final amount button, result screen with live recalculation, breakdown, copy, back, new invoice. Calculation rules extended (zero, large numbers, rounding, formatting). Request body too large now answers 413. |
+| 2026-11-16 | 0.9 | Any amount may be entered: the 2-decimal refusal is gone. Amounts keep up to 12 decimals and 15 whole digits (limits shown in the UI and API errors), the maths stays exact and never rounds, and the result screen shows the figure rounded to 2 decimals with a note giving the exact amount when it differs. API adds `netRounded` and `rounded`. AI: a plain number with extra decimals is kept, an ambiguous one (`12.345`) is still flagged. Ledgerly now works in Indian rupees only (₹, lakh grouping, `currency` is always INR, no other currency handling). `1e3`, `₹`, `Rs.` and `/-` are accepted when typing. |

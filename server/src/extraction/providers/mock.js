@@ -31,7 +31,6 @@ export function createMockProvider() {
         readable: true,
         debit: money(sum(debitLines)),
         credit: money(sum(creditLines)),
-        currency: 'GBP',
         confidence: 'high',
         notes:
           'Demo values from mock mode: your picture was not read by an AI. ' +

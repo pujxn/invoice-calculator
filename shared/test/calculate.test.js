@@ -79,19 +79,59 @@ describe('calculateNet', () => {
     assert.match(bad.message, /^Credit: /);
     assert.equal(calculateNet({ debit: '-1', credit: '5' }).field, 'debit');
     assert.equal(calculateNet({ debit: '-1', credit: '5' }).reason, 'negative');
-    assert.equal(calculateNet({ debit: '1', credit: '12.345' }).reason, 'too_precise');
-    assert.equal(calculateNet({ debit: '1'.repeat(13) }).reason, 'too_large');
+    assert.equal(calculateNet({ debit: '1', credit: '1.0000000000001' }).reason, 'too_precise');
+    assert.equal(calculateNet({ debit: '1'.repeat(16) }).reason, 'too_large');
   });
 
-  it('reads a number by its text, so a float with stray digits is refused, not rounded', () => {
+  it('reads a number by its text, so a float with stray digits keeps every digit it has', () => {
     assert.equal(net(12.5, 1).net, '11.50');
+    // 0.1 + 0.2 is 0.30000000000000004 as a float: 17 decimals, more than are allowed.
     assert.equal(calculateNet({ debit: 0.1 + 0.2, credit: 0 }).reason, 'too_precise');
   });
+});
 
-  it('rounds long decimals only when asked to', () => {
-    assert.equal(calculateNet({ debit: '10.005', credit: '0' }).reason, 'too_precise');
-    assert.equal(net('10.005', '0.004', { round: true }).net, '10.01');
-    assert.equal(net('10.999', '0.001', { round: true }).net, '11.00'); // 11.00 - 0.00
+describe('calculateNet: any amount a person types', () => {
+  it('keeps every decimal in the exact result and rounds only the display figure', () => {
+    const r = net('12.345', '0');
+    assert.equal(r.net, '12.345');
+    assert.equal(r.netRounded, '12.35');
+    assert.equal(r.rounded, true);
+    assert.equal(r.type, 'debit');
+  });
+
+  it('does not flag a result that already has at most 2 decimals', () => {
+    for (const [d, c] of [
+      ['1250', '400'],
+      ['0.125', '0.025'], // 0.100 exactly
+      ['10.005', '0.005'], // 10.000 exactly
+    ]) {
+      const r = net(d, c);
+      assert.equal(r.rounded, false, `${d} - ${c}`);
+      assert.equal(r.net, r.netRounded);
+    }
+  });
+
+  it('is exact with long decimals, where floating point is not', () => {
+    assert.equal(net('0.1', '0.3').net, '0.20');
+    assert.equal(net('0.3', '0.1').net, '0.20');
+    assert.equal(net('1.000000000001', '0.000000000001').net, '1.00');
+    assert.equal(net('0.001', '0.002').net, '0.001');
+    assert.equal(net('0.001', '0.002').type, 'credit');
+    assert.equal(net('0.001', '0.002').netRounded, '0.00');
+    assert.equal(net('0.001', '0.001').type, 'balanced');
+  });
+
+  it('works with scientific notation and a pasted rupee mark', () => {
+    assert.equal(net('1e3', '2.5e2').net, '750.00');
+    assert.equal(net('₹ 1,00,000', 'Rs. 250.50/-').net, '99749.50');
+  });
+
+  it('keeps every digit of the largest amounts', () => {
+    const big = '999999999999999.999999999999';
+    assert.equal(net(big, '0.000000000001').net, '999999999999999.999999999998');
+    assert.equal(net(big, big).type, 'balanced');
+    assert.equal(net(big, '0').netRounded, '1000000000000000.00');
+    assert.equal(net(big, '0').rounded, true);
   });
 });
 
@@ -148,14 +188,15 @@ describe('totalLines: signed line items', () => {
 
   it('totals a long list quickly and exactly, going past the single-amount limit', () => {
     const items = Array.from({ length: MAX_LINES }, (_, i) =>
-      i % 2 ? '999999999999.99' : '-0.01',
+      i % 2 ? '999999999999999.99' : '-0.01',
     );
     const r = totalLines(items);
     assert.equal(r.ok, true);
     assert.equal(r.type, 'debit');
-    assert.equal(r.debit, '2499999999999975.00'); // 2500 x 999,999,999,999.99
+    assert.equal(r.debit, '2499999999999999975.00'); // 2500 x 999,999,999,999,999.99
     assert.equal(r.credit, '25.00'); // 2500 x 0.01
-    assert.equal(r.net, '2499999999999950.00');
+    assert.equal(r.net, '2499999999999999950.00');
+    assert.equal(r.netRounded, r.net);
   });
 
   it('nets a list that cancels out to Balanced', () => {
@@ -170,14 +211,19 @@ describe('totalLines: signed line items', () => {
     assert.equal(r.ok, false);
     assert.equal(r.line, 3);
     assert.match(r.message, /^Line 3: /);
-    assert.equal(totalLines(['1', '2.345']).line, 2);
-    assert.equal(totalLines(['1', '1'.repeat(14)]).reason, 'too_large');
+    assert.equal(totalLines(['1', '2.0000000000001']).line, 2);
+    assert.equal(totalLines(['1', '1'.repeat(16)]).reason, 'too_large');
   });
 
-  it('rounds each line when asked, not the total', () => {
-    // Three lines of 0.004 would total 0.012 -> 0.01; line by line they are each 0.00.
-    assert.equal(totalLines(['0.004', '0.004', '0.004'], { round: true }).net, '0.00');
-    assert.equal(totalLines(['0.005', '0.005'], { round: true }).net, '0.02');
+  it('adds long decimals exactly and rounds only the total', () => {
+    // Three lines of 0.004 total 0.012, shown as 0.01: lines are never rounded one by one.
+    const r = totalLines(['0.004', '0.004', '0.004']);
+    assert.equal(r.net, '0.012');
+    assert.equal(r.netRounded, '0.01');
+    assert.equal(r.rounded, true);
+    assert.equal(totalLines(['0.005', '0.005']).net, '0.01');
+    assert.equal(totalLines(['12.345', '-0.345']).net, '12.00');
+    assert.equal(totalLines(['12.345', '-0.345']).rounded, false);
   });
 
   it('needs at least one amount, and a real list within the limit', () => {

@@ -9,11 +9,10 @@ import AmountFields from './AmountFields.jsx';
 export default function ResultScreen({ result, values, onChange, onReset, onBack, onStartOver }) {
   const headingRef = useFocusOnMount();
   const [copy, setCopy] = useState(''); // '', 'copied' or 'failed'
-  const currency = result.currency;
   const outcome = calculateNet(values);
-  const words = outcome.ok ? describeResult(outcome, currency) : null;
+  const words = outcome.ok ? describeResult(outcome) : null;
   const edited = ['debit', 'credit'].some((f) => values[f] !== (result[f] ?? ''));
-  const money = (value) => formatAmount(value, currency);
+  const money = (value) => formatAmount(value, { exact: true }); // every decimal, so the sum adds up
 
   async function copyResult() {
     try {
@@ -41,6 +40,11 @@ export default function ResultScreen({ result, values, onChange, onReset, onBack
           <>
             <p className="final-label">{words.label}</p>
             <p className="final-amount">{words.amount}</p>
+            {words.note && (
+              <p className="final-note" data-testid="rounded-note">
+                {words.note}
+              </p>
+            )}
             <p className="final-working">{words.working}</p>
           </>
         ) : (
@@ -68,7 +72,7 @@ export default function ResultScreen({ result, values, onChange, onReset, onBack
             <tfoot>
               <tr>
                 <th scope="row">{words.label}</th>
-                <td className="num">{words.amount}</td>
+                <td className="num">{words.exact}</td>
               </tr>
             </tfoot>
           </table>
