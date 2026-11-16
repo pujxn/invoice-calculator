@@ -3,11 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 
 const SERVER_LOG = fileURLToPath(new URL('./.server.log', import.meta.url));
-// Screenshots are for reviewing, not for the repo: they go to a git-ignored folder
-// (or wherever SCREENSHOT_DIR points).
-const SCREENSHOT_DIR = (
-  process.env.SCREENSHOT_DIR || fileURLToPath(new URL('./.screenshots', import.meta.url))
-).replace(/\/?$/, '/');
+const SCREENSHOT_DIR = fileURLToPath(new URL('../test-screenshots/', import.meta.url));
 
 // A fresh number per test keeps the per-number rate limits from interfering.
 export function uniquePhone() {

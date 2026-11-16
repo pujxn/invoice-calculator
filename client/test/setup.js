@@ -7,6 +7,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
   localStorage.clear();
+  document.title = '';
 });
 
 // jsdom has no object URLs; give each test fresh spies so previews can be asserted.

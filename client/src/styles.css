@@ -1,10 +1,59 @@
-/* Mobile first: sizes are for a phone held in one hand; wider screens only add margin. */
+/* Ledgerly design tokens. Mobile first: sizes are for a phone held in one hand;
+   wider screens only add margin. Colours meet WCAG AA (checked in
+   client/test/contrast.test.js): 4.5:1 for text, 3:1 for control outlines.
+   Change colours here (and in scripts/build-brand.mjs for the logo), not in
+   components. */
 :root {
-  font-family: system-ui, sans-serif;
-  color: #1a1a1a;
-  background: #fafafa;
+  --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --text-sm: 0.9rem;
+  --text-base: 1rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.875rem;
+
+  --radius: 8px;
   --tap: 48px; /* minimum touch target height (Apple and Google both ask for 44-48) */
-  --blue: #2b5fd9;
+
+  /* Palette: pink (brand), green (credit, success), soft rose (dividers), white. */
+  --primary: #c2185b; /* ledger pink */
+  --primary-hover: #a8124c;
+  --on-primary: #ffffff;
+  --rose: #f0a3c3; /* soft rose, decoration only */
+  --bg: #fff7fa; /* blush white */
+  --surface: #ffffff;
+  --text: #2b1020;
+  --text-muted: #7a4a60;
+  --border: #9b7587;
+  --focus: #c2185b;
+  --good-bg: #e1f5e8;
+  --good-text: #145c33; /* credit green */
+  --bad-bg: #fde4e4;
+  --bad-text: #8a1c1c;
+
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #ff8fb8;
+    --primary-hover: #ffb3d0;
+    --on-primary: #3a0a1f;
+    --rose: #8a3a5e;
+    --bg: #1c0f16;
+    --surface: #2a1822;
+    --text: #fbeaf1;
+    --text-muted: #d4a5ba;
+    --border: #8a6677;
+    --focus: #ff8fb8;
+    --good-bg: #12361f;
+    --good-text: #9be8b4;
+    --bad-bg: #4a1f1f;
+    --bad-text: #ffc9c9;
+  }
 }
 
 *,
@@ -19,13 +68,15 @@ html {
 
 body {
   margin: 0;
+  background: var(--bg);
   -webkit-tap-highlight-color: transparent;
 }
 
 .shell {
   max-width: 32rem;
   margin: 0 auto;
-  /* Keep content clear of notches and home indicators once wrapped as a native app. */
+  /* Keep content clear of notches and home indicators once wrapped as a native app
+     (needs viewport-fit=cover, set in index.html). */
   padding: max(1.5rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
     max(1.5rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
   overflow-wrap: anywhere;
@@ -34,21 +85,50 @@ body {
 h1 {
   font-size: 1.75rem;
   line-height: 1.2;
+  letter-spacing: -0.01em;
   margin: 0 0 1rem;
+}
+
+.logo {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.login-brand {
+  margin: 0 0 1.5rem;
+}
+
+/* The lockup shrinks on very narrow phones instead of overflowing. */
+.login-brand .logo {
+  width: min(100%, 14rem);
+  height: auto;
+}
+
+.tagline {
+  margin: 0.75rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-base);
 }
 
 .status {
   padding: 0.75rem;
-  border-radius: 8px;
+  border-radius: var(--radius);
   margin: 1rem 0 0;
 }
 
 .status.good {
-  background: #e3f6e8;
+  background: var(--good-bg);
+  color: var(--good-text);
+}
+
+.status.good button.link {
+  color: inherit;
 }
 
 .status.bad {
-  background: #fde4e4;
+  background: var(--bad-bg);
+  color: var(--bad-text);
 }
 
 label {
@@ -64,15 +144,19 @@ input {
   padding: 0.5rem 0.75rem;
   font: inherit;
   font-size: 1rem;
-  color: inherit;
-  background: #fff;
-  border: 1px solid #8a8a8a;
-  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
-input:focus-visible,
-button:focus-visible {
-  outline: 3px solid #9db8f5;
+input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -91,13 +175,18 @@ button {
   padding: 0.5rem 1.25rem;
   font: inherit;
   font-weight: 600;
-  color: #fff;
+  color: var(--on-primary);
   white-space: nowrap;
-  background: var(--blue);
-  border: 1px solid var(--blue);
-  border-radius: 8px;
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
   cursor: pointer;
   touch-action: manipulation; /* no double-tap-zoom delay */
+}
+
+button:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 button:disabled {
@@ -106,24 +195,33 @@ button:disabled {
 }
 
 button.secondary {
-  color: var(--blue);
+  color: var(--primary);
   background: transparent;
+}
+
+button.secondary:hover:not(:disabled) {
+  background: transparent;
+  color: var(--primary-hover);
 }
 
 /* Inline text link that still has a comfortable touch target. */
 button.link {
   min-height: var(--tap);
   padding: 0 0.25rem;
-  color: var(--blue);
+  color: var(--primary);
   background: none;
   border: 0;
   font-weight: 400;
   text-decoration: underline;
 }
 
+button.link:hover:not(:disabled) {
+  background: none;
+}
+
 .hint {
-  color: #555;
-  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 /* Form buttons stack full width on phones; side by side on wider screens. */
@@ -148,15 +246,27 @@ button.link {
   }
 }
 
+/* Header bar: logo on the left, actions on the right, aligned with .shell.
+   It sits outside <main> so it is the page's banner landmark. */
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: max(0.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0.75rem
+    max(1rem, env(safe-area-inset-left));
 }
 
-.topbar h1 {
-  margin: 0;
+/* Thin soft-rose rule under the header. */
+.topbar-wrap {
+  border-bottom: 3px solid var(--rose);
+}
+
+.brand-link {
+  display: inline-block;
+  border-radius: var(--radius);
 }
 
 /* --- Invoice upload --- */

@@ -1,14 +1,14 @@
-# Invoice Calculator: Product Spec
+# Ledgerly: Product Spec
 
 > The live, editable copy of this spec is the Claude Doc
-> [Invoice Calculator: Product Spec](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs).
+> [Ledgerly: Product Spec](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs).
 > This file is a snapshot of it for the repo. Change the doc first, then update this file and the changelog.
 
-Version 0.4 · 2026-11-16
+Version 0.6 · 2026-11-16
 
 ## Overview
 
-Invoice Calculator reads a photo of a standardised invoice showing a Debit amount and a Credit amount, and tells the user the final net amount and whether it is a net Debit or a net Credit. This spec is the source of truth for the product; every change to scope is recorded here first.
+Ledgerly (the working title was Invoice Calculator) reads a photo of a standardised invoice showing a Debit amount and a Credit amount, and tells the user the final net amount and whether it is a net Debit or a net Credit. This spec is the source of truth for the product; every change to scope is recorded here first.
 
 **Users:** people who receive simple standardised invoices and need the net figure quickly, signing in with their mobile number.
 
@@ -101,7 +101,18 @@ React web app (Vite)  --JSON-->  Node API (Express)  --code-->   SMS provider (c
 - **Client:** React 18 with Vite, plain CSS, mobile first (touch-sized controls, numeric keypad, SMS code autofill). The product must run on web and mobile; the plan is this responsive web app wrapped with Capacitor for iOS and Android, which is a later step.
 - **Server:** Node 20+ with Express; multer for uploads; the Anthropic SDK for Claude vision.
 - **Repo:** one GitHub repo, `invoice-calculator`, with `client/` and `server/` folders and one `npm run dev` that starts both.
-- **Tests:** Node's built-in test runner for the calculator and auth logic, and Playwright UI tests (`e2e/`) for every feature, with screenshots of each screen kept in `docs/screenshots/`.
+- **Tests:** Node's built-in test runner for the server (calculator, auth), Vitest and Testing Library for React components, and Playwright UI tests (`e2e/`, with axe accessibility checks) for every feature. Every feature ships with tests at the levels it touches.
+- **Installable:** the web app has a manifest and icons so it can be added to a home screen, and `client/assets` holds the icon and splash sources Capacitor needs.
+
+## Branding
+
+The product is called **Ledgerly**. The logo is a ledger mark (a vertical rule, a longer debit bar, a shorter green credit bar and a total line, which also reads as an L) next to the wordmark in Inter SemiBold, outlined so the SVGs need no fonts.
+
+- **Files:** `client/public/brand/` holds the lockup and the mark, each in light and dark, plus the favicon, `apple-touch-icon.png` and the PWA icons. `client/assets/` holds the Capacitor sources: `icon-only`, `icon-foreground` and `icon-background` (1024 px) and `splash` and `splash-dark` (2732 px). A preview is in `docs/brand/logo-preview.png`.
+- **Colour:** a pink UI with green and soft rose accents on white. Light theme: ledger pink `#c2185b` (primary, white text on it), blush white `#fff7fa` background, plum ink `#2b1020` text, credit green `#145c33` on `#e1f5e8` (success and credit), mint `#a6efc3` for the credit bar in the logo (dark logo: forest `#1a7a46`), and soft rose `#f0a3c3` for the header rule (decoration only). Dark theme: soft pink `#ff8fb8` on deep plum `#1c0f16`, with surfaces `#2a1822` and text `#fbeaf1`. The dark theme follows the device setting. Logo, icons and splash are generated from the palette by `npm run brand`.
+- **Type:** Inter if installed, else the system font; no web font is downloaded.
+- **Accessibility:** text and controls meet WCAG AA (4.5:1 text, 3:1 control outlines), buttons are at least 48 px tall, the logo has the alt text "Ledgerly", and focus rings are always visible. Contrast ratios of the colour tokens are checked by tests.
+- **Where it shows:** browser tab title and icon, sign-in screen, the header of every signed-in page, and the SMS text ("Your Ledgerly code is ...").
 
 ## API endpoints
 
@@ -169,7 +180,7 @@ These are candidate features after the prototype, unordered and undated until we
 - **Export:** download results as CSV or PDF.
 - **Batch upload:** several invoices at once.
 - **Deployment:** host the app with HTTPS and a real SMS sender number.
-- **Mobile app:** a native or installable app with camera capture.
+- **Mobile app:** wrap the responsive web app with Capacitor for iOS and Android, adding native camera capture. The icon and splash sources it needs are already in `client/assets` (see Branding).
 
 ## Open questions
 
@@ -190,4 +201,6 @@ The build can start without these answers; each has a default assumed in bracket
 | 2026-11-16 | 0.1 | First draft of the prototype spec. |
 | 2026-11-16 | 0.2 | SMS login built (AUTH-1 to AUTH-5). Added `GET /api/auth/me`, the `AUTH_SECRET` setting and the specific rate limits; clarified 429 and lockout behaviour. |
 | 2026-11-16 | 0.3 | Login UI made mobile first (touch targets, numeric keypad, SMS autofill); web plus iOS and Android via Capacitor recorded as the platform plan; testing rule: UI, client and server tests for every feature. |
-| 2026-11-16 | 0.4 | Invoice picture upload built (UP-1 to UP-3): upload, fetch and delete endpoints, size and type checks, per-user storage with automatic deletion, upload screen with camera, preview, progress, replace and remove. AI-4 changed: pictures are stored briefly instead of kept only in memory. Added 404 and 415 status codes and the `UPLOAD_*` settings. |
+| 2026-11-16 | 0.4 | Product named Ledgerly. Added the Branding section (logo, palette, icons, accessibility), the web app manifest, and icon and splash sources for the Capacitor wrapper. |
+| 2026-11-16 | 0.5 | Rebranded to a pink palette (pink, green, white) with a matching dark theme, requested by the manager. New logo colours, icons, splash and favicon; no layout or behaviour changes. |
+| 2026-11-16 | 0.6 | Invoice picture upload built (UP-1 to UP-3): upload, fetch and delete endpoints, size and type checks, per-user storage with automatic deletion, upload screen with camera, preview, progress, replace and remove. AI-4 changed: pictures are stored briefly instead of kept only in memory. Added 404 and 415 status codes and the `UPLOAD_*` settings. |
