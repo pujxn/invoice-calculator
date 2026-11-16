@@ -8,10 +8,11 @@ import {
   getInvoice,
   uploadInvoice,
 } from './invoiceApi.js';
+import { PICTURE_KEY } from '../storageKeys.js';
 import { ACCEPT, MAX_LABEL, TYPE_LABEL, formatSize, validateFile } from './validate.js';
 
 // Remembers the current picture for this browser tab, so a reload shows it again.
-const KEEP_KEY = 'invoice-calculator.current-invoice';
+const KEEP_KEY = PICTURE_KEY;
 const keep = {
   read() {
     try {
@@ -53,7 +54,7 @@ function Preview({ url, name }) {
 }
 
 // `onExtracted(result)` is called with the server's reading once the amounts have been read.
-export default function InvoiceUpload({ onExtracted }) {
+export default function InvoiceUpload({ onExtracted, focusHeading = false }) {
   const { token, logout } = useAuth();
   const [current, setCurrent] = useState(null); // { id, name, size, mimeType, previewUrl }
   const [uploading, setUploading] = useState(null); // { name, size, previewUrl, progress }
@@ -65,6 +66,12 @@ export default function InvoiceUpload({ onExtracted }) {
   const fileInput = useRef(null);
   const cameraInput = useRef(null);
   const urls = useRef(new Set()); // every object URL we made, revoked on unmount
+  const headingRef = useRef(null);
+
+  // Coming back here from the amounts: say so to screen readers and keep the keyboard place.
+  useEffect(() => {
+    if (focusHeading) headingRef.current?.focus({ preventScroll: true });
+  }, [focusHeading]);
 
   const makeUrl = useCallback((blob) => {
     const url = URL.createObjectURL(blob);
@@ -273,7 +280,9 @@ export default function InvoiceUpload({ onExtracted }) {
 
   return (
     <section className="upload" aria-labelledby="upload-title">
-      <h2 id="upload-title">Upload your invoice</h2>
+      <h2 id="upload-title" ref={headingRef} tabIndex={-1}>
+        Upload your invoice
+      </h2>
       <p className="hint">
         Take a clear photo of the whole invoice, or choose one you already have. {TYPE_LABEL}, up to{' '}
         {MAX_LABEL}.

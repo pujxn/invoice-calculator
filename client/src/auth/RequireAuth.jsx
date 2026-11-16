@@ -8,7 +8,7 @@ export default function RequireAuth() {
   if (checking)
     return (
       <main className="shell">
-        <p>Checking your session…</p>
+        <p role="status">Checking your session…</p>
       </main>
     );
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;

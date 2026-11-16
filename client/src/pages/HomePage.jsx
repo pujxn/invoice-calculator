@@ -20,7 +20,7 @@ export default function HomePage() {
         <p>
           Signed in as <strong>{user.phone}</strong>.
         </p>
-        <InvoiceFlow />
+        <InvoiceFlow key={user.phone} />
       </main>
     </>
   );

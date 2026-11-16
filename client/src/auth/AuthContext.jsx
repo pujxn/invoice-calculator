@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api.js';
 
-const STORAGE_KEY = 'invoice-calculator.session';
+import { SESSION_KEY as STORAGE_KEY, forgetInvoiceData } from '../storageKeys.js';
 const AuthContext = createContext(null);
 
 // localStorage can be blocked (private mode), so every access is guarded.
@@ -31,7 +31,23 @@ export function AuthProvider({ children }) {
 
   const clear = useCallback(() => {
     store(null);
+    forgetInvoiceData();
     setSession(null);
+  }, []);
+
+  // Signing out (or being signed out) in another tab of this browser signs this tab out too,
+  // and signing in elsewhere signs this one in, instead of leaving a page that no longer works.
+  useEffect(() => {
+    function onStorage(event) {
+      if (event.key !== null && event.key !== STORAGE_KEY) return;
+      const stored = loadStored();
+      setSession((current) => {
+        if (!stored) return null;
+        return current?.token === stored.token ? current : stored;
+      });
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   useEffect(() => {

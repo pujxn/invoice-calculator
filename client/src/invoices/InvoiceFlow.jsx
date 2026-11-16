@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import ExtractedAmounts from './ExtractedAmounts.jsx';
 import InvoiceUpload from './InvoiceUpload.jsx';
 import ResultScreen from './ResultScreen.jsx';
+import { READING_KEY } from '../storageKeys.js';
 
 // Upload screen, then the amounts that were read, then the final amount. The reading is remembered for this browser tab
 // (and this phone number) so a reload does not lose edits; the picture itself is already deleted
 // by the server at that point.
-const KEEP_KEY = 'invoice-calculator.extracted';
+const KEEP_KEY = READING_KEY;
 
 function load(phone) {
   try {
@@ -33,18 +35,38 @@ const startValues = (result) => ({ debit: result.debit ?? '', credit: result.cre
 
 export default function InvoiceFlow() {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [state, setState] = useState(() => load(user.phone)); // { phone, result, values, stage } | null
+  // The final amount screen gets its own browser history entry, so the browser's Back button (and
+  // Android's back key) goes back to the amounts instead of leaving the app, and Forward returns.
+  const onResultEntry = location.state?.stage === 'result';
+  const lastKey = useRef(location.key);
+  // Set when the upload screen is shown again after the amounts, so focus can move to it.
+  const [cameBack, setCameBack] = useState(false);
 
   useEffect(() => {
     save(state);
   }, [state]);
 
+  useEffect(() => {
+    if (lastKey.current === location.key) return; // not a navigation, just another render
+    lastKey.current = location.key;
+    setState((s) => {
+      if (!s) return s;
+      const stage = onResultEntry ? 'result' : 'review';
+      return s.stage === stage ? s : { ...s, stage };
+    });
+  }, [location.key, onResultEntry]);
+
   if (!state) {
     return (
       <InvoiceUpload
-        onExtracted={(result) =>
-          setState({ phone: user.phone, result, values: startValues(result), stage: 'review' })
-        }
+        focusHeading={cameBack}
+        onExtracted={(result) => {
+          setCameBack(false);
+          setState({ phone: user.phone, result, values: startValues(result), stage: 'review' });
+        }}
       />
     );
   }
@@ -52,7 +74,20 @@ export default function InvoiceFlow() {
   const change = (field, text) =>
     setState((s) => ({ ...s, values: { ...s.values, [field]: text } }));
   const reset = () => setState((s) => ({ ...s, values: startValues(s.result) }));
-  const goTo = (stage) => setState((s) => ({ ...s, stage }));
+  const startOver = () => {
+    setCameBack(true);
+    setState(null);
+  };
+  const showResult = () => {
+    setState((s) => ({ ...s, stage: 'result' }));
+    navigate(location.pathname, { state: { stage: 'result' } });
+  };
+  // Back from the result: pop the entry we pushed, or just switch screens if there is none
+  // (for example after a reload that lost it).
+  const showReview = () => {
+    if (onResultEntry) navigate(-1);
+    else setState((s) => ({ ...s, stage: 'review' }));
+  };
 
   if (state.stage === 'result') {
     return (
@@ -61,8 +96,8 @@ export default function InvoiceFlow() {
         values={state.values}
         onChange={change}
         onReset={reset}
-        onBack={() => goTo('review')}
-        onStartOver={() => setState(null)}
+        onBack={showReview}
+        onStartOver={startOver}
       />
     );
   }
@@ -73,8 +108,8 @@ export default function InvoiceFlow() {
       values={state.values}
       onChange={change}
       onReset={reset}
-      onStartOver={() => setState(null)}
-      onCalculate={() => goTo('result')}
+      onStartOver={startOver}
+      onCalculate={showResult}
     />
   );
 }

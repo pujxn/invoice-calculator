@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { mimeForExt } from './fileType.js';
 
@@ -93,6 +93,7 @@ export function createUploadStore({ dir, ttlMs, maxPerUser, now = Date.now }) {
       }
       for (const entry of owners.filter((e) => e.isDirectory())) {
         const folder = path.join(root, entry.name);
+        let left = 0;
         for (const name of await readdir(folder)) {
           if (!FILE_PATTERN.test(name) && !name.endsWith('.tmp')) continue;
           const file = path.join(folder, name);
@@ -100,8 +101,13 @@ export function createUploadStore({ dir, ttlMs, maxPerUser, now = Date.now }) {
           if (info && now() - info.mtimeMs > ttlMs) {
             await rm(file, { force: true });
             removed += 1;
+          } else {
+            left += 1;
           }
         }
+        // A user whose pictures are all gone leaves no folder behind. rmdir only works on an
+        // empty folder, so an upload that lands at this moment is never lost.
+        if (left === 0) await rmdir(folder).catch(() => {});
       }
       return removed;
     },

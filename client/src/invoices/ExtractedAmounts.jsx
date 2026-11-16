@@ -57,7 +57,8 @@ export default function ExtractedAmounts({
         </p>
       )}
 
-      {result.notes && <p className="note">{result.notes}</p>}
+      {/* In demo mode the line under the heading already says so; the server's note would repeat it. */}
+      {result.notes && !demo && <p className="note">{result.notes}</p>}
 
       {result.warnings.length > 0 && (
         <div className="status warn" role="alert">
