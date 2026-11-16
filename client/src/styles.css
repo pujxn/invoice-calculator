@@ -1,0 +1,28 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #1a1a1a;
+  background: #fafafa;
+}
+
+body {
+  margin: 0;
+}
+
+.shell {
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.status {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+}
+
+.status.good {
+  background: #e3f6e8;
+}
+
+.status.bad {
+  background: #fde4e4;
+}
