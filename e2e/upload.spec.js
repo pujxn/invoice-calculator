@@ -201,6 +201,8 @@ test('the upload screen fits the phone, with big buttons, before and after uploa
   await expectTouchFriendly(page);
   // A very long file name must not push the page sideways.
   await page.getByRole('button', { name: 'Remove' }).click();
+  // Wait for the removal to finish; a person cannot pick a file before the buttons are back.
+  await expect(page.getByRole('button', { name: 'Choose file' })).toBeVisible();
   const longName = `${'very-long-invoice-name-'.repeat(8)}.png`;
   await upload(page, fake(longName, 'image/png', readFileSync(PNG)));
   await expect(uploaded(page)).toBeVisible();

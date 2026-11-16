@@ -5,6 +5,7 @@ import { createSessionStore } from './auth/sessions.js';
 import { createRateLimiter } from './auth/rateLimiter.js';
 import { createUploadStore } from './invoices/store.js';
 import { createInvoiceRouter } from './invoices/routes.js';
+import { createExtractor, createVisionProvider } from './extraction/index.js';
 import { createAuthRouter, createRequireAuth } from './auth/routes.js';
 
 // `deps` lets tests inject a fake SMS provider and clock.
@@ -32,6 +33,17 @@ export function createApp(config, deps = {}) {
     maxPerUser: config.uploads.maxPerUser,
   });
 
+  // `deps.vision` and `deps.prepare` let tests inject a fake vision provider and image step.
+  const extractor = createExtractor({
+    provider: deps.vision || createVisionProvider(config.vision),
+    ...(deps.prepare ? { prepare: deps.prepare } : {}),
+  });
+  const extractLimiter = createRateLimiter({
+    limit: config.vision.extractionsPerUserPerHour,
+    windowMs: 60 * 60 * 1000,
+    now,
+  });
+
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json());
@@ -39,7 +51,7 @@ export function createApp(config, deps = {}) {
   app.get('/api/health', (_req, res) => {
     res.json({
       ok: true,
-      providers: { sms: config.sms.provider, vision: config.vision.provider },
+      providers: { sms: config.sms.provider, vision: extractor.provider },
     });
   });
 
@@ -50,7 +62,13 @@ export function createApp(config, deps = {}) {
 
   app.use(
     '/api/invoices',
-    createInvoiceRouter({ store: uploads, requireAuth, maxBytes: config.uploads.maxBytes }),
+    createInvoiceRouter({
+      store: uploads,
+      requireAuth,
+      maxBytes: config.uploads.maxBytes,
+      extractor,
+      extractLimiter,
+    }),
   );
 
   // Malformed JSON and other errors get the same { error } shape as the rest of the API.
@@ -70,6 +88,7 @@ export function createApp(config, deps = {}) {
       sessions.sweep();
       ipRequestLimiter.sweep();
       ipVerifyLimiter.sweep();
+      extractLimiter.sweep();
     }, 60 * 1000);
     timer.unref();
     // Delete invoice pictures older than UPLOAD_TTL_HOURS.

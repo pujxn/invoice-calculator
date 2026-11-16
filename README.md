@@ -14,7 +14,7 @@ The product spec is [SPEC.md](SPEC.md), a snapshot of the
 
 ## Status
 
-SMS one-time-code login and invoice picture upload work end to end (take or choose a photo, preview, progress, replace, remove). AI extraction and the calculation are built step by step; requirement status is tracked in SPEC.md.
+SMS one-time-code login, invoice picture upload and AI reading of the Debit and Credit amounts work end to end. After a picture is uploaded, **Read amounts** shows the detected Debit and Credit (editable), the lines found and anything to double check. The final net calculation is the next step; requirement status is tracked in SPEC.md.
 
 ## Layout
 
@@ -87,6 +87,33 @@ Pictures are saved in `server/uploads/` (change with `UPLOAD_DIR`) and deleted a
 - Logo files are in `client/public/brand/`; a preview sheet is in [docs/brand/logo-preview.png](docs/brand/logo-preview.png). Colours and type are tokens at the top of `client/src/styles.css`.
 - **Changing the colours:** edit those tokens and the palette at the top of `scripts/build-brand.mjs`, then run `npm run brand` to rebuild the logos, icons and splash images.
 
+### Try reading the amounts (about 3 minutes)
+
+Sign in and upload a picture first (steps above). The app starts in **mock mode**: no AI key is needed, and the numbers shown are demo values made up from your picture's bytes (the same picture always gives the same numbers), so you can try the whole screen for free.
+
+1. With a picture uploaded, press **Read amounts**. A spinner and "Reading your invoice…" appear, then **Amounts we found** shows a Debit box, a Credit box, a confidence line and a table of the lines found.
+2. Change the Debit box to `12.345`: a red message says "Use at most 2 decimal places." Try `-5` and `abc` too. Then type `1300.5`, and press **Reset to what was found** to get the original numbers back.
+3. Refresh the page: your edited numbers are still there. The picture is already gone from the server (it is deleted as soon as it has been read).
+4. Press **Upload a different invoice** to start again.
+5. Upload a picture, then press **Type the amounts instead** to skip the AI and type both amounts yourself.
+
+#### Use the real AI (optional, costs a little per picture)
+
+1. Get an API key from https://console.anthropic.com.
+2. Copy the settings file once: `cp server/.env.example server/.env` (Windows: `copy server\.env.example server\.env`).
+3. Open `server/.env` in any text editor and put your key after `ANTHROPIC_API_KEY=`, for example `ANTHROPIC_API_KEY=sk-ant-...`. Save.
+4. Restart the app (`Ctrl+C`, then `npm run dev`). The terminal now says `vision: claude`.
+5. Upload a photo of a real invoice and press **Read amounts**. The note under "Amounts we found" now says "Read from your picture by AI."
+
+To go back to mock mode, empty the key line (or set `VISION_PROVIDER=mock`) and restart. The key stays on the server and is never sent to the browser. Tests never use the key.
+
+Things worth trying:
+
+- Upload an iPhone photo (HEIC): it is converted to a normal picture before the AI sees it.
+- Press **Cancel** while it reads: nothing is lost and you can press **Read amounts** again.
+- Upload a photo that is not an invoice (a selfie, a blank wall): you get a message and the picture stays so you can retry or type the amounts.
+- If an amount is unclear (for example `1,234`, which could mean 1,234 or 1.234) the box is left empty and a "Please check" note explains why. The app never guesses an amount.
+
 ### Try it on your phone
 
 Your computer and phone must be on the same Wi-Fi. Start the app with `npm run dev -w server` in one terminal and `npm run dev -w client -- --host` in another. The second command prints a `Network:` address such as `http://192.168.1.20:5173`. Open that address on your phone. The code still appears in the computer's terminal.
@@ -136,23 +163,27 @@ Every feature ships with Playwright UI tests in `e2e/`. They start their own API
 
 Set these in `server/.env` (see `server/.env.example`). With nothing set, one-time codes print to the server log and AI is off.
 
-| Variable                | Default                               | Purpose                                                    |
-| ----------------------- | ------------------------------------- | ---------------------------------------------------------- |
-| `PORT`                  | `4000`                                | Port for the Node API                                      |
-| `SMS_PROVIDER`          | `console`                             | `console` prints codes to the log; `twilio` sends real SMS |
-| `TWILIO_ACCOUNT_SID`    | none                                  | Twilio account, needed for `twilio`                        |
-| `TWILIO_AUTH_TOKEN`     | none                                  | Twilio secret, needed for `twilio`                         |
-| `TWILIO_FROM_NUMBER`    | none                                  | Sending number in E.164 format                             |
-| `AUTH_SECRET`           | random per start                      | Key for hashing one-time codes; set to survive restarts    |
-| `AUTH_IP_REQUEST_LIMIT` | `20`                                  | Code requests allowed per IP per 15 minutes                |
-| `AUTH_IP_VERIFY_LIMIT`  | `40`                                  | Code checks allowed per IP per 15 minutes                  |
-| `UPLOAD_DIR`            | `server/uploads`                      | Folder where uploaded invoice pictures are kept            |
-| `UPLOAD_MAX_MB`         | `10`                                  | Largest picture accepted                                   |
-| `UPLOAD_TTL_HOURS`      | `24`                                  | Pictures are deleted after this long                       |
-| `UPLOAD_MAX_PER_USER`   | `50`                                  | Pictures one user can keep at once                         |
-| `VISION_PROVIDER`       | `claude` if a key is set, else `mock` | Which AI reads the image; `mock` skips AI                  |
-| `ANTHROPIC_API_KEY`     | none                                  | Key for Claude vision                                      |
-| `ANTHROPIC_MODEL`       | `claude-opus-5-5`                     | Claude model used for extraction                           |
+| Variable                    | Default                               | Purpose                                                                   |
+| --------------------------- | ------------------------------------- | ------------------------------------------------------------------------- |
+| `PORT`                      | `4000`                                | Port for the Node API                                                     |
+| `SMS_PROVIDER`              | `console`                             | `console` prints codes to the log; `twilio` sends real SMS                |
+| `TWILIO_ACCOUNT_SID`        | none                                  | Twilio account, needed for `twilio`                                       |
+| `TWILIO_AUTH_TOKEN`         | none                                  | Twilio secret, needed for `twilio`                                        |
+| `TWILIO_FROM_NUMBER`        | none                                  | Sending number in E.164 format                                            |
+| `AUTH_SECRET`               | random per start                      | Key for hashing one-time codes; set to survive restarts                   |
+| `AUTH_IP_REQUEST_LIMIT`     | `20`                                  | Code requests allowed per IP per 15 minutes                               |
+| `AUTH_IP_VERIFY_LIMIT`      | `40`                                  | Code checks allowed per IP per 15 minutes                                 |
+| `UPLOAD_DIR`                | `server/uploads`                      | Folder where uploaded invoice pictures are kept                           |
+| `UPLOAD_MAX_MB`             | `10`                                  | Largest picture accepted                                                  |
+| `UPLOAD_TTL_HOURS`          | `24`                                  | Pictures are deleted after this long                                      |
+| `UPLOAD_MAX_PER_USER`       | `50`                                  | Pictures one user can keep at once                                        |
+| `VISION_PROVIDER`           | `claude` if a key is set, else `mock` | Which AI reads the image; `mock` skips AI                                 |
+| `ANTHROPIC_API_KEY`         | none                                  | Key for Claude vision                                                     |
+| `ANTHROPIC_MODEL`           | `claude-opus-5-5`                     | Claude model used for extraction                                          |
+| `ANTHROPIC_EFFORT`          | `medium`                              | How hard the model thinks: `low` to `max`, or `none`                      |
+| `ANTHROPIC_TIMEOUT_SECONDS` | `60`                                  | Give up on one AI call after this long                                    |
+| `ANTHROPIC_FALLBACKS`       | none                                  | Set to `default` to let the API retry a declined request on another model |
+| `EXTRACT_PER_USER_PER_HOUR` | `30`                                  | Readings one user can start per hour (each costs money)                   |
 
 To send real SMS, set `SMS_PROVIDER=twilio` with the three `TWILIO_*` values; the server refuses to start if any is missing. Configuration is read in one place, `server/src/config.js`. Never commit `.env`.
 
@@ -175,10 +206,37 @@ All routes need `Authorization: Bearer <token>` and only ever see the signed-in 
 
 Files are stored as `<UPLOAD_DIR>/<hash of the owner>/<random id>.<ext>` with no client-chosen names, and are deleted after `UPLOAD_TTL_HOURS`. On the web page, `<InvoiceUpload />` (in `client/src/invoices/`) is the screen; the later extraction step reads the picture by its id.
 
+## Reading the amounts
+
+`POST /api/invoices/:id/extract` (no body, same sign-in header) reads the Debit and Credit amounts from one of the user's uploaded pictures and returns:
+
+```json
+{
+  "invoiceId": "…",
+  "provider": "claude",
+  "model": "claude-opus-5-5",
+  "imageDeleted": true,
+  "debit": "1250.50",
+  "credit": "400.00",
+  "currency": "GBP",
+  "confidence": "high",
+  "notes": "…",
+  "warnings": [{ "field": "debit", "code": "ambiguous", "message": "…" }],
+  "lineItems": [{ "description": "Parts", "column": "debit", "amount": "1000.50" }],
+  "itemTotals": { "debit": "1250.50", "credit": "400.00" }
+}
+```
+
+- **Amounts are decimal strings** (`"1250.50"`) or `null` when not on the invoice, and are added in whole cents, never as floating point. An amount that could be read two ways (`1,234`), has more than 2 decimals, or is negative becomes `null` with a warning instead of a guess.
+- **The picture is deleted** once it has been read (`imageDeleted`). If reading fails, it is kept so the user can retry.
+- **Errors** (JSON `{ error, code }`): 404 unknown picture, 409 already being read, 422 `unreadable_image` / `unreadable_invoice` / `image_rejected` / `declined`, 429 `rate_limited` (also when a user exceeds `EXTRACT_PER_USER_PER_HOUR`; has `retryAfterSeconds` and `Retry-After`), 502 `provider_unavailable` / `provider_not_configured` / `bad_model_output`, 504 `timeout`. Details of provider failures go to the server log only.
+- **How it works** (`server/src/extraction/`): `prepareImage.js` turns the picture into a JPEG of at most 2000 px (converts HEIC, applies phone rotation, drops location data); a provider (`providers/claude.js` or `providers/mock.js`) returns JSON; `schema.js` rejects anything that is not exactly the agreed shape; `normalize.js` and `money.js` turn it into exact decimals and warnings. Pick the provider with `VISION_PROVIDER` (`claude` or `mock`). Tests inject a fake provider, so no test calls the real API.
+- On the web page, `<InvoiceFlow />` (`client/src/invoices/`) shows the upload screen and then the editable results; the reading is kept in this browser tab's session storage so a reload keeps edits.
+
 ## Build order
 
 1. Repo setup and scaffold
 2. SMS one-time-code login
-3. Invoice upload (this step)
-4. AI amount extraction
+3. Invoice upload
+4. AI amount extraction (this step)
 5. Review and calculation of the net amount

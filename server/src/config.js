@@ -53,6 +53,13 @@ export function loadConfig(env = process.env) {
       provider: env.VISION_PROVIDER || (anthropicKey ? 'claude' : 'mock'),
       anthropicKey,
       model: env.ANTHROPIC_MODEL || 'claude-opus-5-5',
+      // How hard the model thinks (low, medium, high, xhigh, max); "none" leaves it to the API.
+      effort: (env.ANTHROPIC_EFFORT || 'medium') === 'none' ? '' : env.ANTHROPIC_EFFORT || 'medium',
+      timeoutMs: Math.round(positiveNumber(env.ANTHROPIC_TIMEOUT_SECONDS, 60) * 1000),
+      // Set to "default" to let the API retry a declined request on another model.
+      fallbacks: env.ANTHROPIC_FALLBACKS || '',
+      // Reads one user may start per hour; each real read costs money.
+      extractionsPerUserPerHour: positiveInt(env.EXTRACT_PER_USER_PER_HOUR, 30),
     },
   };
 }

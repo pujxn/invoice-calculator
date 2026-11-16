@@ -38,6 +38,8 @@ export default defineConfig({
       env: {
         PORT: String(API_PORT),
         SMS_PROVIDER: 'console',
+        // Tests never call the real AI, even if a key is set in server/.env or the shell.
+        VISION_PROVIDER: 'mock',
         AUTH_SECRET: 'e2e-secret',
         // Pictures uploaded by the tests go to a throwaway folder, not server/uploads.
         UPLOAD_DIR: path.join(tmpdir(), 'invoice-calculator-e2e-uploads'),

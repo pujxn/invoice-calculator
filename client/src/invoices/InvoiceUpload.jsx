@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ApiError } from '../api.js';
-import { deleteInvoice, fetchInvoiceImage, getInvoice, uploadInvoice } from './invoiceApi.js';
+import {
+  deleteInvoice,
+  extractInvoice,
+  fetchInvoiceImage,
+  getInvoice,
+  uploadInvoice,
+} from './invoiceApi.js';
 import { ACCEPT, MAX_LABEL, TYPE_LABEL, formatSize, validateFile } from './validate.js';
 
 // Remembers the current picture for this browser tab, so a reload shows it again.
@@ -46,13 +52,16 @@ function Preview({ url, name }) {
   );
 }
 
-export default function InvoiceUpload() {
+// `onExtracted(result)` is called with the server's reading once the amounts have been read.
+export default function InvoiceUpload({ onExtracted }) {
   const { token, logout } = useAuth();
   const [current, setCurrent] = useState(null); // { id, name, size, mimeType, previewUrl }
   const [uploading, setUploading] = useState(null); // { name, size, previewUrl, progress }
   const [error, setError] = useState('');
   const [restoring, setRestoring] = useState(() => keep.read() !== null);
+  const [reading, setReading] = useState(false); // the AI is reading the current picture
   const abortRef = useRef(null);
+  const readAbortRef = useRef(null);
   const fileInput = useRef(null);
   const cameraInput = useRef(null);
   const urls = useRef(new Set()); // every object URL we made, revoked on unmount
@@ -116,6 +125,7 @@ export default function InvoiceUpload() {
     const made = urls.current;
     return () => {
       abortRef.current?.abort();
+      readAbortRef.current?.abort();
       made.forEach((u) => URL.revokeObjectURL(u));
       made.clear();
     };
@@ -181,6 +191,64 @@ export default function InvoiceUpload() {
     keep.write(null);
   }
 
+  // Sends the picture to be read. The server deletes it once it has been read, so on success this
+  // screen gives way to the results; on failure the picture stays and can be read again.
+  async function read() {
+    setError('');
+    const controller = new AbortController();
+    readAbortRef.current = controller;
+    setReading(true);
+    try {
+      const result = await extractInvoice(current.id, { token, signal: controller.signal });
+      dropUrl(current.previewUrl);
+      setCurrent(null);
+      keep.write(null);
+      onExtracted?.(result);
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      if (err instanceof ApiError && err.status === 404) {
+        // Expired or removed elsewhere: nothing left to read.
+        dropUrl(current.previewUrl);
+        setCurrent(null);
+        keep.write(null);
+        return setError('That picture is no longer available. Please upload it again.');
+      }
+      if (err instanceof ApiError && err.status === 429 && err.data?.retryAfterSeconds) {
+        const secs = err.data.retryAfterSeconds;
+        return setError(
+          `${err.message} Try again in ${secs < 90 ? `${secs} seconds` : `${Math.ceil(secs / 60)} minutes`}.`,
+        );
+      }
+      handleFailure(err, 'Reading the picture failed. Please try again.');
+    } finally {
+      if (readAbortRef.current === controller) readAbortRef.current = null;
+      setReading(false);
+    }
+  }
+
+  // AI-3: reading can always be skipped. The picture is not needed then, so it is deleted.
+  async function typeByHand() {
+    setError('');
+    deleteInvoice(current.id, token).catch(() => {});
+    dropUrl(current.previewUrl);
+    setCurrent(null);
+    keep.write(null);
+    onExtracted?.({
+      invoiceId: current.id,
+      provider: 'manual',
+      model: null,
+      imageDeleted: true,
+      debit: null,
+      credit: null,
+      currency: null,
+      confidence: null,
+      notes: '',
+      warnings: [],
+      lineItems: [],
+      itemTotals: null,
+    });
+  }
+
   const picker = (
     <>
       <input
@@ -239,23 +307,52 @@ export default function InvoiceUpload() {
       )}
 
       {!uploading && current && (
-        <div className="picture">
+        <div className="picture" aria-busy={reading}>
           <Preview url={current.previewUrl} name={current.name} />
           <p className="filename">
             {current.name} <span className="hint">({formatSize(current.size)})</span>
           </p>
-          <p className="status good" role="status">
-            Picture uploaded.
-          </p>
-          <div className="actions">
-            <button type="button" className="secondary" onClick={() => fileInput.current.click()}>
-              Replace picture
-            </button>
-            <button type="button" className="secondary" onClick={remove}>
-              Remove
-            </button>
-          </div>
-          <p className="hint">Reading the amounts from this picture comes in the next step.</p>
+          {reading ? (
+            <>
+              <p className="status reading" role="status">
+                <span className="spinner" aria-hidden="true" />
+                Reading your invoice… this can take up to a minute.
+              </p>
+              <div className="actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => readAbortRef.current?.abort()}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="status good" role="status">
+                Picture uploaded.
+              </p>
+              <div className="actions">
+                <button type="button" onClick={read}>
+                  Read amounts
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => fileInput.current.click()}
+                >
+                  Replace picture
+                </button>
+                <button type="button" className="secondary" onClick={typeByHand}>
+                  Type the amounts instead
+                </button>
+                <button type="button" className="secondary" onClick={remove}>
+                  Remove
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

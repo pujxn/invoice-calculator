@@ -2,13 +2,15 @@ import { Router } from 'express';
 import multer from 'multer';
 import { detectImageType } from './fileType.js';
 import { isValidId } from './store.js';
+import { ExtractionError } from '../extraction/errors.js';
 
 const MB = 1024 * 1024;
 
 // Upload, fetch and delete invoice pictures. Every route needs a signed-in user and only ever
 // touches that user's own files: another user's id behaves exactly like an id that does not exist.
-export function createInvoiceRouter({ store, requireAuth, maxBytes }) {
+export function createInvoiceRouter({ store, requireAuth, maxBytes, extractor, extractLimiter }) {
   const router = Router();
+  const reading = new Set(); // pictures being read right now, so one cannot be read twice at once
   const owner = (req) => req.session.phone;
 
   const parser = multer({
@@ -95,6 +97,55 @@ export function createInvoiceRouter({ store, requireAuth, maxBytes }) {
       'Content-Disposition': 'inline',
     });
     res.sendFile(req.invoice.file, (err) => err && next(err));
+  });
+
+  // Reads the Debit and Credit amounts from one of the user's pictures. On success the picture
+  // is deleted (it is not needed any more); on failure it stays so the user can try again.
+  router.post('/:id/extract', requireAuth, find, async (req, res, next) => {
+    const key = `${owner(req)}:${req.invoice.id}`;
+    if (reading.has(key)) {
+      return res.status(409).json({ error: 'This picture is already being read.' });
+    }
+    const limit = extractLimiter.hit(owner(req));
+    if (!limit.allowed) {
+      res.set('Retry-After', String(limit.retryAfterSeconds));
+      return res.status(429).json({
+        error: 'You have read a lot of invoices in the last hour. Please try again later.',
+        retryAfterSeconds: limit.retryAfterSeconds,
+      });
+    }
+    reading.add(key);
+    // If the browser goes away (cancel, closed tab), stop the AI call; nothing is deleted then.
+    const abort = new AbortController();
+    res.on('close', () => !res.writableEnded && abort.abort());
+    try {
+      const picture = await store.read(owner(req), req.invoice.id);
+      const result = await extractor.extract(
+        { data: picture.data, mimeType: picture.mimeType },
+        { signal: abort.signal },
+      );
+      await store.remove(owner(req), picture.id);
+      res.json({
+        invoiceId: picture.id,
+        provider: extractor.provider,
+        model: extractor.model,
+        imageDeleted: true,
+        ...result,
+      });
+    } catch (err) {
+      if (!(err instanceof ExtractionError)) return next(err);
+      if (err.cause) console.error(`extract ${err.code}:`, err.cause);
+      if (err.retryAfterSeconds) res.set('Retry-After', String(err.retryAfterSeconds));
+      if (!res.headersSent) {
+        res.status(err.status).json({
+          error: err.message,
+          code: err.code,
+          ...(err.retryAfterSeconds ? { retryAfterSeconds: err.retryAfterSeconds } : {}),
+        });
+      }
+    } finally {
+      reading.delete(key);
+    }
   });
 
   router.delete('/:id', requireAuth, find, async (req, res, next) => {

@@ -1,0 +1,100 @@
+import { ExtractionError } from './errors.js';
+
+// What the vision model must return. The same shape is sent to the API as a JSON schema
+// (structured output) and checked again here, because the model's answer is untrusted input.
+export const MAX_ITEMS = 200;
+const CONFIDENCE = ['high', 'medium', 'low'];
+const COLUMNS = ['debit', 'credit'];
+const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
+
+export const OUTPUT_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['readable', 'debit', 'credit', 'currency', 'confidence', 'notes', 'line_items'],
+  properties: {
+    readable: { type: 'boolean' },
+    debit: nullableString,
+    credit: nullableString,
+    currency: nullableString,
+    confidence: { type: 'string', enum: CONFIDENCE },
+    notes: { type: 'string' },
+    line_items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['description', 'column', 'amount'],
+        properties: {
+          description: { type: 'string' },
+          column: { type: 'string', enum: COLUMNS },
+          amount: { type: 'string' },
+        },
+      },
+    },
+  },
+};
+
+const bad = (why) =>
+  new ExtractionError('bad_model_output', 'The AI gave an answer we could not use. Try again.', {
+    status: 502,
+    cause: new Error(`Model output rejected: ${why}`),
+  });
+
+const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+function checkKeys(obj, allowed, where) {
+  for (const key of Object.keys(obj)) {
+    if (!allowed.includes(key)) throw bad(`unexpected field "${where}${key}"`);
+  }
+  for (const key of allowed) {
+    if (!(key in obj)) throw bad(`missing field "${where}${key}"`);
+  }
+}
+
+const optionalString = (value, name, max) => {
+  if (value === null) return null;
+  if (typeof value !== 'string') throw bad(`${name} must be a string or null`);
+  if (value.length > max) throw bad(`${name} is too long`);
+  return value;
+};
+
+// Returns a clean copy of the model's answer or throws ExtractionError('bad_model_output').
+export function validateModelOutput(raw) {
+  if (!isObject(raw)) throw bad('not an object');
+  checkKeys(raw, Object.keys(OUTPUT_JSON_SCHEMA.properties), '');
+
+  if (typeof raw.readable !== 'boolean') throw bad('readable must be true or false');
+  const debit = optionalString(raw.debit, 'debit', 40);
+  const credit = optionalString(raw.credit, 'credit', 40);
+  const currency = optionalString(raw.currency, 'currency', 3);
+  if (currency !== null && !/^[A-Z]{3}$/.test(currency))
+    throw bad('currency is not a 3-letter code');
+  if (!CONFIDENCE.includes(raw.confidence)) throw bad('confidence is not high, medium or low');
+  if (typeof raw.notes !== 'string' || raw.notes.length > 2000)
+    throw bad('notes is not valid text');
+
+  if (!Array.isArray(raw.line_items)) throw bad('line_items must be a list');
+  if (raw.line_items.length > MAX_ITEMS) throw bad('too many line items');
+  const lineItems = raw.line_items.map((item, i) => {
+    if (!isObject(item)) throw bad(`line_items[${i}] is not an object`);
+    checkKeys(item, ['description', 'column', 'amount'], `line_items[${i}].`);
+    if (typeof item.description !== 'string' || item.description.length > 300) {
+      throw bad(`line_items[${i}].description is not valid text`);
+    }
+    if (!COLUMNS.includes(item.column)) throw bad(`line_items[${i}].column is not debit or credit`);
+    if (typeof item.amount !== 'string' || item.amount.length > 40) {
+      throw bad(`line_items[${i}].amount must be a string`);
+    }
+    return { description: item.description.trim(), column: item.column, amount: item.amount };
+  });
+
+  return {
+    readable: raw.readable,
+    debit,
+    credit,
+    currency,
+    confidence: raw.confidence,
+    notes: raw.notes.trim(),
+    lineItems,
+  };
+}
