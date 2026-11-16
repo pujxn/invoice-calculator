@@ -4,7 +4,7 @@
 > [Invoice Calculator: Product Spec](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs).
 > This file is a snapshot of it for the repo. Change the doc first, then update this file and the changelog.
 
-Version 0.1 · 2026-11-16
+Version 0.2 · 2026-11-16
 
 ## Overview
 
@@ -49,11 +49,11 @@ The prototype has 17 requirements across five areas; the Status column tracks ea
 
 | ID | Area | Requirement | Status |
 | --- | --- | --- | --- |
-| AUTH-1 | Login | User enters a mobile number in E.164 format; invalid numbers are rejected with a message. | Planned |
-| AUTH-2 | Login | Server sends a random 6-digit code by SMS; it expires after 5 minutes. | Planned |
-| AUTH-3 | Login | A code allows at most 5 wrong attempts, then a new code is needed. | Planned |
-| AUTH-4 | Login | Resend is limited to once per 30 seconds per number. | Planned |
-| AUTH-5 | Login | A correct code starts a session that lasts 12 hours; the user can sign out. | Planned |
+| AUTH-1 | Login | User enters a mobile number in E.164 format; invalid numbers are rejected with a message. | Built |
+| AUTH-2 | Login | Server sends a random 6-digit code by SMS; it expires after 5 minutes. | Built |
+| AUTH-3 | Login | A code allows at most 5 wrong attempts, then a new code is needed. | Built |
+| AUTH-4 | Login | Resend is limited to once per 30 seconds per number. | Built |
+| AUTH-5 | Login | A correct code starts a session that lasts 12 hours; the user can sign out. | Built |
 | UP-1 | Upload | Only signed-in users can upload. | Planned |
 | UP-2 | Upload | Accepts JPEG, PNG, WebP and HEIC up to 10 MB; on phones the camera can be used. | Planned |
 | UP-3 | Upload | Shows a preview of the chosen image before extraction. | Planned |
@@ -105,17 +105,18 @@ React web app (Vite)  --JSON-->  Node API (Express)  --code-->   SMS provider (c
 
 ## API endpoints
 
-The Node server exposes five JSON endpoints under `/api`; all except the two auth calls need an `Authorization: Bearer <session token>` header.
+The Node server exposes six JSON endpoints under `/api`; all except the two code calls (`request-otp`, `verify-otp`) need an `Authorization: Bearer <session token>` header.
 
 | Method and path | Request | Response |
 | --- | --- | --- |
 | `POST /api/auth/request-otp` | `{ phone }` | `{ ok: true, resendAfterSeconds: 30 }` |
 | `POST /api/auth/verify-otp` | `{ phone, code }` | `{ token, expiresAt }` or 401 with `{ error }` |
 | `POST /api/auth/logout` | none | `{ ok: true }` |
+| `GET /api/auth/me` | none | `{ phone, expiresAt }`, used by the web app to check a stored session |
 | `POST /api/invoices/extract` | multipart form, field `image` | `{ debit, credit, currency, confidence, provider }` (amounts are numbers or null) |
 | `POST /api/invoices/calculate` | `{ debit, credit }` | `{ debit, credit, net, type }` where `type` is `debit`, `credit` or `balanced` and `net` is never negative |
 
-Errors use HTTP status codes (400 bad input, 401 not signed in, 413 file too large, 429 too many requests, 502 AI or SMS provider failed) with a body of `{ error: "message" }`.
+Errors use HTTP status codes (400 bad input, 401 not signed in, 413 file too large, 429 too many requests, 502 AI or SMS provider failed) with a body of `{ error: "message" }`. A 429 from the auth calls also carries `retryAfterSeconds` and a `Retry-After` header. A wrong code is 401; after 5 wrong tries the code is locked and further tries get 429 until a new code is requested.
 
 A `GET /api/health` endpoint (no auth) reports that the server is up and which providers are configured.
 
@@ -130,6 +131,7 @@ The prototype runs with no settings at all: codes print to the server log and am
 | `TWILIO_ACCOUNT_SID` | none | Twilio account, needed for `twilio` |
 | `TWILIO_AUTH_TOKEN` | none | Twilio secret, needed for `twilio` |
 | `TWILIO_FROM_NUMBER` | none | Sending number in E.164 format |
+| `AUTH_SECRET` | random per start | Key used to hash one-time codes; set it to keep codes valid across restarts |
 | `VISION_PROVIDER` | `claude` if a key is set, else `mock` | Which AI reads the image; `mock` skips AI |
 | `ANTHROPIC_API_KEY` | none | Key for Claude vision |
 | `ANTHROPIC_MODEL` | `claude-opus-5-5` | Claude model used for extraction |
@@ -139,8 +141,9 @@ The prototype runs with no settings at all: codes print to the server log and am
 The prototype keeps no invoice images and stores codes only as hashes, but it is not production-ready until the items marked later are done.
 
 - Codes are stored hashed, compared in constant time, expire after 5 minutes and lock after 5 wrong tries.
-- Code requests are rate limited per phone number and per IP address to limit SMS cost abuse.
-- Session tokens are random 32-byte values held in server memory; restarting the server signs everyone out.
+- Code requests are rate limited per phone number (one per 30 seconds, 5 per hour) and per IP address (20 per 15 minutes); code checks are limited to 40 per IP per 15 minutes. This limits SMS cost abuse and guessing.
+- Codes are keyed hashes (HMAC-SHA256 with a server secret) tied to the phone number, and are single use.
+- Session tokens are random 32-byte values held in server memory (only their SHA-256 is kept); restarting the server signs everyone out. The web app keeps the token in the browser's localStorage, so a script injected into the page could read it; moving to an HttpOnly cookie is a later hardening item.
 - Invoice images stay in memory for the request and are sent only to the configured AI provider.
 - API keys live in environment variables and never reach the browser.
 - Later, before real users: HTTPS everywhere, a persistent session store, audit logging, and a review of the AI provider's data retention terms.
@@ -175,3 +178,4 @@ The build can start without these answers; each has a default assumed in bracket
 | Date | Version | Change |
 | --- | --- | --- |
 | 2026-11-16 | 0.1 | First draft of the prototype spec. |
+| 2026-11-16 | 0.2 | SMS login built (AUTH-1 to AUTH-5). Added `GET /api/auth/me`, the `AUTH_SECRET` setting and the specific rate limits; clarified 429 and lockout behaviour. |

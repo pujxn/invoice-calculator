@@ -26,3 +26,68 @@ body {
 .status.bad {
   background: #fde4e4;
 }
+
+label {
+  display: block;
+  margin: 1rem 0 0.25rem;
+  font-weight: 600;
+}
+
+input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  border: 1px solid #b8b8b8;
+  border-radius: 6px;
+}
+
+button {
+  margin-top: 1rem;
+  padding: 0.65rem 1rem;
+  font: inherit;
+  color: #fff;
+  background: #2b5fd9;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  color: #2b5fd9;
+  background: transparent;
+  border: 1px solid #2b5fd9;
+}
+
+form button.secondary {
+  margin-left: 0.5rem;
+}
+
+button.link {
+  margin: 0;
+  padding: 0;
+  color: #2b5fd9;
+  background: none;
+  text-decoration: underline;
+}
+
+.hint {
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.topbar button {
+  margin-top: 0;
+}
