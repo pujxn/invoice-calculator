@@ -7,7 +7,7 @@ The product spec is [SPEC.md](SPEC.md), a snapshot of the
 
 ## Status
 
-Scaffold only: the API has a health check and the web app is a placeholder shell. Login, upload, AI extraction and the calculation are built step by step; requirement status is tracked in SPEC.md.
+SMS one-time-code login works end to end (phone, code, session, sign out, protected routes). Upload, AI extraction and the calculation are built step by step; requirement status is tracked in SPEC.md.
 
 ## Layout
 
@@ -27,7 +27,13 @@ cp server/.env.example server/.env   # optional: the defaults need no credential
 npm run dev                          # API on :4000, web app on :5173
 ```
 
-Open http://localhost:5173. The page shows "API ok" with the active providers when both servers are running.
+Open http://localhost:5173. You land on the sign-in page. With the default `SMS_PROVIDER=console` no SMS is sent: enter any number in international format (for example `+44 7700 900123`), then read the 6-digit code from the terminal running `npm run dev`:
+
+```
+[sms:console] to +447700900123: Your Invoice Calculator code is 106950. It expires in 5 minutes.
+```
+
+Enter it to sign in. `GET /api/health` shows the active providers.
 
 ## Scripts
 
@@ -53,16 +59,27 @@ Set these in `server/.env` (see `server/.env.example`). With nothing set, one-ti
 | `TWILIO_ACCOUNT_SID` | none                                  | Twilio account, needed for `twilio`                        |
 | `TWILIO_AUTH_TOKEN`  | none                                  | Twilio secret, needed for `twilio`                         |
 | `TWILIO_FROM_NUMBER` | none                                  | Sending number in E.164 format                             |
+| `AUTH_SECRET`        | random per start                      | Key for hashing one-time codes; set to survive restarts    |
 | `VISION_PROVIDER`    | `claude` if a key is set, else `mock` | Which AI reads the image; `mock` skips AI                  |
 | `ANTHROPIC_API_KEY`  | none                                  | Key for Claude vision                                      |
 | `ANTHROPIC_MODEL`    | `claude-opus-5-5`                     | Claude model used for extraction                           |
 
-Configuration is read in one place, `server/src/config.js`. Never commit `.env`.
+To send real SMS, set `SMS_PROVIDER=twilio` with the three `TWILIO_*` values; the server refuses to start if any is missing. Configuration is read in one place, `server/src/config.js`. Never commit `.env`.
+
+## Login
+
+- `POST /api/auth/request-otp` `{ phone }` sends a 6-digit code (valid 5 minutes, one per 30 seconds per number, 5 per hour).
+- `POST /api/auth/verify-otp` `{ phone, code }` returns `{ token, expiresAt }` (12-hour session). Five wrong tries lock the code.
+- `GET /api/auth/me` and `POST /api/auth/logout` need `Authorization: Bearer <token>`.
+
+To protect a new API route, add the `requireAuth` middleware (`app.locals.requireAuth` in `server/src/app.js`). To protect a new page, nest its route inside `<RequireAuth>` in `client/src/App.jsx`.
+
+Sessions and codes live in server memory, so restarting the server signs everyone out.
 
 ## Build order
 
-1. Repo setup and scaffold (this step)
-2. SMS one-time-code login
+1. Repo setup and scaffold
+2. SMS one-time-code login (this step)
 3. Invoice upload
 4. AI amount extraction
 5. Review and calculation of the net amount
