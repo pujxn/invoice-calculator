@@ -37,16 +37,24 @@ Enter it to sign in. `GET /api/health` shows the active providers.
 
 ## Scripts
 
-| Command          | What it does                                    |
-| ---------------- | ----------------------------------------------- |
-| `npm run dev`    | Start API and web app together with reload      |
-| `npm run build`  | Production build of the web app (`client/dist`) |
-| `npm start`      | Start the API only                              |
-| `npm test`       | Run server tests (Node's built-in runner)       |
-| `npm run lint`   | ESLint across the repo                          |
-| `npm run format` | Format with Prettier (`format:check` to verify) |
+| Command                   | What it does                                             |
+| ------------------------- | -------------------------------------------------------- |
+| `npm run dev`             | Start API and web app together with reload               |
+| `npm run build`           | Production build of the web app (`client/dist`)          |
+| `npm start`               | Start the API only                                       |
+| `npm test`                | Run server tests (Node's built-in runner)                |
+| `npm run test:ui`         | Run browser UI tests (Playwright, see below)             |
+| `npm run test:ui:screens` | Same, and refresh the screenshots in `docs/screenshots/` |
+| `npm run lint`            | ESLint across the repo                                   |
+| `npm run format`          | Format with Prettier (`format:check` to verify)          |
 
-CI runs lint, format check, tests and build on every pull request.
+CI runs lint, format check, server tests, build and UI tests on every pull request.
+
+## UI tests
+
+Every feature ships with Playwright UI tests in `e2e/`. They start their own API (port 4100, console SMS) and web dev server (port 5273), so they work while `npm run dev` is running. The first time, install the browser with `npx playwright install chromium`. The API log is written to `e2e/.server.log`, which is how tests read the one-time codes.
+
+`npm run test:ui:screens` also saves mobile-size screenshots of each screen to `docs/screenshots/`; they are attached to the pull request for review.
 
 ## Environment variables
 

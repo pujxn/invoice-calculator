@@ -101,7 +101,7 @@ React web app (Vite)  --JSON-->  Node API (Express)  --code-->   SMS provider (c
 - **Client:** React 18 with Vite, plain CSS, works in mobile browsers.
 - **Server:** Node 20+ with Express; multer for uploads; the Anthropic SDK for Claude vision.
 - **Repo:** one GitHub repo, `invoice-calculator`, with `client/` and `server/` folders and one `npm run dev` that starts both.
-- **Tests:** Node's built-in test runner for the calculator and auth logic.
+- **Tests:** Node's built-in test runner for the calculator and auth logic, and Playwright UI tests (`e2e/`) for every feature, with screenshots of each screen kept in `docs/screenshots/`.
 
 ## API endpoints
 

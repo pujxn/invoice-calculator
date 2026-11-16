@@ -3,3 +3,6 @@ dist/
 .env
 *.log
 .DS_Store
+e2e/.server.log
+test-results/
+playwright-report/
