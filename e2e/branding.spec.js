@@ -104,8 +104,8 @@ for (const scheme of ['light', 'dark']) {
 }
 
 const PALETTE = {
-  light: { primary: 'rgb(194, 24, 91)', bg: 'rgb(255, 247, 250)', accent: 'rgb(255, 200, 61)' },
-  dark: { primary: 'rgb(255, 143, 184)', bg: 'rgb(28, 15, 22)', accent: 'rgb(255, 210, 94)' },
+  light: { primary: 'rgb(194, 24, 91)', bg: 'rgb(255, 247, 250)', rose: 'rgb(240, 163, 195)' },
+  dark: { primary: 'rgb(255, 143, 184)', bg: 'rgb(28, 15, 22)', rose: 'rgb(138, 58, 94)' },
 };
 for (const scheme of ['light', 'dark']) {
   test.describe(`${scheme} pink palette`, () => {
@@ -124,7 +124,7 @@ for (const scheme of ['light', 'dark']) {
       );
     });
 
-    test('"code sent" notice is green and the header has a yellow rule', async ({ page }) => {
+    test('"code sent" notice is green and the header has a rose rule', async ({ page }) => {
       await page.goto('/login');
       const phone = uniquePhone();
       await requestCodeFor(page, phone);
@@ -141,9 +141,7 @@ for (const scheme of ['light', 'dark']) {
       await page.getByRole('button', { name: 'Sign in' }).click();
       const header = page.getByRole('banner');
       await expect(header).toBeVisible();
-      expect(await header.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(
-        want.accent,
-      );
+      expect(await header.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe(want.rose);
     });
   });
 }

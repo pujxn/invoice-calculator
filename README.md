@@ -62,7 +62,7 @@ Things worth trying:
 - **Sign-in screen:** http://localhost:5173/login (sign out first if you are signed in) shows the logo, the tagline, the browser tab title and the tab icon. After signing in, the logo is in the header of the home page.
 - **Dark mode:** switch your computer to dark mode, or in Chrome press F12, open the three-dot menu, then **More tools**, **Rendering**, and set _Emulate CSS prefers-color-scheme_ to dark. The logo and colours switch by themselves (pink on blush white by day, soft pink on deep plum at night).
 - **Phone size:** in Chrome press F12, then Ctrl+Shift+M (Cmd+Shift+M on Mac), and pick a phone such as iPhone SE or iPhone 14.
-- **Green and yellow:** after you click **Send code**, the "We sent a code" notice is green. Once signed in, a thin yellow line runs under the header.
+- **Green and rose:** after you click **Send code**, the "We sent a code" notice is green. Once signed in, a thin soft-rose line runs under the header. The logo's credit bar is green.
 - Logo files are in `client/public/brand/`; a preview sheet is in [docs/brand/logo-preview.png](docs/brand/logo-preview.png). Colours and type are tokens at the top of `client/src/styles.css`.
 - **Changing the colours:** edit those tokens and the palette at the top of `scripts/build-brand.mjs`, then run `npm run brand` to rebuild the logos, icons and splash images.
 

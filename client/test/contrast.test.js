@@ -57,18 +57,18 @@ function hue(hex) {
   return (h * 60 + 360) % 360;
 }
 
-// The brand direction: pink UI, green for credit/success, yellow highlight.
+// The brand direction: pink UI, green for credit/success, soft rose dividers.
 describe.each([
   ['light', light],
   ['dark', dark],
 ])('%s theme palette', (_name, t) => {
-  it('is pink, green and yellow', () => {
+  it('is pink, green and rose', () => {
     expect(hue(t.primary)).toBeGreaterThanOrEqual(325);
     expect(hue(t.primary)).toBeLessThanOrEqual(350);
     expect(hue(t['good-text'])).toBeGreaterThanOrEqual(120);
     expect(hue(t['good-text'])).toBeLessThanOrEqual(160);
-    expect(hue(t.accent)).toBeGreaterThanOrEqual(38);
-    expect(hue(t.accent)).toBeLessThanOrEqual(52);
+    expect(hue(t.rose)).toBeGreaterThanOrEqual(325);
+    expect(hue(t.rose)).toBeLessThanOrEqual(350);
     expect(hue(t.bg)).toBeGreaterThanOrEqual(325); // pink-tinted background
   });
 });

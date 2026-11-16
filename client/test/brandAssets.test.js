@@ -61,10 +61,10 @@ describe('brand colours', () => {
   const [lightBlock] = css.match(/:root\s*\{[\s\S]*?\n\}/);
   const [darkBlock] = css.match(/@media \(prefers-color-scheme: dark\)\s*\{[\s\S]*?\n\}\n/);
 
-  it('light logos use the primary pink for the tile and yellow for the credit bar', () => {
+  it('light logos use the primary pink for the tile and mint green for the credit bar', () => {
     const svg = read('public/brand/logo.svg').toLowerCase();
     expect(svg).toContain(`rx="14" fill="${token('primary', lightBlock)}"`);
-    expect(svg).toContain('#ffc83d');
+    expect(svg).toContain('#a6efc3');
   });
 
   it('dark logos use a light tile with the light-theme pink bars', () => {

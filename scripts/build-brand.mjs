@@ -11,13 +11,13 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const brand = `${root}/client/public/brand`;
 const assets = `${root}/client/assets`;
 
-// Palette: pink, green, yellow, white, with a matching dark theme.
+// Palette: pink, green and white, with a matching dark theme.
 export const palette = {
   pink: '#C2185B', // primary, light theme
   pinkSoft: '#FFE3EE', // light tile used in the dark lockup
   white: '#FFFFFF',
-  yellow: '#FFC83D', // credit bar on the pink tile
-  gold: '#D99A00', // credit bar on the light tile
+  mint: '#A6EFC3', // credit bar on the pink tile
+  forest: '#1A7A46', // credit bar on the light tile
   ink: '#2B1020', // wordmark, light theme
   blush: '#FFF7FA', // light background
   night: '#1C0F16', // dark background
@@ -40,8 +40,8 @@ const MARK =
   'Ledger mark: a vertical rule, a longer debit bar, a shorter credit bar and a total line.';
 
 const p = palette;
-const light = mark(p.pink, p.white, p.yellow);
-const dark = mark(p.pinkSoft, p.pink, p.gold);
+const light = mark(p.pink, p.white, p.mint);
+const dark = mark(p.pinkSoft, p.pink, p.forest);
 
 const svgs = {
   logo: `${head(253, LOCKUP)}${light}<path d="${wordmark}" fill="${p.ink}"/></svg>\n`,
@@ -52,12 +52,12 @@ const svgs = {
   favicon:
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${p.pink}"/>` +
     `<rect x="15" y="11" width="8" height="42" rx="2" fill="#fff"/><rect x="29" y="15" width="24" height="9" rx="2" fill="#fff"/>` +
-    `<rect x="29" y="29" width="14" height="9" rx="2" fill="${p.yellow}"/><rect x="15" y="44" width="38" height="9" rx="2" fill="#fff"/></svg>\n`,
+    `<rect x="29" y="29" width="14" height="9" rx="2" fill="${p.mint}"/><rect x="15" y="44" width="38" height="9" rx="2" fill="#fff"/></svg>\n`,
 };
 for (const [name, svg] of Object.entries(svgs)) writeFileSync(`${brand}/${name}.svg`, svg);
 
 // Bars only (no tile), centred on a size x size canvas at the given scale.
-const bars = (size, scale, credit = p.yellow) => {
+const bars = (size, scale, credit = p.mint) => {
   const x = size / 2 - 34.5 * scale;
   const y = size / 2 - 32 * scale;
   return (

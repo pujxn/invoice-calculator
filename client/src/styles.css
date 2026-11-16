@@ -15,11 +15,11 @@
   --radius: 8px;
   --tap: 48px; /* minimum touch target height (Apple and Google both ask for 44-48) */
 
-  /* Palette: pink (brand), green (credit, success), yellow (highlight), white. */
+  /* Palette: pink (brand), green (credit, success), soft rose (dividers), white. */
   --primary: #c2185b; /* ledger pink */
   --primary-hover: #a8124c;
   --on-primary: #ffffff;
-  --accent: #ffc83d; /* credit yellow, decoration only */
+  --rose: #f0a3c3; /* soft rose, decoration only */
   --bg: #fff7fa; /* blush white */
   --surface: #ffffff;
   --text: #2b1020;
@@ -42,7 +42,7 @@
     --primary: #ff8fb8;
     --primary-hover: #ffb3d0;
     --on-primary: #3a0a1f;
-    --accent: #ffd25e;
+    --rose: #8a3a5e;
     --bg: #1c0f16;
     --surface: #2a1822;
     --text: #fbeaf1;
@@ -259,9 +259,9 @@ button.link:hover:not(:disabled) {
     max(1rem, env(safe-area-inset-left));
 }
 
-/* Thin yellow rule under the header, the one place the accent colour shows. */
+/* Thin soft-rose rule under the header. */
 .topbar-wrap {
-  border-bottom: 3px solid var(--accent);
+  border-bottom: 3px solid var(--rose);
 }
 
 .brand-link {
