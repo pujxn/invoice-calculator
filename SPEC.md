@@ -101,7 +101,7 @@ React web app (Vite)  --JSON-->  Node API (Express)  --code-->   SMS provider (c
 - **Client:** React 18 with Vite, plain CSS, mobile first (touch-sized controls, numeric keypad, SMS code autofill). The product must run on web and mobile; the plan is this responsive web app wrapped with Capacitor for iOS and Android, which is a later step.
 - **Server:** Node 20+ with Express; multer for uploads; the Anthropic SDK for Claude vision.
 - **Repo:** one GitHub repo, `invoice-calculator`, with `client/` and `server/` folders and one `npm run dev` that starts both.
-- **Tests:** Node's built-in test runner for the server (calculator, auth), Vitest and Testing Library for React components, and Playwright UI tests (`e2e/`, with axe accessibility checks) for every feature, with screenshots of each screen kept in `docs/screenshots/`. Every feature ships with tests at the levels it touches.
+- **Tests:** Node's built-in test runner for the server (calculator, auth), Vitest and Testing Library for React components, and Playwright UI tests (`e2e/`, with axe accessibility checks) for every feature. Every feature ships with tests at the levels it touches.
 - **Installable:** the web app has a manifest and icons so it can be added to a home screen, and `client/assets` holds the icon and splash sources Capacitor needs.
 
 ## Branding
