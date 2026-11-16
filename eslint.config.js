@@ -8,11 +8,11 @@ export default [
   { ignores: ['**/dist/**', '**/node_modules/**'] },
   js.configs.recommended,
   {
-    files: ['server/**/*.js', '*.js'],
+    files: ['server/**/*.js', 'client/*.config.js', '*.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'module', globals: globals.node },
   },
   {
-    // Playwright tests: Node code, plus callbacks that run inside the browser page.
+    // page.evaluate() callbacks run in the browser, so e2e files see both sets of globals.
     files: ['e2e/**/*.js'],
     languageOptions: {
       ecmaVersion: 2023,

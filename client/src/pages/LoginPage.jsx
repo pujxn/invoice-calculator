@@ -67,13 +67,15 @@ export default function LoginPage() {
       </div>
       <h1>Sign in</h1>
       {step === 'phone' ? (
-        <form onSubmit={submitPhone} noValidate>
+        <form className="stack" onSubmit={submitPhone} noValidate>
           <label htmlFor="phone">Mobile number</label>
           <input
             id="phone"
             type="tel"
+            name="phone"
             autoComplete="tel"
             inputMode="tel"
+            enterKeyHint="send"
             placeholder="+44 7700 900123"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
@@ -85,12 +87,14 @@ export default function LoginPage() {
               {error}
             </p>
           )}
-          <button type="submit" disabled={busy || !phone.trim()}>
-            {busy ? 'Sending…' : 'Send code'}
-          </button>
+          <div className="actions">
+            <button type="submit" disabled={busy || !phone.trim()}>
+              {busy ? 'Sending…' : 'Send code'}
+            </button>
+          </div>
         </form>
       ) : (
-        <form onSubmit={submitCode}>
+        <form className="stack" onSubmit={submitCode}>
           <p>
             We sent a code to <strong>{phone}</strong>.{' '}
             <button
@@ -107,8 +111,15 @@ export default function LoginPage() {
           <label htmlFor="code">6-digit code</label>
           <input
             id="code"
+            name="code"
+            type="text"
             inputMode="numeric"
+            pattern="[0-9]*"
             autoComplete="one-time-code"
+            enterKeyHint="go"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
             maxLength={6}
             placeholder="123456"
             value={code}
@@ -120,17 +131,19 @@ export default function LoginPage() {
               {error}
             </p>
           )}
-          <button type="submit" disabled={busy || code.length !== 6}>
-            {busy ? 'Checking…' : 'Sign in'}
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy || cooldown > 0}
-            onClick={send}
-          >
-            {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
-          </button>
+          <div className="actions">
+            <button type="submit" disabled={busy || code.length !== 6}>
+              {busy ? 'Checking…' : 'Sign in'}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || cooldown > 0}
+              onClick={send}
+            >
+              {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
+            </button>
+          </div>
         </form>
       )}
     </main>
