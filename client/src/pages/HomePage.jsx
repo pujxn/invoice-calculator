@@ -1,7 +1,7 @@
 import { useAuth } from '../auth/AuthContext.jsx';
+import InvoiceUpload from '../invoices/InvoiceUpload.jsx';
 
-// Protected landing page. The upload, review and result screens replace the
-// placeholder below in later steps.
+// Protected landing page: the upload screen. Review and result screens follow in later steps.
 export default function HomePage() {
   const { user, logout } = useAuth();
   return (
@@ -15,7 +15,7 @@ export default function HomePage() {
       <p>
         Signed in as <strong>{user.phone}</strong>.
       </p>
-      <p className="hint">Invoice upload comes next.</p>
+      <InvoiceUpload />
     </main>
   );
 }

@@ -3,6 +3,8 @@ import { createSmsProvider } from './sms/index.js';
 import { createOtpService } from './auth/otpService.js';
 import { createSessionStore } from './auth/sessions.js';
 import { createRateLimiter } from './auth/rateLimiter.js';
+import { createUploadStore } from './invoices/store.js';
+import { createInvoiceRouter } from './invoices/routes.js';
 import { createAuthRouter, createRequireAuth } from './auth/routes.js';
 
 // `deps` lets tests inject a fake SMS provider and clock.
@@ -24,6 +26,11 @@ export function createApp(config, deps = {}) {
     now,
   });
   const requireAuth = createRequireAuth(sessions);
+  const uploads = createUploadStore({
+    dir: config.uploads.dir,
+    ttlMs: config.uploads.ttlMs,
+    maxPerUser: config.uploads.maxPerUser,
+  });
 
   const app = express();
   app.disable('x-powered-by');
@@ -39,6 +46,11 @@ export function createApp(config, deps = {}) {
   app.use(
     '/api/auth',
     createAuthRouter({ otp, sessions, requireAuth, ipRequestLimiter, ipVerifyLimiter }),
+  );
+
+  app.use(
+    '/api/invoices',
+    createInvoiceRouter({ store: uploads, requireAuth, maxBytes: config.uploads.maxBytes }),
   );
 
   // Malformed JSON and other errors get the same { error } shape as the rest of the API.
@@ -60,8 +72,13 @@ export function createApp(config, deps = {}) {
       ipVerifyLimiter.sweep();
     }, 60 * 1000);
     timer.unref();
+    // Delete invoice pictures older than UPLOAD_TTL_HOURS.
+    const sweepUploads = () => uploads.sweep().catch((err) => console.error('upload sweep', err));
+    sweepUploads();
+    const uploadTimer = setInterval(sweepUploads, 10 * 60 * 1000);
+    uploadTimer.unref();
   }
 
-  app.locals.requireAuth = requireAuth; // for later routers (upload, extract, calculate)
+  app.locals.requireAuth = requireAuth; // for later routers (extract, calculate)
   return app;
 }

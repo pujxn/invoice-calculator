@@ -4,7 +4,7 @@
 > [Invoice Calculator: Product Spec](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs).
 > This file is a snapshot of it for the repo. Change the doc first, then update this file and the changelog.
 
-Version 0.3 · 2026-11-16
+Version 0.4 · 2026-11-16
 
 ## Overview
 
@@ -54,13 +54,13 @@ The prototype has 17 requirements across five areas; the Status column tracks ea
 | AUTH-3 | Login | A code allows at most 5 wrong attempts, then a new code is needed. | Built |
 | AUTH-4 | Login | Resend is limited to once per 30 seconds per number. | Built |
 | AUTH-5 | Login | A correct code starts a session that lasts 12 hours; the user can sign out. | Built |
-| UP-1 | Upload | Only signed-in users can upload. | Planned |
-| UP-2 | Upload | Accepts JPEG, PNG, WebP and HEIC up to 10 MB; on phones the camera can be used. | Planned |
-| UP-3 | Upload | Shows a preview of the chosen image before extraction. | Planned |
+| UP-1 | Upload | Only signed-in users can upload. | Built |
+| UP-2 | Upload | Accepts JPEG, PNG, WebP and HEIC up to 10 MB; on phones the camera can be used. | Built |
+| UP-3 | Upload | Shows a preview of the chosen image before extraction (HEIC shows a "No preview" note in browsers that cannot draw it), with progress, cancel, replace and remove. | Built |
 | AI-1 | Extraction | A vision AI model returns the Debit and Credit amounts as numbers, or null when a value is not on the invoice. | Planned |
 | AI-2 | Extraction | The response includes a confidence note and the currency if one is shown. | Planned |
 | AI-3 | Extraction | If the AI is not configured or fails, the user can still type the amounts by hand. | Planned |
-| AI-4 | Extraction | Images are processed in memory and not stored after extraction. | Planned |
+| AI-4 | Extraction | Uploaded images are kept only briefly: deleted when the user removes or replaces them, and automatically after 24 hours (`UPLOAD_TTL_HOURS`). The extraction step should also delete the image once it has been read. (Changed in 0.4: images are now stored so they can be uploaded and fetched.) | Planned |
 | CALC-1 | Calculation | User can edit both amounts before calculating; amounts must be 0 or more with up to 2 decimals. | Planned |
 | CALC-2 | Calculation | Net = Debit minus Credit, using the rules in Calculation rules. | Planned |
 | CALC-3 | Calculation | Calculation uses exact decimal maths (cents), not floating point. | Planned |
@@ -105,7 +105,7 @@ React web app (Vite)  --JSON-->  Node API (Express)  --code-->   SMS provider (c
 
 ## API endpoints
 
-The Node server exposes six JSON endpoints under `/api`; all except the two code calls (`request-otp`, `verify-otp`) need an `Authorization: Bearer <session token>` header.
+The Node server exposes JSON endpoints under `/api`; all except the two code calls (`request-otp`, `verify-otp`) need an `Authorization: Bearer <session token>` header.
 
 | Method and path | Request | Response |
 | --- | --- | --- |
@@ -113,10 +113,14 @@ The Node server exposes six JSON endpoints under `/api`; all except the two code
 | `POST /api/auth/verify-otp` | `{ phone, code }` | `{ token, expiresAt }` or 401 with `{ error }` |
 | `POST /api/auth/logout` | none | `{ ok: true }` |
 | `GET /api/auth/me` | none | `{ phone, expiresAt }`, used by the web app to check a stored session |
+| `POST /api/invoices` | multipart form, field `image` | 201 `{ id, mimeType, size, createdAt, imageUrl }`; own pictures only |
+| `GET /api/invoices/:id` | none | the same details, or 404 |
+| `GET /api/invoices/:id/image` | none | the picture bytes, or 404 |
+| `DELETE /api/invoices/:id` | none | `{ ok: true }`, or 404 |
 | `POST /api/invoices/extract` | multipart form, field `image` | `{ debit, credit, currency, confidence, provider }` (amounts are numbers or null) |
 | `POST /api/invoices/calculate` | `{ debit, credit }` | `{ debit, credit, net, type }` where `type` is `debit`, `credit` or `balanced` and `net` is never negative |
 
-Errors use HTTP status codes (400 bad input, 401 not signed in, 413 file too large, 429 too many requests, 502 AI or SMS provider failed) with a body of `{ error: "message" }`. A 429 from the auth calls also carries `retryAfterSeconds` and a `Retry-After` header. A wrong code is 401; after 5 wrong tries the code is locked and further tries get 429 until a new code is requested.
+Errors use HTTP status codes (400 bad input, 401 not signed in, 404 not found or not yours, 413 file too large, 415 not a supported picture, 429 too many requests, 502 AI or SMS provider failed) with a body of `{ error: "message" }`. A 429 from the auth calls also carries `retryAfterSeconds` and a `Retry-After` header. A wrong code is 401; after 5 wrong tries the code is locked and further tries get 429 until a new code is requested.
 
 A `GET /api/health` endpoint (no auth) reports that the server is up and which providers are configured.
 
@@ -134,6 +138,10 @@ The prototype runs with no settings at all: codes print to the server log and am
 | `AUTH_SECRET` | random per start | Key used to hash one-time codes; set it to keep codes valid across restarts |
 | `AUTH_IP_REQUEST_LIMIT` | 20 | Code requests allowed per IP per 15 minutes |
 | `AUTH_IP_VERIFY_LIMIT` | 40 | Code checks allowed per IP per 15 minutes |
+| `UPLOAD_DIR` | `server/uploads` | Folder where uploaded pictures are kept |
+| `UPLOAD_MAX_MB` | 10 | Largest picture accepted |
+| `UPLOAD_TTL_HOURS` | 24 | Pictures are deleted after this long |
+| `UPLOAD_MAX_PER_USER` | 50 | Pictures one user can keep at once |
 | `VISION_PROVIDER` | `claude` if a key is set, else `mock` | Which AI reads the image; `mock` skips AI |
 | `ANTHROPIC_API_KEY` | none | Key for Claude vision |
 | `ANTHROPIC_MODEL` | `claude-opus-5-5` | Claude model used for extraction |
@@ -146,7 +154,7 @@ The prototype keeps no invoice images and stores codes only as hashes, but it is
 - Code requests are rate limited per phone number (one per 30 seconds, 5 per hour) and per IP address (20 per 15 minutes); code checks are limited to 40 per IP per 15 minutes. This limits SMS cost abuse and guessing.
 - Codes are keyed hashes (HMAC-SHA256 with a server secret) tied to the phone number, and are single use.
 - Session tokens are random 32-byte values held in server memory (only their SHA-256 is kept); restarting the server signs everyone out. The web app keeps the token in the browser's localStorage, so a script injected into the page could read it; moving to an HttpOnly cookie is a later hardening item.
-- Invoice images stay in memory for the request and are sent only to the configured AI provider.
+- Uploaded pictures are checked by their bytes (not their name), stored under a hashed owner folder with random file names, readable only by their owner, and deleted after 24 hours or when removed. They are sent only to the configured AI provider.
 - API keys live in environment variables and never reach the browser.
 - Later, before real users: HTTPS everywhere, a persistent session store, audit logging, and a review of the AI provider's data retention terms.
 
@@ -182,3 +190,4 @@ The build can start without these answers; each has a default assumed in bracket
 | 2026-11-16 | 0.1 | First draft of the prototype spec. |
 | 2026-11-16 | 0.2 | SMS login built (AUTH-1 to AUTH-5). Added `GET /api/auth/me`, the `AUTH_SECRET` setting and the specific rate limits; clarified 429 and lockout behaviour. |
 | 2026-11-16 | 0.3 | Login UI made mobile first (touch targets, numeric keypad, SMS autofill); web plus iOS and Android via Capacitor recorded as the platform plan; testing rule: UI, client and server tests for every feature. |
+| 2026-11-16 | 0.4 | Invoice picture upload built (UP-1 to UP-3): upload, fetch and delete endpoints, size and type checks, per-user storage with automatic deletion, upload screen with camera, preview, progress, replace and remove. AI-4 changed: pictures are stored briefly instead of kept only in memory. Added 404 and 415 status codes and the `UPLOAD_*` settings. |

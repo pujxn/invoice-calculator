@@ -158,3 +158,67 @@ button.link {
 .topbar h1 {
   margin: 0;
 }
+
+/* --- Invoice upload --- */
+h2 {
+  font-size: 1.25rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.pick {
+  margin-top: 1rem;
+}
+
+/* The camera button only makes sense where there is a camera to open: touch screens. */
+.camera-only {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .camera-only {
+    display: inline-block;
+  }
+}
+
+.picture {
+  margin-top: 1rem;
+}
+
+.preview {
+  display: grid;
+  place-items: center;
+  min-height: 12rem;
+  padding: 0.5rem;
+  background: #fff;
+  border: 1px solid #c9c9c9;
+  border-radius: 8px;
+}
+
+.preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+}
+
+.preview-missing {
+  text-align: center;
+  color: #555;
+}
+
+.filename {
+  margin: 0.75rem 0 0.25rem;
+  font-weight: 600;
+}
+
+progress {
+  display: block;
+  width: 100%;
+  height: 0.75rem;
+  margin: 0.5rem 0 0.25rem;
+  accent-color: var(--blue);
+}

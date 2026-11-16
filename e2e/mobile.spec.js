@@ -1,34 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { latestCode, requestCodeFor, shot, uniquePhone } from './helpers.js';
+import {
+  expectNoSideScroll,
+  expectTouchFriendly,
+  latestCode,
+  requestCodeFor,
+  shot,
+  uniquePhone,
+} from './helpers.js';
 
 // Phones tap with a finger; the desktop project has no touch, so it clicks instead.
 async function tapOrClick(locator) {
   if (test.info().project.use.hasTouch) await locator.tap();
   else await locator.click();
-}
-
-const MIN_TAP = 44; // px; Apple asks for 44, Google for 48
-
-async function expectNoSideScroll(page) {
-  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth,
-  }));
-  expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
-}
-
-async function expectTouchFriendly(page) {
-  for (const control of await page.locator('button:visible, input:visible').all()) {
-    const box = await control.boundingBox();
-    expect(box.height, await control.evaluate((el) => el.outerHTML)).toBeGreaterThanOrEqual(
-      MIN_TAP,
-    );
-  }
-  // 16px or larger stops iOS Safari from zooming the page when an input gets focus.
-  for (const input of await page.locator('input:visible').all()) {
-    const size = await input.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-    expect(size).toBeGreaterThanOrEqual(16);
-  }
 }
 
 test('phone entry fits the screen, has big touch targets and opens the phone keypad', async ({
