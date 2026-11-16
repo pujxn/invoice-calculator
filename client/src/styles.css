@@ -294,6 +294,20 @@ h2 {
   }
 }
 
+/* Inside the iOS and Android apps (class set by platform/nativeChrome.js): there is always a camera. */
+html.native .camera-only {
+  display: inline-block;
+}
+
+html.native body {
+  overscroll-behavior-y: none; /* no rubber-band bounce that exposes the page behind */
+}
+
+html.native button,
+html.native a {
+  -webkit-touch-callout: none; /* no long-press menu on controls */
+}
+
 .picture {
   margin-top: 1rem;
 }

@@ -1,11 +1,17 @@
-import { api, ApiError } from '../api.js';
+import { api, ApiError, assertNativeHasServer } from '../api.js';
+import { apiUrl } from '../platform/apiBase.js';
 
 // Uploads use XMLHttpRequest because fetch cannot report upload progress.
 // Resolves with the server's picture details; rejects with ApiError, or an AbortError if cancelled.
 export function uploadInvoice(file, { token, onProgress, signal } = {}) {
   return new Promise((resolve, reject) => {
+    try {
+      assertNativeHasServer();
+    } catch (err) {
+      return reject(err);
+    }
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/invoices');
+    xhr.open('POST', apiUrl('/invoices'));
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
     xhr.upload.onprogress = (e) => {
@@ -42,9 +48,10 @@ export const deleteInvoice = (id, token) => api(`/invoices/${id}`, { method: 'DE
 
 // The picture needs the sign-in token, which an <img src> cannot send, so it is fetched as a blob.
 export async function fetchInvoiceImage(id, token) {
+  assertNativeHasServer();
   let res;
   try {
-    res = await fetch(`/api/invoices/${id}/image`, {
+    res = await fetch(apiUrl(`/invoices/${id}/image`), {
       headers: { Authorization: `Bearer ${token}` },
     });
   } catch {
