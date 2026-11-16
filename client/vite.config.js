@@ -8,4 +8,10 @@ export default defineConfig({
     port: 5173,
     proxy: { '/api': 'http://localhost:4000' },
   },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./test/setup.js'],
+    include: ['test/**/*.test.{js,jsx}'],
+    css: false,
+  },
 });

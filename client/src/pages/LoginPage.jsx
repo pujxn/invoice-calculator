@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
+import Logo from '../components/Logo.jsx';
+import useDocumentTitle from '../useDocumentTitle.js';
 
 // Two steps: enter the mobile number, then the 6-digit code from the SMS.
 export default function LoginPage() {
   const { user, requestCode, verifyCode } = useAuth();
+  useDocumentTitle('Sign in');
   const navigate = useNavigate();
   const location = useLocation();
   const [step, setStep] = useState('phone');
@@ -57,7 +60,11 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="shell">
+    <main className="shell login">
+      <div className="login-brand">
+        <Logo height={56} />
+        <p className="tagline">Read the invoice. See the balance.</p>
+      </div>
       <h1>Sign in</h1>
       {step === 'phone' ? (
         <form onSubmit={submitPhone} noValidate>

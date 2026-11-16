@@ -1,17 +1,100 @@
+/* Ledgerly design tokens. Colours meet WCAG AA: text on --bg is at least
+   4.5:1, and button text on --primary is at least 4.5:1. */
 :root {
-  font-family: system-ui, sans-serif;
-  color: #1a1a1a;
-  background: #fafafa;
+  --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --text-sm: 0.9rem;
+  --text-base: 1rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.875rem;
+
+  --radius: 8px;
+
+  --primary: #0b6b5d; /* ledger green */
+  --primary-hover: #095549;
+  --on-primary: #ffffff;
+  --accent: #f5b544; /* credit amber, decoration only */
+  --bg: #f6f9f8;
+  --surface: #ffffff;
+  --text: #0e2b27;
+  --text-muted: #46605c;
+  --border: #657f7b;
+  --focus: #0b6b5d;
+  --good-bg: #dff3e8;
+  --bad-bg: #fde4e4;
+  --bad-text: #8a1c1c;
+
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #4fd1b5;
+    --primary-hover: #7be0ca;
+    --on-primary: #06231f;
+    --accent: #f5b544;
+    --bg: #0f1b1a;
+    --surface: #162726;
+    --text: #e8f3f1;
+    --text-muted: #a8c2be;
+    --border: #5b7773;
+    --focus: #7be0ca;
+    --good-bg: #123d2e;
+    --bad-bg: #4a1f1f;
+    --bad-text: #ffc9c9;
+  }
 }
 
 body {
   margin: 0;
+  background: var(--bg);
 }
 
+h1 {
+  font-size: var(--text-2xl);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+/* Mobile first: phone-width padding, with room for notches and home bars
+   (needs viewport-fit=cover, set in index.html) when wrapped as a native app. */
 .shell {
+  box-sizing: border-box;
   max-width: 32rem;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 1.5rem max(1rem, env(safe-area-inset-right)) 2rem max(1rem, env(safe-area-inset-left));
+}
+
+@media (min-width: 40rem) {
+  .shell {
+    padding-top: 2.5rem;
+  }
+}
+
+.logo {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.login-brand {
+  margin: 1rem 0 1.5rem;
+}
+
+/* The lockup shrinks on very narrow phones instead of overflowing. */
+.login-brand .logo {
+  width: min(100%, 14rem);
+  height: auto;
+}
+
+.tagline {
+  margin: 0.75rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-base);
 }
 
 .status {
@@ -20,11 +103,12 @@ body {
 }
 
 .status.good {
-  background: #e3f6e8;
+  background: var(--good-bg);
 }
 
 .status.bad {
-  background: #fde4e4;
+  background: var(--bad-bg);
+  color: var(--bad-text);
 }
 
 label {
@@ -38,19 +122,38 @@ input {
   width: 100%;
   padding: 0.65rem 0.75rem;
   font: inherit;
-  border: 1px solid #b8b8b8;
-  border-radius: 6px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 button {
   margin-top: 1rem;
+  min-height: 2.75rem; /* 44px touch target */
   padding: 0.65rem 1rem;
   font: inherit;
-  color: #fff;
-  background: #2b5fd9;
-  border: 0;
-  border-radius: 6px;
+  font-weight: 600;
+  color: var(--on-primary);
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
   cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 button:disabled {
@@ -59,9 +162,14 @@ button:disabled {
 }
 
 button.secondary {
-  color: #2b5fd9;
+  color: var(--primary);
   background: transparent;
-  border: 1px solid #2b5fd9;
+  border: 1px solid var(--primary);
+}
+
+button.secondary:hover:not(:disabled) {
+  background: transparent;
+  color: var(--primary-hover);
 }
 
 form button.secondary {
@@ -71,23 +179,36 @@ form button.secondary {
 button.link {
   margin: 0;
   padding: 0;
-  color: #2b5fd9;
+  color: var(--primary);
   background: none;
+  border: 0;
+  font-weight: 400;
   text-decoration: underline;
 }
 
 .hint {
-  color: #555;
-  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
+/* Header: full width bar, content aligned with .shell. */
 .topbar {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: max(0.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0
+    max(1rem, env(safe-area-inset-left));
 }
 
 .topbar button {
   margin-top: 0;
+}
+
+.brand-link {
+  display: inline-block;
+  border-radius: var(--radius);
 }

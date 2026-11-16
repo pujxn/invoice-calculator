@@ -12,6 +12,15 @@ export default [
     languageOptions: { ecmaVersion: 2023, sourceType: 'module', globals: globals.node },
   },
   {
+    // Playwright tests: Node code, plus callbacks that run inside the browser page.
+    files: ['e2e/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
+  {
     files: ['client/**/*.{js,jsx}'],
     plugins: { react, 'react-hooks': reactHooks },
     languageOptions: {
