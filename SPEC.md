@@ -103,11 +103,19 @@ React web app (Vite)  --JSON-->  Node API (Express)  --code-->   SMS provider (c
                                    calculator, in-memory store
 ```
 
-- **Client:** React 18 with Vite, plain CSS, mobile first (touch-sized controls, numeric keypad, SMS code autofill). The product must run on web and mobile; the plan is this responsive web app wrapped with Capacitor for iOS and Android, which is a later step.
+- **Client:** React 18 with Vite, plain CSS, mobile first (touch-sized controls, numeric keypad, SMS code autofill). The product runs on web and mobile: the same responsive web app is wrapped with Capacitor 7 as an iOS and Android app (`client/ios`, `client/android`; app name Ledgerly, app id `com.ledgerly.app`).
 - **Server:** Node 20+ with Express; multer for uploads; the Anthropic SDK for Claude vision.
 - **Repo:** one GitHub repo, `invoice-calculator`, with `client/` and `server/` folders and one `npm run dev` that starts both.
 - **Tests:** Node's built-in test runner for the server (calculator, auth), Vitest and Testing Library for React components, and Playwright UI tests (`e2e/`, with axe accessibility checks) for every feature. Every feature ships with tests at the levels it touches.
-- **Installable:** the web app has a manifest and icons so it can be added to a home screen, and `client/assets` holds the icon and splash sources Capacitor needs.
+- **Installable:** the web app has a manifest and icons so it can be added to a home screen, and `client/assets` holds the icon and splash sources Capacitor uses (`npm run native:assets` turns them into every app icon and splash screen).
+- **Mobile apps (Capacitor 7):**
+  - *Shell.* The app loads a built copy of the web app from the phone (`capacitor://localhost` on iOS, `https://localhost` on Android). The iOS project uses Swift Package Manager (no CocoaPods). Native plugins: Camera, Status Bar, Splash Screen, Keyboard.
+  - *Server address.* The web app calls `/api/...` on its own host. The app has no server of its own, so its build is given an address (`VITE_API_BASE_URL`, set by `npm run native:*`). A development build uses the computer's Wi-Fi address and the API port, so an emulator and a phone can both reach it. A production build must be given an `https` address and refuses `http`.
+  - *Sign-in and CORS.* The session token travels in the `Authorization` header (never a cookie). The API answers cross-origin checks only for the app origins and the origins in `CORS_ORIGINS`, with `Authorization` and `Content-Type` allowed, no credentials.
+  - *Cleartext.* Plain `http` is allowed only for development: Android debug builds (`src/debug/AndroidManifest.xml`) and development `cap sync` settings, and on iOS only to local-network addresses (`NSAllowsLocalNetworking`). Release builds use `https` only.
+  - *Camera.* **Take photo** and **Choose from photos** use the native camera and picker and return a JPEG that goes through the normal upload. Where the plugin is missing (a browser) the web file inputs are used.
+  - *Look and feel.* Status bar style follows the light or dark theme (and Android takes the page background colour), the splash screen is hidden once the page draws, safe areas use `env(safe-area-inset-*)`.
+  - *Not covered yet.* Android SMS code autofill (iOS uses `autocomplete="one-time-code"`), push notifications, deep links and offline use. The sign-in token stays in web storage, not the phone's secure storage.
 
 ## Branding
 
@@ -165,6 +173,7 @@ The prototype runs with no settings at all: codes print to the server log and am
 | `ANTHROPIC_TIMEOUT_SECONDS` | 60 | One AI call is abandoned after this long |
 | `ANTHROPIC_FALLBACKS` | none | `default` lets the API retry a declined request on another model |
 | `EXTRACT_PER_USER_PER_HOUR` | 30 | Readings one user can start per hour |
+| `CORS_ORIGINS` | none | Extra origins (comma separated) allowed to call the API from a browser. The iOS and Android app origins are always allowed; `*` is refused |
 
 ## Security and privacy
 
@@ -189,7 +198,7 @@ These are candidate features after the prototype, unordered and undated until we
 - **Export:** download results as CSV or PDF.
 - **Batch upload:** several invoices at once.
 - **Deployment:** host the app with HTTPS and a real SMS sender number.
-- **Mobile app:** wrap the responsive web app with Capacitor for iOS and Android, adding native camera capture. The icon and splash sources it needs are already in `client/assets` (see Branding).
+- **Mobile app stores:** the Capacitor wrapper and native camera exist (see Architecture). Still to do: choose the final app id, store accounts and listings, signed release builds, secure token storage and Android SMS autofill.
 
 ## Open questions
 
@@ -215,3 +224,4 @@ The build can start without these answers; each has a default assumed in bracket
 | 2026-11-16 | 0.6 | Invoice picture upload built (UP-1 to UP-3): upload, fetch and delete endpoints, size and type checks, per-user storage with automatic deletion, upload screen with camera, preview, progress, replace and remove. AI-4 changed: pictures are stored briefly instead of kept only in memory. Added 404 and 415 status codes and the `UPLOAD_*` settings. |
 | 2026-11-16 | 0.7 | AI amount extraction built (AI-1 to AI-4): `POST /api/invoices/:id/extract`, Claude vision provider with a deterministic mock mode, HEIC to JPEG conversion, strict output validation, exact decimal amounts (strings, not numbers), line items, warnings and confidence, per-user hourly limit, picture deleted after reading. Web: Read amounts, loading and cancel, editable Debit and Credit with checks, type by hand. Endpoint changed from a multipart `extract` to `:id/extract` on the already uploaded picture. |
 | 2026-11-16 | 0.8 | Final amount calculation and result screen built (CALC-1 to CALC-3, RES-1, RES-2). New shared `@ledgerly/money` package (exact BigInt minor units, signed line items, formatting) used by the server and the web app. `POST /api/invoices/calculate` now built, also accepts a list of signed line items and returns `signedNet` and `lineCount`. Web: Calculate final amount button, result screen with live recalculation, breakdown, copy, back, new invoice. Calculation rules extended (zero, large numbers, rounding, formatting). Request body too large now answers 413. |
+| 2026-11-16 | 0.9 | iOS and Android apps with Capacitor 7: native projects, camera and photo picker, status bar and splash, configurable API address, CORS for the app origins (`CORS_ORIGINS`), development-only cleartext, `npm run native:*` scripts, and run instructions. No change to the web behaviour. |

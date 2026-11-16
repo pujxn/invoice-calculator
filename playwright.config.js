@@ -41,6 +41,8 @@ export default defineConfig({
         // Tests never call the real AI, even if a key is set in server/.env or the shell.
         VISION_PROVIDER: 'mock',
         AUTH_SECRET: 'e2e-secret',
+        // Lets native-api.spec.js call the API from the web page's own origin, as the apps do.
+        CORS_ORIGINS: `http://localhost:${WEB_PORT}`,
         // Pictures uploaded by the tests go to a throwaway folder, not server/uploads.
         UPLOAD_DIR: path.join(tmpdir(), 'invoice-calculator-e2e-uploads'),
         // The three device projects share one IP, so lift the per-IP caps (per-number limits stay on).

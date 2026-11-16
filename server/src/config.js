@@ -14,10 +14,34 @@ function positiveNumber(value, fallback) {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+// What the native apps send as their origin (see cors.js). Android uses https://localhost because
+// capacitor.config.ts sets androidScheme to https; the http form is kept for older installs.
+export const NATIVE_APP_ORIGINS = [
+  'capacitor://localhost',
+  'ionic://localhost',
+  'https://localhost',
+  'http://localhost',
+];
+
+// A comma-separated list of origins, with surrounding spaces and a trailing slash ignored.
+function originList(value) {
+  return String(value || '')
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}
+
 export function loadConfig(env = process.env) {
   const anthropicKey = env.ANTHROPIC_API_KEY || '';
   return {
     port: Number(env.PORT) || 4000,
+    cors: {
+      // Origins allowed to call the API from a browser on another host: the mobile apps, plus
+      // anything listed in CORS_ORIGINS. "*" is not accepted on purpose.
+      origins: [...new Set([...NATIVE_APP_ORIGINS, ...originList(env.CORS_ORIGINS)])].filter(
+        (o) => o !== '*',
+      ),
+    },
     auth: {
       // HMAC key for one-time codes. If unset, a random key is generated per
       // process (codes in flight do not survive a restart, which is fine).
