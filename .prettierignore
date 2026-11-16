@@ -3,3 +3,6 @@ dist
 package-lock.json
 SPEC.md
 e2e/.server.log
+dist-native
+client/android
+client/ios

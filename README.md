@@ -10,11 +10,12 @@
 Take a photo of an invoice. Ledgerly reads the **Debit** and **Credit** amounts with AI, lets you check and correct them, and shows the **final amount** as a Net Debit, a Net Credit or Balanced. People sign in with a one-time code sent by SMS. It is one responsive web app that works on a phone and on a computer.
 
 - Product spec (source of truth): [SPEC.md](SPEC.md), a snapshot of the [live spec doc](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs). Change the doc first, then update this file.
-- Status: sign in, upload, AI reading, calculation and result screen all work. See the requirement table in SPEC.md.
+- Status: sign in, upload, AI reading, calculation and result screen all work, in the browser and as an iOS and Android app (see [Run the mobile apps](#run-the-mobile-apps-ios-and-android)). See the requirement table in SPEC.md.
+- Want to show it to someone? See the demo script, [docs/DEMO.md](docs/DEMO.md), with sample invoice pictures in [docs/demo/](docs/demo/).
 
 ## Quick start
 
-You need [Node.js](https://nodejs.org) 20.12 or newer (check with `node -v`). Then, in a terminal in the project folder:
+You need [Node.js](https://nodejs.org) 20.12 or newer (the "LTS" download is fine; Node 22 is tested too). Check with `node -v`. Then, in a terminal in the project folder:
 
 ```
 npm install
@@ -42,15 +43,19 @@ Your computer and phone must be on the same Wi-Fi. Run `npm run dev -w server` i
 
 ### If something goes wrong
 
-| What you see                          | What to do                                                                                          |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `npm install` or the app will not run | Check `node -v` is 20.12 or newer.                                                                  |
-| "address already in use" (port 4000)  | Another program uses that port. Stop it, or set `PORT=4001` in `server/.env`.                       |
-| The page loads but sign-in fails      | The API is not running. `npm run dev` starts both; look for `API listening` in the terminal.        |
-| No sign-in code arrives               | In mock mode it is printed in the terminal running `npm run dev`, not sent by SMS.                  |
-| Signed out after a restart            | Expected: sessions live in server memory. Sign in again.                                            |
-| The UI tests cannot start a browser   | Run `npx playwright install chromium` once.                                                         |
-| Pictures pile up in `server/uploads`  | They are deleted automatically after 24 hours, or as soon as they are read. Safe to delete by hand. |
+| What you see                                                         | What it means and what to do                                                                                                                                                                                                         |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `process.loadEnvFile is not a function` right after `npm run dev`    | Your Node is too old (18 or older). Install Node 20.12 or newer from https://nodejs.org, open a **new** terminal, check `node -v`, then run `npm install` again.                                                                     |
+| `npm: command not found` or `node: command not found`                | Node is not installed, or the terminal was opened before you installed it. Install Node and open a new terminal.                                                                                                                     |
+| `Error: listen EADDRINUSE: address already in use 0.0.0.0:4000`      | Something is already using port 4000, often an earlier `npm run dev` still running. Find the terminal that is running it and press `Ctrl+C`. Mac/Linux: `lsof -i :4000` shows the program. Windows: `netstat -ano \| findstr :4000`. |
+| `Port 5173 is in use, trying another one...`                         | Another copy of the web app is running. Vite moves to 5174 and prints the new address; open that one, or stop the old copy first so you always get 5173.                                                                             |
+| The page loads but sign-in says it cannot reach the server           | The API is not running (see the `EADDRINUSE` row), or you started only the web app. Run `npm run dev` from the project root so both start.                                                                                           |
+| You are suddenly back on the Sign in page                            | Sessions live in server memory, so restarting `npm run dev` (it restarts itself when you save a server file) signs everyone out. Sign in again; the new code is in the terminal.                                                     |
+| Where is the code?                                                   | In the terminal running `npm run dev`, on a line such as `[sms:console] to +44...: Your Ledgerly code is 106950.` Scroll up if more output has appeared since.                                                                       |
+| "Please wait 30 seconds" or "too many requests"                      | Normal limits on codes. Wait, or restart `npm run dev` to reset them.                                                                                                                                                                |
+| `npm install` fails with a permissions error or on a company network | Do not use `sudo`. Make sure the folder is somewhere you own (not `C:\Program Files`), and ask IT about the npm registry if it is blocked.                                                                                           |
+| The browser tests cannot start a browser                             | Run `npx playwright install chromium` once.                                                                                                                                                                                          |
+| Pictures pile up in `server/uploads`                                 | They are deleted automatically after 24 hours, or as soon as they are read. Safe to delete by hand.                                                                                                                                  |
 
 ## Use the real AI and real text messages (optional)
 
@@ -87,29 +92,119 @@ With nothing set, one-time codes print to the server log and the AI is a mock.
 | `ANTHROPIC_TIMEOUT_SECONDS` | `60`                                  | Give up on one AI call after this long                                                                         |
 | `ANTHROPIC_FALLBACKS`       | none                                  | Set to `default` to let the API retry a declined request on another model                                      |
 | `EXTRACT_PER_USER_PER_HOUR` | `30`                                  | Readings one user can start per hour (each costs money)                                                        |
+| `CORS_ORIGINS`              | none                                  | Extra websites allowed to call the API from a browser (the mobile apps always are)                             |
 
 All settings are read in one place, `server/src/config.js`.
+
+## Run the mobile apps (iOS and Android)
+
+The apps are the web app inside a native shell, so they look and work the same. What the shell adds: the phone's own camera and photo picker for invoice pictures, a status bar that matches the light or dark theme, the Ledgerly splash screen and app icon, and the keyboard pushing the page up instead of hiding the field.
+
+The app does not run its own server. It talks to the same API as the web app, so **keep `npm run dev` running** while you try it. `npm run native:*` builds the app pointing at your computer's Wi-Fi address (it prints the address it picked), so an emulator and a real phone on the same Wi-Fi can both reach it.
+
+### Android (Windows, Mac or Linux)
+
+Install once:
+
+1. [Android Studio](https://developer.android.com/studio) (it brings the Java it needs). On the first start accept the defaults so it installs the Android SDK.
+2. An emulator: in Android Studio open **More Actions > Virtual Device Manager > Create Device**, pick a Pixel phone and a recent Android version, and finish. Or use a real phone: turn on **Developer options > USB debugging** and plug it in.
+
+Then, each time:
+
+1. In one terminal, from the project folder: `npm install` (first time only), then `npm run dev`. Leave it running.
+2. In a second terminal: `npm run native:android`. This builds the web app, copies it into the Android project and opens Android Studio.
+3. The first time, wait for the progress bar at the bottom of Android Studio ("Gradle sync") to finish. This can take several minutes.
+4. Pick the emulator or your phone in the device list at the top and press the green **Run** triangle.
+5. In the app, sign in with any number such as `+44 7700 900123`. The 6-digit code appears in the terminal where `npm run dev` is running. Then tap **Take photo** (the emulator offers a fake camera scene) or **Choose from photos**.
+
+Without opening Android Studio: start an emulator (or plug in a phone), then run `npm run native:run:android` and choose the device it lists. This needs `ANDROID_HOME` to point at the SDK, which Android Studio shows under **Settings > Languages & Frameworks > Android SDK**.
+
+### iOS (Mac only)
+
+Install once:
+
+1. Xcode 16 or newer from the Mac App Store. Open it once, accept the licence and let it install the extra components. In **Xcode > Settings > Platforms** make sure an iOS simulator is installed.
+2. Nothing else: the iOS project uses Swift Package Manager, so there is no CocoaPods to install.
+
+Then, each time:
+
+1. In one terminal: `npm install` (first time only), then `npm run dev`. Leave it running.
+2. In a second terminal: `npm run native:ios`. This builds the web app, copies it into the iOS project and opens Xcode.
+3. The first time, wait while Xcode downloads the Capacitor package (progress is at the top of the window).
+4. Choose an iPhone in the device list at the top (for example **iPhone 16**) and press the **Run** triangle. The simulator opens with Ledgerly in it.
+5. Sign in as above, reading the code from the `npm run dev` terminal. The simulator has no camera, so use **Choose from photos** (drag a picture onto the simulator window first to add it to Photos).
+
+To run on a real iPhone: connect it, turn on **Settings > Privacy & Security > Developer Mode** on the phone, and in Xcode select the **App** target, then **Signing & Capabilities**, and choose your Apple ID under **Team**. iOS asks permission to find devices on your network the first time: tap Allow.
+
+`npm run native:run:ios` does the same from the terminal and lets you pick a simulator or device.
+
+### After you change the code
+
+The app contains a built copy of the web app, not the live dev server. After changing anything under `client/`, run `npm run native:sync` (or the `npm run native:android` / `native:ios` command again) and press Run again.
+
+### If the app says it cannot reach the server
+
+- Is `npm run dev` still running? Open `http://<the address printed by native:sync>/api/health`, for example `http://192.168.1.20:4000/api/health`, in your phone's browser. It should show `{"ok":true,...}`.
+- Phone and computer must be on the same Wi-Fi, and the computer's firewall must allow Node.js (Mac and Windows ask the first time: choose Allow).
+- The wrong address was picked (VPN or several networks)? Give it yourself: `npm run native:android -- --api http://192.168.1.20:4000`. Android emulators can also use `http://10.0.2.2:4000`.
+
+### Settings
+
+| Where                                   | What                                                                                                                                                                                 |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `client/capacitor.config.ts`            | App name (Ledgerly), app id (`com.ledgerly.app`), splash, keyboard. Change the app id before publishing, then edit it in `client/android/app/build.gradle` and the Xcode project too |
+| `--api <address>` or `LEDGERLY_API_URL` | The server the app talks to (baked in when you run `native:*`)                                                                                                                       |
+| `CORS_ORIGINS` in `server/.env`         | Extra websites allowed to call the API from a browser. The apps are always allowed                                                                                                   |
+| `npm run native:assets`                 | Rebuild every app icon and splash screen from `client/assets` (after `npm run brand`)                                                                                                |
+
+### How the apps work
+
+- **Server address.** In a browser, API calls go to `/api/...` on the same host. In the app the address is built in from `VITE_API_BASE_URL` (`client/src/platform/apiBase.js`). A development build uses `http://<your Wi-Fi address>:4000`.
+- **Sign-in and CORS.** The session is a token sent in the `Authorization` header (no cookies), which suits an app. Because the app's page comes from the phone (`capacitor://localhost` on iOS, `https://localhost` on Android), the server answers browser permission checks for exactly those origins plus anything in `CORS_ORIGINS` (`server/src/cors.js`). Any other origin is refused.
+- **Plain http is for development only.** Plain `http` to your computer is allowed only in development builds: Android debug builds (`android/app/src/debug`) and the dev setting in `capacitor.config.ts`; iOS allows `http` to addresses on your own network but never to the internet. A production build refuses an `http` address.
+- **Camera.** **Take photo** and **Choose from photos** use the phone's own camera and photo library (`@capacitor/camera`), then the same upload as the web. Photos are saved as JPEG (phones that shoot HEIC convert it). In a browser the usual file inputs are used instead.
+- **Session storage.** The sign-in token is kept in the app's local storage like on the web (12-hour session). It is not copied into Android backups.
+
+### Publishing later
+
+Build with your live server's `https` address, then use Android Studio (**Build > Generate Signed App Bundle**) or Xcode (**Product > Archive**):
+
+```
+npm run native:sync:production -- --api https://your-server.example.com
+```
+
+This needs a hosted server with HTTPS and a real SMS provider (see the roadmap in SPEC.md), an Apple Developer account and a Google Play account, and your own app id.
+
+### What is not verified yet
+
+These were built without a phone or emulator, so please report anything odd: running the apps on Android and iOS, the native camera and photo picker, the status bar colours and splash screen, how the keyboard pushes the page up, and automatic filling of the SMS code. The tests below cover everything that can run without a device.
+
+- **SMS code autofill.** The code box is marked `autocomplete="one-time-code"`, which makes iOS offer the code from the text message above the keyboard. Android has no equivalent for web pages, so for now the code is typed or pasted there. A native Android plugin can be added later.
+- **Tests.** `npm test` checks the server address handling, the camera wrapper, the status bar setup and the upload screen in app mode (`client/test`), the server's CORS answers (`server/test/cors.test.js`), the helper scripts and the committed native projects: app id, permissions, https-only release builds, icons, git ignores (`scripts/test`). `npm run test:ui` also makes real browser calls from another origin to prove CORS works (`e2e/native-api.spec.js`).
 
 ## For developers
 
 ```
 client/   React 18 + Vite web app (dev server :5173, proxies /api to :4000)
+          client/android and client/ios are the Capacitor mobile app projects
 server/   Node + Express API (:4000)
 shared/   Exact-decimal money maths used by both (@ledgerly/money)
 e2e/      Playwright browser tests (phone, small phone, desktop)
+docs/     Demo script (DEMO.md), sample invoices, logo preview
 SPEC.md   Product spec, source of truth
 ```
 
-| Command                   | What it does                                                                                      |
-| ------------------------- | ------------------------------------------------------------------------------------------------- |
-| `npm run dev`             | Start API and web app together with reload                                                        |
-| `npm run build`           | Production build of the web app (`client/dist`)                                                   |
-| `npm start`               | Start the API only (it does not serve `client/dist`; hosting the built app is not set up yet)     |
-| `npm test`                | Shared, server and web app tests (fast)                                                           |
-| `npm run test:ui`         | Browser tests in a hidden browser: phone, small phone and desktop windows                         |
-| `npm run test:ui:screens` | Same, and saves screenshots to `test-screenshots/` (or `SCREENSHOT_DIR`); git-ignored, not in PRs |
-| `npm run lint`            | ESLint (`npm run format` fixes formatting with Prettier, `format:check` verifies)                 |
-| `npm run brand`           | Rebuild logos, icons and splash images from the palette                                           |
+| Command                   | What it does                                                                                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`             | Start API and web app together with reload                                                                                                                  |
+| `npm run build`           | Production build of the web app (`client/dist`)                                                                                                             |
+| `npm start`               | Start the API only (it does not serve `client/dist`; hosting the built app is not set up yet)                                                               |
+| `npm test`                | Shared, server and web app tests (fast)                                                                                                                     |
+| `npm run test:ui`         | Browser tests in a hidden browser: phone, small phone and desktop windows                                                                                   |
+| `npm run test:ui:screens` | Same, and saves screenshots to `test-screenshots/` (or `SCREENSHOT_DIR`); git-ignored, not in PRs                                                           |
+| `npm run lint`            | ESLint (`npm run format` fixes formatting with Prettier, `format:check` verifies)                                                                           |
+| `npm run brand`           | Rebuild logos, icons and splash images from the palette                                                                                                     |
+| `npm run native:sync`     | Build the web app and copy it into the iOS and Android projects (more `native:*` commands: see [Run the mobile apps](#run-the-mobile-apps-ios-and-android)) |
 
 CI runs lint, format check, tests, build and the browser tests on every pull request. The first time you run the browser tests, install the browser with `npx playwright install chromium`.
 
@@ -117,12 +212,12 @@ CI runs lint, format check, tests, build and the browser tests on every pull req
 
 - `server/test/` (Node's test runner): auth, sessions, rate limits, upload store and API, extraction pipeline with a fake AI, calculation API, config and hardening (headers, proxy, safe logging).
 - `client/test/` (Vitest and Testing Library): every screen and flow, including Back button, focus, sign-out and colour contrast of every token.
-- `shared/test/`: the money maths.
+- `shared/test/`: the money maths. `scripts/test/` checks the helper scripts and the committed native projects.
 - `e2e/` (Playwright, with axe accessibility checks in light and dark): `journey.spec.js` is the full journey and the error paths (wrong codes, AI failing, connection lost, session ended, two tabs, two users, keyboard only, enlarged text); the other specs cover each feature in depth. Tests start their own API (port 4100) and web server (port 5273), so they work while `npm run dev` is running, and the AI is always the mock. The API log is written to `e2e/.server.log`, which is how tests read the one-time codes. Sample pictures are in `e2e/fixtures/`.
 
 ### Web and mobile
 
-Ledgerly is one responsive React app, designed for phone widths first, with a web manifest and icons so it can be added to a home screen. It is meant to be wrapped with [Capacitor](https://capacitorjs.com) for iOS and Android later; the icon and splash sources it needs are in `client/assets`.
+Ledgerly is one responsive React app, designed for phone widths first. In a browser it is a normal web page (it also has a web manifest and icons, so it can be added to a home screen). The same code is wrapped with [Capacitor](https://capacitorjs.com) as an iOS and Android app, described under [Run the mobile apps](#run-the-mobile-apps-ios-and-android). Nothing changes for the web: native features switch on only inside the apps.
 
 ### Look and feel
 

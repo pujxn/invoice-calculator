@@ -142,3 +142,26 @@ describe('getInvoice, deleteInvoice, fetchInvoiceImage', () => {
     await expect(fetchInvoiceImage('abc', 'tok')).rejects.toMatchObject({ status: 0 });
   });
 });
+
+describe('with a server address (the mobile apps)', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('uploads to that server, not to the phone itself', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://192.168.1.20:4000');
+    vi.stubGlobal('XMLHttpRequest', FakeXhr);
+    const promise = uploadInvoice(photo, { token: 'tok' });
+    expect(FakeXhr.last.url).toBe('http://192.168.1.20:4000/api/invoices');
+    FakeXhr.last.respond(201, { id: 'a'.repeat(32), size: 3 });
+    await promise;
+  });
+
+  it('fetches the picture from that server', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://api.example.com');
+    const fetchMock = vi.fn(async () => ({ ok: true, blob: async () => new Blob(['x']) }));
+    vi.stubGlobal('fetch', fetchMock);
+    await fetchInvoiceImage('a'.repeat(32), 'tok');
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `https://api.example.com/api/invoices/${'a'.repeat(32)}/image`,
+    );
+  });
+});

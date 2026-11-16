@@ -9,6 +9,7 @@ import { createCalculateRouter } from './calculate/routes.js';
 import { createExtractor, createVisionProvider } from './extraction/index.js';
 import { createAuthRouter, createRequireAuth } from './auth/routes.js';
 import { describeError, secretsFrom } from './log.js';
+import { createCors } from './cors.js';
 
 // `deps` lets tests inject a fake SMS provider and clock.
 export function createApp(config, deps = {}) {
@@ -49,6 +50,7 @@ export function createApp(config, deps = {}) {
 
   const app = express();
   app.disable('x-powered-by');
+  app.use(createCors(config.cors));
   if (config.trustProxy) app.set('trust proxy', config.trustProxy);
 
   // Every answer is private to one user, so nothing is cached, and the browser is told not to

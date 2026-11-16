@@ -9,3 +9,4 @@ playwright-report/
 server/uploads/
 test-screenshots/
 e2e/.screenshots/
+client/dist-native/

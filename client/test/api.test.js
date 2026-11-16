@@ -59,3 +59,20 @@ describe('api()', () => {
     });
   });
 });
+
+describe('api() inside a mobile app with no server address', () => {
+  it('says the app was built wrongly instead of a vague connection error', async () => {
+    vi.resetModules();
+    vi.doMock('../src/platform/platform.js', () => ({
+      isNative: () => true,
+      platformName: () => 'ios',
+    }));
+    const { api: nativeApi } = await import('../src/api.js');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(nativeApi('/auth/me')).rejects.toThrow(/built without a server address/);
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.doUnmock('../src/platform/platform.js');
+    vi.resetModules();
+  });
+});
