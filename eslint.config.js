@@ -8,7 +8,7 @@ export default [
   { ignores: ['**/dist/**', '**/node_modules/**'] },
   js.configs.recommended,
   {
-    files: ['server/**/*.js', 'client/*.config.js', '*.js'],
+    files: ['server/**/*.js', 'scripts/**/*.{js,mjs}', 'client/*.config.js', '*.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'module', globals: globals.node },
   },
   {

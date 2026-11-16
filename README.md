@@ -1,4 +1,11 @@
-# Invoice Calculator
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="client/public/brand/logo-dark.svg" />
+    <img src="client/public/brand/logo.svg" alt="Ledgerly" height="64" />
+  </picture>
+</p>
+
+# Ledgerly
 
 Upload a photo of a standardised invoice showing a Debit and a Credit amount. AI reads the amounts, and the app shows the final net amount as a net Debit or net Credit. Users sign in with a one-time code sent by SMS.
 
@@ -36,7 +43,7 @@ Optional: `cp server/.env.example server/.env` lets you change settings later (s
 2. Type a phone number with the country code, for example `+44 7700 900123`, and press **Send code**.
 3. Look at the terminal running `npm run dev`. You will see a line like this; the 6 digits are your code:
    ```
-   [sms:console] to +447700900123: Your Invoice Calculator code is 106950. It expires in 5 minutes.
+   [sms:console] to +447700900123: Your Ledgerly code is 106950. It expires in 5 minutes.
    ```
 4. Type the 6 digits into the page and press **Sign in**. You should see "Signed in as +447700900123".
 5. Refresh the page: you stay signed in.
@@ -71,6 +78,15 @@ Things worth trying:
 
 Pictures are saved in `server/uploads/` (change with `UPLOAD_DIR`) and deleted automatically after 24 hours.
 
+### See the branding
+
+- **Sign-in screen:** http://localhost:5173/login (sign out first if you are signed in) shows the logo, the tagline, the browser tab title and the tab icon. After signing in, the logo is in the header of the home page.
+- **Dark mode:** switch your computer to dark mode, or in Chrome press F12, open the three-dot menu, then **More tools**, **Rendering**, and set _Emulate CSS prefers-color-scheme_ to dark. The logo and colours switch by themselves (pink on blush white by day, soft pink on deep plum at night).
+- **Phone size:** in Chrome press F12, then Ctrl+Shift+M (Cmd+Shift+M on Mac), and pick a phone such as iPhone SE or iPhone 14.
+- **Green and rose:** after you click **Send code**, the "We sent a code" notice is green. Once signed in, a thin soft-rose line runs under the header. The logo's credit bar is green.
+- Logo files are in `client/public/brand/`; a preview sheet is in [docs/brand/logo-preview.png](docs/brand/logo-preview.png). Colours and type are tokens at the top of `client/src/styles.css`.
+- **Changing the colours:** edit those tokens and the palette at the top of `scripts/build-brand.mjs`, then run `npm run brand` to rebuild the logos, icons and splash images.
+
 ### Try it on your phone
 
 Your computer and phone must be on the same Wi-Fi. Start the app with `npm run dev -w server` in one terminal and `npm run dev -w client -- --host` in another. The second command prints a `Network:` address such as `http://192.168.1.20:5173`. Open that address on your phone. The code still appears in the computer's terminal.
@@ -84,22 +100,29 @@ Your computer and phone must be on the same Wi-Fi. Start the app with `npm run d
 | `npm run test:ui`                 | Opens real browser windows in the background and clicks through login on a phone, a small phone and a desktop window |
 | `npm run test:ui:screens`         | Same, and saves screenshots to `e2e/.screenshots/` (not committed)                                                   |
 
+Branding checks live in `e2e/branding.spec.js` (logo variant per colour scheme, titles, icons and manifest, accessibility with axe, contrast, focus ring, header fits 320 px) and in `client/test/` (logo and header components, brand SVGs and icons, colour contrast of every token pair).
+
+### Web and mobile
+
+Ledgerly is one responsive React app, designed for phone widths first. It has a web manifest and icons so it can be added to a home screen, and it is meant to be wrapped with [Capacitor](https://capacitorjs.com) for iOS and Android later. The icon and splash sources Capacitor needs are in `client/assets` (run `npx capacitor-assets generate` after adding Capacitor).
+
 ### Send real text messages (optional)
 
 Create a free Twilio account, then put `SMS_PROVIDER=twilio` and your `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM_NUMBER` in `server/.env` and restart. The server refuses to start if one is missing. With a Twilio trial account you can only text numbers you have verified in Twilio.
 
 ## Scripts
 
-| Command                   | What it does                                      |
-| ------------------------- | ------------------------------------------------- |
-| `npm run dev`             | Start API and web app together with reload        |
-| `npm run build`           | Production build of the web app (`client/dist`)   |
-| `npm start`               | Start the API only                                |
-| `npm test`                | Run server tests (Node's built-in runner)         |
-| `npm run test:ui`         | Run browser UI tests (Playwright, see below)      |
-| `npm run test:ui:screens` | Same, and save screenshots to `e2e/.screenshots/` |
-| `npm run lint`            | ESLint across the repo                            |
-| `npm run format`          | Format with Prettier (`format:check` to verify)   |
+| Command                   | What it does                                                             |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `npm run dev`             | Start API and web app together with reload                               |
+| `npm run build`           | Production build of the web app (`client/dist`)                          |
+| `npm start`               | Start the API only                                                       |
+| `npm test`                | Run server tests (Node's built-in runner)                                |
+| `npm run test:ui`         | Run browser UI tests (Playwright, see below)                             |
+| `npm run test:ui:screens` | Same, and refresh the screenshots in `e2e/.screenshots/` (not committed) |
+| `npm run brand`           | Rebuild logos, icons and splash images from the palette                  |
+| `npm run lint`            | ESLint across the repo                                                   |
+| `npm run format`          | Format with Prettier (`format:check` to verify)                          |
 
 CI runs lint, format check, server tests, client tests, build and UI tests on every pull request.
 
