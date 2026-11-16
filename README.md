@@ -13,13 +13,13 @@ Scaffold only: the API has a health check and the web app is a placeholder shell
 
 ```
 client/   React 18 + Vite web app (dev server on :5173, proxies /api to :4000)
-server/   Node 20+ + Express API (:4000)
+server/   Node + Express API (:4000)
 SPEC.md   Product spec, source of truth
 ```
 
 ## Setup
 
-Requires Node 20 or newer.
+Requires Node 20.12 or newer.
 
 ```bash
 npm install
