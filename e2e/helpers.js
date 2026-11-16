@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 
 const SERVER_LOG = fileURLToPath(new URL('./.server.log', import.meta.url));
+// The local-OCR specs run against their own API (see playwright.config.js) with its own log.
+const OCR_SERVER_LOG = fileURLToPath(new URL('./.server-ocr.log', import.meta.url));
 // Screenshots are for reviewing, not for the repo: they go to a git-ignored folder
 // (or wherever SCREENSHOT_DIR points).
 const SCREENSHOT_DIR = (
@@ -28,7 +30,8 @@ export function uniquePhone() {
 export async function latestCode(phone) {
   let code;
   await expect(async () => {
-    const lines = readFileSync(SERVER_LOG, 'utf8')
+    const log = test.info().project.name.startsWith('ocr') ? OCR_SERVER_LOG : SERVER_LOG;
+    const lines = readFileSync(log, 'utf8')
       .split('\n')
       .filter((l) => l.includes(phone));
     code = /code is (\d{6})/.exec(lines.at(-1) ?? '')?.[1];

@@ -160,7 +160,7 @@ test('the real client is configured with a timeout and needs a key', () => {
 });
 
 test('vision settings come from the environment', () => {
-  assert.equal(loadConfig({}).vision.provider, 'mock');
+  assert.equal(loadConfig({}).vision.provider, 'ocr'); // free local OCR when there is no key
   assert.equal(loadConfig({ ANTHROPIC_API_KEY: 'k' }).vision.provider, 'claude');
   assert.equal(
     loadConfig({ ANTHROPIC_API_KEY: 'k', VISION_PROVIDER: 'mock' }).vision.provider,
@@ -183,4 +183,10 @@ test('vision settings come from the environment', () => {
     ['medium', 60000, '', 30],
   );
   assert.equal(loadConfig({ ANTHROPIC_EFFORT: 'none' }).vision.effort, '');
+  assert.deepEqual(
+    [loadConfig({}).vision.ocr.timeoutMs, loadConfig({}).vision.ocr.fallbackToClaude],
+    [45000, false],
+  );
+  assert.equal(loadConfig({ OCR_TIMEOUT_SECONDS: '10' }).vision.ocr.timeoutMs, 10000);
+  assert.equal(loadConfig({ OCR_FALLBACK_TO_CLAUDE: 'true' }).vision.ocr.fallbackToClaude, true);
 });

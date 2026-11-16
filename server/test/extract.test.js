@@ -119,21 +119,24 @@ test('a good picture returns exact amounts, items and warnings, then the picture
   );
 });
 
-test('with no key the mock reader answers the same way for the same picture', () =>
-  withApp(async (app) => {
-    const token = await app.signIn(ME);
-    const bytes = await png('#fafafa');
-    const first = (await extract(app, token, await uploaded(app, token, bytes))).body;
-    const second = (await extract(app, token, await uploaded(app, token, bytes))).body;
-    const other = (await extract(app, token, await uploaded(app, token, await png('#101010'))))
-      .body;
-    assert.equal(first.provider, 'mock');
-    assert.match(first.debit, /^\d+\.\d\d$/);
-    assert.equal(first.currency, 'INR'); // rupees only
-    assert.deepEqual({ ...first, invoiceId: 0 }, { ...second, invoiceId: 0 });
-    assert.notEqual(first.debit, other.debit);
-    assert.equal((await app.call('GET', '/api/health')).body.providers.vision, 'mock');
-  }));
+test('the mock reader answers the same way for the same picture', () =>
+  withApp(
+    async (app) => {
+      const token = await app.signIn(ME);
+      const bytes = await png('#fafafa');
+      const first = (await extract(app, token, await uploaded(app, token, bytes))).body;
+      const second = (await extract(app, token, await uploaded(app, token, bytes))).body;
+      const other = (await extract(app, token, await uploaded(app, token, await png('#101010'))))
+        .body;
+      assert.equal(first.provider, 'mock');
+      assert.match(first.debit, /^\d+\.\d\d$/);
+      assert.equal(first.currency, 'INR'); // rupees only
+      assert.deepEqual({ ...first, invoiceId: 0 }, { ...second, invoiceId: 0 });
+      assert.notEqual(first.debit, other.debit);
+      assert.equal((await app.call('GET', '/api/health')).body.providers.vision, 'mock');
+    },
+    { env: { VISION_PROVIDER: 'mock' } },
+  ));
 
 test("ids that are unknown, malformed or someone else's are all 404 and never reach the AI", () => {
   const vision = fakeVision();

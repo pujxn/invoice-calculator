@@ -63,7 +63,7 @@ test('read the amounts from an uploaded picture, then check them', async ({ page
   expect(reading.credit).toMatch(/^\d+\.\d\d$/);
   await expect(debit(page)).toHaveValue(reading.debit);
   await expect(credit(page)).toHaveValue(reading.credit);
-  await expect(page.getByText(/Demo values \(no AI key is set\)/)).toBeVisible();
+  await expect(page.getByText(/Demo values, not read from your picture/)).toBeVisible();
   await expect(page.getByText(/Confidence:/)).toContainText('High');
   const table = page.getByRole('table', { name: 'Lines found on the invoice' });
   await expect(table).toBeVisible();

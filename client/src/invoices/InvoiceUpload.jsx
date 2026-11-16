@@ -11,6 +11,7 @@ import {
 import { PICTURE_KEY } from '../storageKeys.js';
 import { isNative } from '../platform/platform.js';
 import { CaptureError, UnavailableError, choosePhoto, takePhoto } from '../platform/camera.js';
+import ReadingMethod, { useReadingMethod } from './ReadingMethod.jsx';
 import { ACCEPT, MAX_LABEL, TYPE_LABEL, formatSize, validateFile } from './validate.js';
 
 // Remembers the current picture for this browser tab, so a reload shows it again.
@@ -58,6 +59,7 @@ function Preview({ url, name }) {
 // `onExtracted(result)` is called with the server's reading once the amounts have been read.
 export default function InvoiceUpload({ onExtracted, focusHeading = false }) {
   const { token, logout } = useAuth();
+  const { choices, method, choose: chooseMethod } = useReadingMethod(token);
   const [current, setCurrent] = useState(null); // { id, name, size, mimeType, previewUrl }
   const [uploading, setUploading] = useState(null); // { name, size, previewUrl, progress }
   const [error, setError] = useState('');
@@ -224,7 +226,11 @@ export default function InvoiceUpload({ onExtracted, focusHeading = false }) {
     readAbortRef.current = controller;
     setReading(true);
     try {
-      const result = await extractInvoice(current.id, { token, signal: controller.signal });
+      const result = await extractInvoice(current.id, {
+        token,
+        signal: controller.signal,
+        method,
+      });
       dropUrl(current.previewUrl);
       setCurrent(null);
       keep.write(null);
@@ -307,6 +313,13 @@ export default function InvoiceUpload({ onExtracted, focusHeading = false }) {
       </p>
       {picker}
 
+      <ReadingMethod
+        choices={choices}
+        method={method}
+        onChoose={chooseMethod}
+        disabled={reading || Boolean(uploading)}
+      />
+
       {error && (
         <p className="status bad" role="alert">
           {error}
@@ -343,7 +356,9 @@ export default function InvoiceUpload({ onExtracted, focusHeading = false }) {
             <>
               <p className="status reading" role="status">
                 <span className="spinner" aria-hidden="true" />
-                Reading your invoice… this can take up to a minute.
+                {method === 'ocr'
+                  ? 'Reading your invoice with local OCR… usually a few seconds, up to a minute for a hard photo.'
+                  : 'Reading your invoice… this can take up to a minute.'}
               </p>
               <div className="actions">
                 <button

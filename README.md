@@ -7,7 +7,7 @@
 
 # Ledgerly
 
-Take a photo of an invoice. Ledgerly reads the **Debit** and **Credit** amounts with AI, lets you check and correct them, and shows the **final amount** as a Net Debit, a Net Credit or Balanced. People sign in with a one-time code sent by SMS. It is one responsive web app that works on a phone and on a computer.
+Take a photo of an invoice. Ledgerly reads the **Debit** and **Credit** amounts (with free local OCR, or with AI if you add a key), lets you check and correct them, and shows the **final amount** as a Net Debit, a Net Credit or Balanced. People sign in with a one-time code sent by SMS. It is one responsive web app that works on a phone and on a computer.
 
 - Product spec (source of truth): [SPEC.md](SPEC.md), a snapshot of the [live spec doc](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs). Change the doc first, then update this file.
 - Status: sign in, upload, AI reading, calculation and result screen all work, in the browser and as an iOS and Android app (see [Run the mobile apps](#run-the-mobile-apps-ios-and-android)). See the requirement table in SPEC.md.
@@ -24,13 +24,13 @@ npm run dev
 
 Open **http://localhost:5173**. To stop, press `Ctrl+C`.
 
-Nothing else is needed. The app starts in **mock mode**: no real text message is sent (the sign-in code is printed in the terminal where `npm run dev` runs) and no real AI is called (the amounts are made-up demo numbers, always the same for the same picture).
+Nothing else is needed. No real text message is sent (the sign-in code is printed in the terminal where `npm run dev` runs), and no paid AI is called: pictures are read by **free local OCR** that runs on your computer, with no internet and no key. The terminal says `vision: ocr`.
 
 ### Try the whole thing (about 3 minutes)
 
 1. **Sign in.** Type a number with its country code, for example `+44 7700 900123`, and press **Send code**. Look in the terminal for a line like `[sms:console] to +447700900123: Your Ledgerly code is 106950.` and type the 6 digits into the page.
 2. **Upload.** Press **Choose file** and pick any JPEG, PNG, WebP or HEIC picture (a screenshot is fine). A preview appears. On a phone there is also **Take photo**.
-3. **Read.** Press **Read amounts**. You see **Amounts we found**: a Debit box and a Credit box (both editable) and the lines found. In mock mode these are demo numbers. To type your own, press **Type the amounts instead** after uploading.
+3. **Read.** Above the buttons is a **Read with** switch: **Local OCR** (free, the default) and **AI (Claude)** (greyed out, with the reason, until you add an API key). Press **Read amounts**. You see **Amounts we found**: a Debit box and a Credit box (both editable), which reader was used, how confident it is, and the lines found. To type your own, press **Type the amounts instead** after uploading.
 4. **Calculate.** Press **Calculate final amount**. You see **Net Debit**, **Net Credit** or **Balanced** in large type, with the working. Change either amount in the boxes below it and the result updates at once. **Copy result** copies one line you can paste.
 5. **Go back and forward.** The browser's Back button (or **Back to the invoice**) returns to the amounts without losing your edits. Refreshing the page keeps your place.
 6. **Start again or leave.** **Start a new invoice** returns to upload without signing in again. **Sign out** clears everything from the browser.
@@ -57,42 +57,60 @@ Your computer and phone must be on the same Wi-Fi. Run `npm run dev -w server` i
 | The browser tests cannot start a browser                             | Run `npx playwright install chromium` once.                                                                                                                                                                                          |
 | Pictures pile up in `server/uploads`                                 | They are deleted automatically after 24 hours, or as soon as they are read. Safe to delete by hand.                                                                                                                                  |
 
+## Read pictures for free with local OCR
+
+Try it (the demo invoices are in `docs/demo/`):
+
+1. `npm install`, then `npm run dev`, then open http://localhost:5173 and sign in (the code is printed in the terminal).
+2. On **Upload your invoice**, check that **Read with** shows **Local OCR** selected. Press **Choose file** and pick `docs/demo/demo-1-net-debit.png`, then **Read amounts**.
+3. After a few seconds you should see Debit `125050.00` and Credit `40000.00`, **Confidence: High**, and **Read with: Local OCR**. Try `demo-4-tricky-blurry.jpg` too (about 7 seconds).
+
+How it works, in short: the picture is turned into a clean JPEG (HEIC converted, phone rotation applied), straightened if it is tilted (and turned upright if it is upside down or on its side), and read by [Tesseract](https://github.com/naptha/tesseract.js) (compiled to WebAssembly, so nothing is installed on your machine) up to three times with different clean-ups. The words are then searched for **Debit** and **Credit** with their amounts, and the table lines under the Debit and Credit headings are added up. A total is filled in only when it equals the sum of its lines (High confidence), or when at least two readings agree on it and there are no lines to check (Medium, with a note to check the first digit). Otherwise the box is left empty with **Please check**. A total that does not match its lines is never shown as certain. The rupee sign is often misread as a digit (`₹64,000` read as `364,000`); the lines catch this and the note says so.
+
+- **Works offline.** The English language data ships in the `@tesseract.js-data/eng` npm package (about 11 MB in `node_modules`), so there is no download on first use and the tests need no network. The first reading starts the engine (a few seconds); it is stopped again after a minute idle to free memory.
+- **Limits, honestly.** It reads printed text. Handwriting, very blurry or dark photos, and layouts without the words "Debit" and "Credit" will fail or come back unsure. It reads English letters and Western digits only. It needs the words Debit and Credit (or a close misspelling such as `Deb1t`).
+- **Timeout.** One reading is cut off after `OCR_TIMEOUT_SECONDS` (default 45) and the page says so; the picture is kept so you can try again.
+- **Privacy.** The picture never leaves the server and is deleted once read, like every other reading.
+- **Optional AI back-up.** Set `ANTHROPIC_API_KEY` and `OCR_FALLBACK_TO_CLAUDE=1` and, when OCR is not sure (nothing found, low confidence), the AI reads the picture instead and the result says "Read by AI because the free OCR was not sure". Off by default.
+
 ## Use the real AI and real text messages (optional)
 
 Settings live in `server/.env`. Create it once with `cp server/.env.example server/.env` (Windows: `copy server\.env.example server\.env`), edit it, and restart the app. Never commit it.
 
-**Real AI** (costs a little per invoice): get a key at https://console.anthropic.com and set `ANTHROPIC_API_KEY=sk-ant-...`. The terminal then says `vision: claude`, and **Amounts we found** says "Read from your picture by AI." Remove the key (or set `VISION_PROVIDER=mock`) to go back to mock mode. The key stays on the server and is never sent to the browser. The tests never use it.
+**Real AI** (costs a little per invoice): get a key at https://console.anthropic.com and set `ANTHROPIC_API_KEY=sk-ant-...`. The terminal then says `vision: claude` and AI becomes the default; the **Read with** switch on the upload screen lets you flip between **AI (Claude)** and **Local OCR** for each picture (it remembers your choice for the browser tab). Without a key, AI is greyed out. To keep OCR as the default even with a key, set `VISION_PROVIDER=ocr`. The key stays on the server and is never sent to the browser. The tests never use it. `VISION_PROVIDER=mock` gives made-up demo numbers without reading the picture (used by the automated tests, and a last resort for a demo); the switch is hidden then.
 
 **Real SMS:** create a Twilio account and set `SMS_PROVIDER=twilio` with `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM_NUMBER`. The server refuses to start if one is missing. A Twilio trial account can only text numbers you have verified in Twilio.
 
 ### Environment variables
 
-With nothing set, one-time codes print to the server log and the AI is a mock.
+With nothing set, one-time codes print to the server log and pictures are read by free local OCR.
 
-| Variable                    | Default                               | Purpose                                                                                                        |
-| --------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `PORT`                      | `4000`                                | Port for the Node API                                                                                          |
-| `NODE_ENV`                  | none                                  | Set to `production` on a real server: start-up then warns about mock SMS, mock AI and a missing `AUTH_SECRET`  |
-| `TRUST_PROXY`               | `0`                                   | Number of proxies in front of the server (usually `1` behind a load balancer) so per-IP limits see the visitor |
-| `SMS_PROVIDER`              | `console`                             | `console` prints codes to the log; `twilio` sends real SMS                                                     |
-| `TWILIO_ACCOUNT_SID`        | none                                  | Twilio account, needed for `twilio`                                                                            |
-| `TWILIO_AUTH_TOKEN`         | none                                  | Twilio secret, needed for `twilio`                                                                             |
-| `TWILIO_FROM_NUMBER`        | none                                  | Sending number in E.164 format                                                                                 |
-| `AUTH_SECRET`               | random per start                      | Key for hashing one-time codes; set a long random value so codes survive restarts                              |
-| `AUTH_IP_REQUEST_LIMIT`     | `20`                                  | Code requests allowed per IP per 15 minutes                                                                    |
-| `AUTH_IP_VERIFY_LIMIT`      | `40`                                  | Code checks allowed per IP per 15 minutes                                                                      |
-| `UPLOAD_DIR`                | `server/uploads`                      | Folder where uploaded invoice pictures are kept                                                                |
-| `UPLOAD_MAX_MB`             | `10`                                  | Largest picture accepted                                                                                       |
-| `UPLOAD_TTL_HOURS`          | `24`                                  | Pictures are deleted after this long                                                                           |
-| `UPLOAD_MAX_PER_USER`       | `50`                                  | Pictures one user can keep at once                                                                             |
-| `VISION_PROVIDER`           | `claude` if a key is set, else `mock` | Which AI reads the image; `mock` skips AI                                                                      |
-| `ANTHROPIC_API_KEY`         | none                                  | Key for Claude vision                                                                                          |
-| `ANTHROPIC_MODEL`           | `claude-opus-5-5`                     | Claude model used for reading invoices                                                                         |
-| `ANTHROPIC_EFFORT`          | `medium`                              | How hard the model thinks: `low` to `max`, or `none`                                                           |
-| `ANTHROPIC_TIMEOUT_SECONDS` | `60`                                  | Give up on one AI call after this long                                                                         |
-| `ANTHROPIC_FALLBACKS`       | none                                  | Set to `default` to let the API retry a declined request on another model                                      |
-| `EXTRACT_PER_USER_PER_HOUR` | `30`                                  | Readings one user can start per hour (each costs money)                                                        |
-| `CORS_ORIGINS`              | none                                  | Extra websites allowed to call the API from a browser (the mobile apps always are)                             |
+| Variable                    | Default                              | Purpose                                                                                                                      |
+| --------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                      | `4000`                               | Port for the Node API                                                                                                        |
+| `NODE_ENV`                  | none                                 | Set to `production` on a real server: start-up then warns about console SMS, demo-value readings and a missing `AUTH_SECRET` |
+| `TRUST_PROXY`               | `0`                                  | Number of proxies in front of the server (usually `1` behind a load balancer) so per-IP limits see the visitor               |
+| `SMS_PROVIDER`              | `console`                            | `console` prints codes to the log; `twilio` sends real SMS                                                                   |
+| `TWILIO_ACCOUNT_SID`        | none                                 | Twilio account, needed for `twilio`                                                                                          |
+| `TWILIO_AUTH_TOKEN`         | none                                 | Twilio secret, needed for `twilio`                                                                                           |
+| `TWILIO_FROM_NUMBER`        | none                                 | Sending number in E.164 format                                                                                               |
+| `AUTH_SECRET`               | random per start                     | Key for hashing one-time codes; set a long random value so codes survive restarts                                            |
+| `AUTH_IP_REQUEST_LIMIT`     | `20`                                 | Code requests allowed per IP per 15 minutes                                                                                  |
+| `AUTH_IP_VERIFY_LIMIT`      | `40`                                 | Code checks allowed per IP per 15 minutes                                                                                    |
+| `UPLOAD_DIR`                | `server/uploads`                     | Folder where uploaded invoice pictures are kept                                                                              |
+| `UPLOAD_MAX_MB`             | `10`                                 | Largest picture accepted                                                                                                     |
+| `UPLOAD_TTL_HOURS`          | `24`                                 | Pictures are deleted after this long                                                                                         |
+| `UPLOAD_MAX_PER_USER`       | `50`                                 | Pictures one user can keep at once                                                                                           |
+| `VISION_PROVIDER`           | `claude` if a key is set, else `ocr` | The default reader: `ocr` (free, local), `claude` (AI) or `mock` (demo numbers). The switch can still change it              |
+| `OCR_TIMEOUT_SECONDS`       | `45`                                 | Give up on one local OCR reading after this long                                                                             |
+| `OCR_FALLBACK_TO_CLAUDE`    | off                                  | `1`: when OCR is not sure and a key is set, let the AI read the picture instead                                              |
+| `ANTHROPIC_API_KEY`         | none                                 | Key for Claude vision                                                                                                        |
+| `ANTHROPIC_MODEL`           | `claude-opus-5-5`                    | Claude model used for reading invoices                                                                                       |
+| `ANTHROPIC_EFFORT`          | `medium`                             | How hard the model thinks: `low` to `max`, or `none`                                                                         |
+| `ANTHROPIC_TIMEOUT_SECONDS` | `60`                                 | Give up on one AI call after this long                                                                                       |
+| `ANTHROPIC_FALLBACKS`       | none                                 | Set to `default` to let the API retry a declined request on another model                                                    |
+| `EXTRACT_PER_USER_PER_HOUR` | `30`                                 | Readings one user can start per hour (each costs money)                                                                      |
+| `CORS_ORIGINS`              | none                                 | Extra websites allowed to call the API from a browser (the mobile apps always are)                                           |
 
 All settings are read in one place, `server/src/config.js`.
 
@@ -210,10 +228,10 @@ CI runs lint, format check, tests, build and the browser tests on every pull req
 
 ### How the tests are organised
 
-- `server/test/` (Node's test runner): auth, sessions, rate limits, upload store and API, extraction pipeline with a fake AI, calculation API, config and hardening (headers, proxy, safe logging).
+- `server/test/` (Node's test runner): auth, sessions, rate limits, upload store and API, extraction pipeline with a fake AI, the OCR parser and engine (real OCR on the sample invoices, offline), the reading-method switch API, calculation API, config and hardening (headers, proxy, safe logging).
 - `client/test/` (Vitest and Testing Library): every screen and flow, including Back button, focus, sign-out and colour contrast of every token.
 - `shared/test/`: the money maths. `scripts/test/` checks the helper scripts and the committed native projects.
-- `e2e/` (Playwright, with axe accessibility checks in light and dark): `journey.spec.js` is the full journey and the error paths (wrong codes, AI failing, connection lost, session ended, two tabs, two users, keyboard only, enlarged text); the other specs cover each feature in depth. Tests start their own API (port 4100) and web server (port 5273), so they work while `npm run dev` is running, and the AI is always the mock. The API log is written to `e2e/.server.log`, which is how tests read the one-time codes. Sample pictures are in `e2e/fixtures/`.
+- `e2e/` (Playwright, with axe accessibility checks in light and dark): `journey.spec.js` is the full journey and the error paths (wrong codes, AI failing, connection lost, session ended, two tabs, two users, keyboard only, enlarged text); the other specs cover each feature in depth. Tests start their own API (port 4100) and web server (port 5273), so they work while `npm run dev` is running, and the AI is always the mock; `ocr.spec.js` runs against a second API (port 4101, web 5274) that really reads pictures with local OCR and has no AI key. The API log is written to `e2e/.server.log`, which is how tests read the one-time codes. Sample pictures are in `e2e/fixtures/`.
 
 ### Web and mobile
 
@@ -231,7 +249,7 @@ All API routes except sign-in need `Authorization: Bearer <token>`. The full lis
 
 **Pictures.** `POST /api/invoices` (multipart, field `image`) stores one JPEG, PNG, WebP or HEIC picture, decided by its bytes and not its name. Files live under `<UPLOAD_DIR>/<hash of owner>/<random id>.<ext>` with no client-chosen names, are only reachable by their owner (anyone else gets 404), and are deleted when removed, once read, or after `UPLOAD_TTL_HOURS`.
 
-**Reading.** `POST /api/invoices/:id/extract` turns the picture into a JPEG of at most 2000 px (HEIC converted, rotation applied, location data removed), asks the provider (`claude` or `mock`), checks the answer against a strict schema and returns `{ debit, credit, currency, confidence, notes, warnings, lineItems, itemTotals, ... }`. Amounts are decimal strings (`"1250.50"`, `"12.345"`) or `null`, added exactly, never as floating point, and every decimal on the invoice is kept; an amount that could be read two ways (`12.345`, `1,234`), is negative or is beyond the limits becomes `null` with a warning instead of a guess. `currency` is always `INR`: Ledgerly works in rupees only, and the AI is told so. The picture is deleted once read; a failed reading keeps it for a retry. Provider failures go to the server log only, with keys removed.
+**Reading.** `POST /api/invoices/:id/extract` turns the picture into a JPEG of at most 2000 px (HEIC converted, rotation applied, location data removed), asks the reader (`ocr`, `claude` or `mock`; the request may say which with `{ "method": "ocr" }`, see `GET /api/invoices/reading-methods`), checks the answer against a strict schema and returns `{ debit, credit, currency, confidence, notes, warnings, lineItems, itemTotals, ... }`. Amounts are decimal strings (`"1250.50"`, `"12.345"`) or `null`, added exactly, never as floating point, and every decimal on the invoice is kept; an amount that could be read two ways (`12.345`, `1,234`), is negative or is beyond the limits becomes `null` with a warning instead of a guess. `currency` is always `INR`: Ledgerly works in rupees only, and the AI is told so. The picture is deleted once read; a failed reading keeps it for a retry. Provider failures go to the server log only, with keys removed.
 
 **Calculating.** The maths lives in `shared/` (`@ledgerly/money`), used by both the server and the web app so the screen and the API always agree. Amounts are decimal strings held exactly in `BigInt` (units of a trillionth of a rupee), in Indian rupees only (₹, lakh grouping). Any amount may be typed or sent: any number of decimals up to 12, up to 15 digits before the point, commas, `1e3`, and a pasted `₹`, `Rs.` or `/-`; negatives, other currency signs and junk get a clear message. Nothing is rounded in the maths; the result screen shows the figure rounded to 2 decimals with a note giving the exact amount when it differs. `POST /api/invoices/calculate` takes `{ "debit": "1250.50", "credit": "400.00" }` or `{ "items": ["1000.50", "-400.00"] }` (a minus sign is a Credit line) and answers `{ debit, credit, net, netRounded, rounded, signedNet, type, lineCount }` (`net` is exact, e.g. `"10.001"`; `netRounded` is the same rounded to 2 decimals, `"10.00"`). Numbers instead of text are refused.
 

@@ -78,7 +78,16 @@ export function loadConfig(env = process.env) {
       maxPerUser: positiveInt(env.UPLOAD_MAX_PER_USER, 50),
     },
     vision: {
-      provider: env.VISION_PROVIDER || (anthropicKey ? 'claude' : 'mock'),
+      // How invoices are read when the user has not chosen: "claude" (AI, needs a key), "ocr"
+      // (free, runs on this server) or "mock" (made-up demo numbers, used by the automated tests).
+      // With no setting, a key means AI and no key means free OCR.
+      provider: env.VISION_PROVIDER || (anthropicKey ? 'claude' : 'ocr'),
+      ocr: {
+        // Give up on one local reading after this long (the first reading also starts the engine).
+        timeoutMs: Math.round(positiveNumber(env.OCR_TIMEOUT_SECONDS, 45) * 1000),
+        // When the free OCR is not sure, let the AI read the picture instead (needs a key).
+        fallbackToClaude: /^(1|true|yes|on)$/i.test(env.OCR_FALLBACK_TO_CLAUDE || ''),
+      },
       anthropicKey,
       model: env.ANTHROPIC_MODEL || 'claude-opus-5-5',
       // How hard the model thinks (low, medium, high, xhigh, max); "none" leaves it to the API.
@@ -103,7 +112,12 @@ export function configWarnings(config) {
   }
   if (config.vision.provider === 'mock') {
     warnings.push(
-      'VISION_PROVIDER=mock: invoices are not read, users are shown made-up demo amounts. Set ANTHROPIC_API_KEY.',
+      'VISION_PROVIDER=mock: invoices are not read, users are shown made-up demo amounts. Use VISION_PROVIDER=ocr or set ANTHROPIC_API_KEY.',
+    );
+  }
+  if (config.vision.ocr.fallbackToClaude && !config.vision.anthropicKey) {
+    warnings.push(
+      'OCR_FALLBACK_TO_CLAUDE is on but ANTHROPIC_API_KEY is not set, so it does nothing.',
     );
   }
   if (!config.auth.secret) {
