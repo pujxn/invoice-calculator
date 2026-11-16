@@ -58,7 +58,7 @@ export function createOtpService({ config, sms, now = Date.now, random = randomI
         sentAt: t,
       });
       try {
-        await sms.send(phone, `Your Invoice Calculator code is ${code}. It expires in 5 minutes.`);
+        await sms.send(phone, `Your Ledgerly code is ${code}. It expires in 5 minutes.`);
       } catch (err) {
         records.delete(phone); // let the user retry straight away
         console.error(`SMS send failed (${sms.name}): ${err.message}`);

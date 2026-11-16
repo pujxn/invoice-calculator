@@ -1,14 +1,14 @@
-# Invoice Calculator: Product Spec
+# Ledgerly: Product Spec
 
 > The live, editable copy of this spec is the Claude Doc
-> [Invoice Calculator: Product Spec](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs).
+> [Ledgerly: Product Spec](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs).
 > This file is a snapshot of it for the repo. Change the doc first, then update this file and the changelog.
 
-Version 0.3 · 2026-11-16
+Version 0.4 · 2026-11-16
 
 ## Overview
 
-Invoice Calculator reads a photo of a standardised invoice showing a Debit amount and a Credit amount, and tells the user the final net amount and whether it is a net Debit or a net Credit. This spec is the source of truth for the product; every change to scope is recorded here first.
+Ledgerly (the working title was Invoice Calculator) reads a photo of a standardised invoice showing a Debit amount and a Credit amount, and tells the user the final net amount and whether it is a net Debit or a net Credit. This spec is the source of truth for the product; every change to scope is recorded here first.
 
 **Users:** people who receive simple standardised invoices and need the net figure quickly, signing in with their mobile number.
 
@@ -101,7 +101,18 @@ React web app (Vite)  --JSON-->  Node API (Express)  --code-->   SMS provider (c
 - **Client:** React 18 with Vite, plain CSS, mobile first (touch-sized controls, numeric keypad, SMS code autofill). The product must run on web and mobile; the plan is this responsive web app wrapped with Capacitor for iOS and Android, which is a later step.
 - **Server:** Node 20+ with Express; multer for uploads; the Anthropic SDK for Claude vision.
 - **Repo:** one GitHub repo, `invoice-calculator`, with `client/` and `server/` folders and one `npm run dev` that starts both.
-- **Tests:** Node's built-in test runner for the calculator and auth logic, and Playwright UI tests (`e2e/`) for every feature, with screenshots of each screen kept in `docs/screenshots/`.
+- **Tests:** Node's built-in test runner for the server (calculator, auth), Vitest and Testing Library for React components, and Playwright UI tests (`e2e/`, with axe accessibility checks) for every feature, with screenshots of each screen kept in `docs/screenshots/`. Every feature ships with tests at the levels it touches.
+- **Installable:** the web app has a manifest and icons so it can be added to a home screen, and `client/assets` holds the icon and splash sources Capacitor needs.
+
+## Branding
+
+The product is called **Ledgerly**. The logo is a ledger mark (a vertical rule, a longer debit bar, a shorter amber credit bar and a total line, which also reads as an L) next to the wordmark in Inter SemiBold, outlined so the SVGs need no fonts.
+
+- **Files:** `client/public/brand/` holds the lockup and the mark, each in light and dark, plus the favicon, `apple-touch-icon.png` and the PWA icons. `client/assets/` holds the Capacitor sources: `icon-only`, `icon-foreground` and `icon-background` (1024 px) and `splash` and `splash-dark` (2732 px). A preview is in `docs/brand/logo-preview.png`.
+- **Colour:** ledger green `#0b6b5d` (primary), credit amber `#f5b544` (decoration only), ink `#0e2b27` on `#f6f9f8`. Dark theme uses mint `#4fd1b5` on `#0f1b1a`. The dark theme follows the device setting.
+- **Type:** Inter if installed, else the system font; no web font is downloaded.
+- **Accessibility:** text and controls meet WCAG AA (4.5:1 text, 3:1 control outlines), buttons are at least 48 px tall, the logo has the alt text "Ledgerly", and focus rings are always visible. Contrast ratios of the colour tokens are checked by tests.
+- **Where it shows:** browser tab title and icon, sign-in screen, the header of every signed-in page, and the SMS text ("Your Ledgerly code is ...").
 
 ## API endpoints
 
@@ -161,7 +172,7 @@ These are candidate features after the prototype, unordered and undated until we
 - **Export:** download results as CSV or PDF.
 - **Batch upload:** several invoices at once.
 - **Deployment:** host the app with HTTPS and a real SMS sender number.
-- **Mobile app:** a native or installable app with camera capture.
+- **Mobile app:** wrap the responsive web app with Capacitor for iOS and Android, adding native camera capture. The icon and splash sources it needs are already in `client/assets` (see Branding).
 
 ## Open questions
 
@@ -182,3 +193,4 @@ The build can start without these answers; each has a default assumed in bracket
 | 2026-11-16 | 0.1 | First draft of the prototype spec. |
 | 2026-11-16 | 0.2 | SMS login built (AUTH-1 to AUTH-5). Added `GET /api/auth/me`, the `AUTH_SECRET` setting and the specific rate limits; clarified 429 and lockout behaviour. |
 | 2026-11-16 | 0.3 | Login UI made mobile first (touch targets, numeric keypad, SMS autofill); web plus iOS and Android via Capacitor recorded as the platform plan; testing rule: UI, client and server tests for every feature. |
+| 2026-11-16 | 0.4 | Product named Ledgerly. Added the Branding section (logo, palette, icons, accessibility), the web app manifest, and icon and splash sources for the Capacitor wrapper. |

@@ -23,6 +23,7 @@
     "test:ui:screens": "SCREENSHOTS=1 playwright test"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^9.15.0",
     "@playwright/test": "^1.63.0",
     "concurrently": "^9.1.0",

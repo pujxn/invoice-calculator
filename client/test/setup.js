@@ -7,4 +7,5 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
   localStorage.clear();
+  document.title = '';
 });
