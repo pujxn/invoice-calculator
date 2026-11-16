@@ -409,3 +409,25 @@ test('with text enlarged to 200% nothing overlaps, runs off the screen or stops 
   await button(page, 'Start a new invoice').click();
   await expect(heading(page, 'Upload your invoice')).toBeVisible();
 });
+
+test('buttons on the final amount screen keep their labels on one line when there is room', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'phones stack the buttons full width');
+  await signIn(page);
+  await upload(page);
+  await readAmounts(page);
+  await button(page, 'Calculate final amount').click();
+  await debit(page).fill('10'); // an edit makes the Reset button appear too: four buttons
+  await expect(button(page, 'Reset to what was found')).toBeVisible();
+  for (const name of [
+    'Copy result',
+    'Reset to what was found',
+    'Back to the invoice',
+    'Start a new invoice',
+  ]) {
+    const box = await button(page, name).boundingBox();
+    expect(box.height, `${name} has wrapped onto several lines`).toBeLessThan(60);
+  }
+  await expectNoSideScroll(page);
+});

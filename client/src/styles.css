@@ -241,10 +241,13 @@ button.link:hover:not(:disabled) {
 @media (min-width: 30rem) {
   .actions {
     flex-direction: row;
+    flex-wrap: wrap; /* a row that is too full continues on the next line, never squeezes labels */
   }
 
   .actions button {
     width: auto;
+    flex: 0 0 auto;
+    max-width: 100%;
   }
 }
 
