@@ -1,4 +1,4 @@
-import { loadConfig } from './config.js';
+import { configWarnings, loadConfig } from './config.js';
 import { createApp } from './app.js';
 
 // Load server/.env if present (real environment variables still win).
@@ -9,6 +9,7 @@ try {
 }
 
 const config = loadConfig();
+for (const warning of configWarnings(config)) console.warn(`WARNING: ${warning}`);
 createApp(config).listen(config.port, () => {
   console.log(
     `API listening on http://localhost:${config.port} ` +
