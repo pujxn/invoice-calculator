@@ -75,7 +75,7 @@ Your computer and phone must be on the same Wi-Fi. Start the app with `npm run d
 | `npm test`                        | Server and web app unit and component tests (fast)                                                                   |
 | `npx playwright install chromium` | One-time download of the test browser                                                                                |
 | `npm run test:ui`                 | Opens real browser windows in the background and clicks through login on a phone, a small phone and a desktop window |
-| `npm run test:ui:screens`         | Same, and saves screenshots to `docs/screenshots/`                                                                   |
+| `npm run test:ui:screens`         | Same, and saves screenshots to `test-screenshots/` (not committed)                                                   |
 
 Branding checks live in `e2e/branding.spec.js` (logo variant per colour scheme, titles, icons and manifest, accessibility with axe, contrast, focus ring, header fits 320 px) and in `client/test/` (logo and header components, brand SVGs and icons, colour contrast of every token pair).
 
@@ -89,16 +89,16 @@ Create a free Twilio account, then put `SMS_PROVIDER=twilio` and your `TWILIO_AC
 
 ## Scripts
 
-| Command                   | What it does                                             |
-| ------------------------- | -------------------------------------------------------- |
-| `npm run dev`             | Start API and web app together with reload               |
-| `npm run build`           | Production build of the web app (`client/dist`)          |
-| `npm start`               | Start the API only                                       |
-| `npm test`                | Run server tests (Node's built-in runner)                |
-| `npm run test:ui`         | Run browser UI tests (Playwright, see below)             |
-| `npm run test:ui:screens` | Same, and refresh the screenshots in `docs/screenshots/` |
-| `npm run lint`            | ESLint across the repo                                   |
-| `npm run format`          | Format with Prettier (`format:check` to verify)          |
+| Command                   | What it does                                                             |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `npm run dev`             | Start API and web app together with reload                               |
+| `npm run build`           | Production build of the web app (`client/dist`)                          |
+| `npm start`               | Start the API only                                                       |
+| `npm test`                | Run server tests (Node's built-in runner)                                |
+| `npm run test:ui`         | Run browser UI tests (Playwright, see below)                             |
+| `npm run test:ui:screens` | Same, and refresh the screenshots in `test-screenshots/` (not committed) |
+| `npm run lint`            | ESLint across the repo                                                   |
+| `npm run format`          | Format with Prettier (`format:check` to verify)                          |
 
 CI runs lint, format check, server tests, client tests, build and UI tests on every pull request.
 
@@ -106,7 +106,7 @@ CI runs lint, format check, server tests, client tests, build and UI tests on ev
 
 Every feature ships with Playwright UI tests in `e2e/`. They start their own API (port 4100, console SMS) and web dev server (port 5273), so they work while `npm run dev` is running. The first time, install the browser with `npx playwright install chromium`. The API log is written to `e2e/.server.log`, which is how tests read the one-time codes.
 
-`npm run test:ui:screens` also saves mobile-size screenshots of each screen to `docs/screenshots/`; they are attached to the pull request for review.
+`npm run test:ui:screens` also saves mobile-size screenshots of each screen to `test-screenshots/` (git ignores that folder, so nothing is committed).
 
 ## Environment variables
 

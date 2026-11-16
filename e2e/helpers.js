@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 
 const SERVER_LOG = fileURLToPath(new URL('./.server.log', import.meta.url));
-const SCREENSHOT_DIR = fileURLToPath(new URL('../docs/screenshots/', import.meta.url));
+const SCREENSHOT_DIR = fileURLToPath(new URL('../test-screenshots/', import.meta.url));
 
 // A fresh number per test keeps the per-number rate limits from interfering.
 export function uniquePhone() {

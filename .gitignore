@@ -6,3 +6,4 @@ dist/
 e2e/.server.log
 test-results/
 playwright-report/
+test-screenshots/
