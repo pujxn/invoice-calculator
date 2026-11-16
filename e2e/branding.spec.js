@@ -1,43 +1,27 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { mkdirSync } from 'node:fs';
+import { latestCode, requestCodeFor, shot, uniquePhone } from './helpers.js';
 
-const PHONE = '+447700900123';
-const SHOTS = process.env.SCREENSHOT_DIR;
-
-// Mock the API so these tests need only the web app.
-async function mockApi(page) {
-  await page.route('**/api/auth/request-otp', (r) =>
-    r.fulfill({ json: { ok: true, resendAfterSeconds: 30 } }),
-  );
-  await page.route('**/api/auth/verify-otp', (r) =>
-    r.fulfill({
-      json: { token: 'tok', expiresAt: new Date(Date.now() + 3_600_000).toISOString() },
-    }),
-  );
-  await page.route('**/api/auth/me', (r) => r.fulfill({ json: { phone: PHONE } }));
-  await page.route('**/api/auth/logout', (r) => r.fulfill({ json: { ok: true } }));
+// Every spec runs on a phone, a small phone and a desktop window (see playwright.config.js),
+// so these checks cover the branding at all three sizes, in light and dark.
+async function signIn(page) {
+  const phone = uniquePhone();
+  await page.goto('/login');
+  await requestCodeFor(page, phone);
+  await page.getByLabel('6-digit code').fill(await latestCode(phone));
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByText(`Signed in as ${phone}`)).toBeVisible();
+  return phone;
 }
 
-async function shot(page, testInfo, name) {
-  const body = await page.screenshot({ fullPage: true });
-  await testInfo.attach(name, { body, contentType: 'image/png' });
-  if (SHOTS) {
-    mkdirSync(SHOTS, { recursive: true });
-    await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true });
-  }
-}
+const wcag = (page) => new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
 
 for (const scheme of ['light', 'dark']) {
   test.describe(`${scheme} theme`, () => {
     test.use({ colorScheme: scheme });
     const logoFile = scheme === 'dark' ? 'logo-dark.svg' : 'logo.svg';
 
-    test.beforeEach(async ({ page }) => {
-      await mockApi(page);
-    });
-
-    test('login screen is branded', async ({ page }, testInfo) => {
+    test('login screen is branded', async ({ page }) => {
       await page.goto('/login');
       await expect(page).toHaveTitle('Sign in · Ledgerly');
       const logo = page.getByRole('img', { name: 'Ledgerly' });
@@ -49,34 +33,22 @@ for (const scheme of ['light', 'dark']) {
       expect(await logo.evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
       await expect(page.getByText('Read the invoice. See the balance.')).toBeVisible();
       await expect(page.getByText('Invoice Calculator')).toHaveCount(0);
-      await shot(page, testInfo, `login-${scheme}`);
+      await shot(page, `branding-login-${scheme}`);
     });
 
-    test('login screen has no accessibility violations', async ({ page }) => {
+    test('login and code steps have no accessibility violations', async ({ page }) => {
       await page.goto('/login');
       await expect(page.getByRole('img', { name: 'Ledgerly' })).toBeVisible();
-      const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
-      expect(results.violations).toEqual([]);
-    });
+      expect((await wcag(page)).violations).toEqual([]);
 
-    test('code step stays branded and accessible', async ({ page }, testInfo) => {
-      await page.goto('/login');
-      await page.getByLabel('Mobile number').fill(PHONE);
-      await page.getByRole('button', { name: 'Send code' }).click();
-      await expect(page.getByLabel('6-digit code')).toBeVisible();
+      await requestCodeFor(page, uniquePhone());
       await expect(page.getByRole('img', { name: 'Ledgerly' })).toBeVisible();
-      const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
-      expect(results.violations).toEqual([]);
-      await shot(page, testInfo, `login-code-${scheme}`);
+      expect((await wcag(page)).violations).toEqual([]);
+      await shot(page, `branding-code-${scheme}`);
     });
 
-    test('signed-in header shows the logo and signs out', async ({ page }, testInfo) => {
-      await page.goto('/login');
-      await page.getByLabel('Mobile number').fill(PHONE);
-      await page.getByRole('button', { name: 'Send code' }).click();
-      await page.getByLabel('6-digit code').fill('123456');
-      await page.getByRole('button', { name: 'Sign in' }).click();
-
+    test('signed-in header shows the logo, fits the screen and signs out', async ({ page }) => {
+      await signIn(page);
       const header = page.getByRole('banner');
       await expect(header.getByRole('img', { name: 'Ledgerly' })).toBeVisible();
       await expect(header.getByRole('link', { name: 'Ledgerly home' })).toHaveAttribute(
@@ -84,10 +56,18 @@ for (const scheme of ['light', 'dark']) {
         '/',
       );
       await expect(page).toHaveTitle('Ledgerly');
-      await expect(page.getByText(PHONE)).toBeVisible();
-      const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
-      expect(results.violations).toEqual([]);
-      await shot(page, testInfo, `home-${scheme}`);
+
+      // The header never pushes the page sideways, even at 320px.
+      const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+      const signOut = await header.getByRole('button', { name: 'Sign out' }).boundingBox();
+      expect(signOut.x + signOut.width).toBeLessThanOrEqual(clientWidth);
+
+      expect((await wcag(page)).violations).toEqual([]);
+      await shot(page, `branding-home-${scheme}`);
 
       await header.getByRole('button', { name: 'Sign out' }).click();
       await expect(page).toHaveURL(/\/login$/);
@@ -95,7 +75,8 @@ for (const scheme of ['light', 'dark']) {
 
     test('primary button text meets AA contrast and focus ring is visible', async ({ page }) => {
       await page.goto('/login');
-      await page.getByLabel('Mobile number').fill(PHONE);
+      const phoneInput = page.getByLabel('Mobile number');
+      await phoneInput.fill('+44 7700 900123');
       const button = page.getByRole('button', { name: 'Send code' });
       await expect(button).toBeEnabled();
       const ratio = await button.evaluate((el) => {
@@ -114,7 +95,8 @@ for (const scheme of ['light', 'dark']) {
         return (a + 0.05) / (b + 0.05);
       });
       expect(ratio).toBeGreaterThanOrEqual(4.5);
-      await page.keyboard.press('Tab'); // from the phone field
+      await phoneInput.focus();
+      await page.keyboard.press('Tab');
       await expect(button).toBeFocused();
       expect(await button.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
     });
@@ -131,9 +113,8 @@ for (const scheme of ['light', 'dark']) {
     const want = PALETTE[scheme];
 
     test('buttons and page use the pink palette', async ({ page }) => {
-      await mockApi(page);
       await page.goto('/login');
-      await page.getByLabel('Mobile number').fill(PHONE);
+      await page.getByLabel('Mobile number').fill('+44 7700 900123');
       const button = page.getByRole('button', { name: 'Send code' });
       expect(await button.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
         want.primary,
@@ -144,10 +125,9 @@ for (const scheme of ['light', 'dark']) {
     });
 
     test('"code sent" notice is green and the header has a yellow rule', async ({ page }) => {
-      await mockApi(page);
       await page.goto('/login');
-      await page.getByLabel('Mobile number').fill(PHONE);
-      await page.getByRole('button', { name: 'Send code' }).click();
+      const phone = uniquePhone();
+      await requestCodeFor(page, phone);
       const notice = page.getByRole('status');
       await expect(notice).toContainText('We sent a code to');
       const [r, g, b] = (await notice.evaluate((el) => getComputedStyle(el).backgroundColor))
@@ -155,8 +135,9 @@ for (const scheme of ['light', 'dark']) {
         .map(Number);
       expect(g).toBeGreaterThan(r); // green-tinted
       expect(g).toBeGreaterThan(b);
+      await shot(page, `pink-code-sent-${scheme}`);
 
-      await page.getByLabel('6-digit code').fill('123456');
+      await page.getByLabel('6-digit code').fill(await latestCode(phone));
       await page.getByRole('button', { name: 'Sign in' }).click();
       const header = page.getByRole('banner');
       await expect(header).toBeVisible();
@@ -167,13 +148,7 @@ for (const scheme of ['light', 'dark']) {
   });
 }
 
-test('manifest is served', async ({ request }) => {
-  const res = await request.get('/manifest.webmanifest');
-  expect(res.status()).toBe(200);
-  expect((await res.json()).name).toBe('Ledgerly');
-});
-
-test('brand assets are served', async ({ request }) => {
+test('brand assets and manifest are served', async ({ request }) => {
   for (const f of [
     'logo.svg',
     'logo-dark.svg',
@@ -186,13 +161,14 @@ test('brand assets are served', async ({ request }) => {
     'icon-512.png',
     'icon-maskable-512.png',
   ]) {
-    const res = await request.get(`/brand/${f}`);
-    expect(res.status(), f).toBe(200);
+    expect((await request.get(`/brand/${f}`)).status(), f).toBe(200);
   }
+  const manifest = await request.get('/manifest.webmanifest');
+  expect(manifest.status()).toBe(200);
+  expect((await manifest.json()).name).toBe('Ledgerly');
 });
 
-test('page declares the favicon and theme colour', async ({ page }) => {
-  await mockApi(page);
+test('page declares the favicon, theme colour and manifest', async ({ page }) => {
   await page.goto('/login');
   await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute(
     'href',
@@ -207,42 +183,3 @@ test('page declares the favicon and theme colour', async ({ page }) => {
     '/manifest.webmanifest',
   );
 });
-
-// Mobile first: the app is later wrapped for phones, so check phone widths too.
-const PHONES = [
-  ['iphone-se', { width: 320, height: 568 }],
-  ['phone', { width: 390, height: 844 }],
-];
-for (const scheme of ['light', 'dark']) {
-  for (const [name, viewport] of PHONES) {
-    test.describe(`${name} ${scheme}`, () => {
-      test.use({ colorScheme: scheme, viewport, hasTouch: true, isMobile: true });
-
-      test('login and header fit the screen without sideways scrolling', async ({
-        page,
-      }, testInfo) => {
-        await mockApi(page);
-        await page.goto('/login');
-        await expect(page.getByRole('img', { name: 'Ledgerly' })).toBeVisible();
-        const noOverflow = () =>
-          page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
-        expect(await noOverflow()).toBe(true);
-        const button = page.getByRole('button', { name: 'Send code' });
-        await page.getByLabel('Mobile number').fill(PHONE);
-        const box = await button.boundingBox();
-        expect(box.height).toBeGreaterThanOrEqual(44); // touch target
-        await shot(page, testInfo, `login-${name}-${scheme}`);
-
-        await button.click();
-        await page.getByLabel('6-digit code').fill('123456');
-        await page.getByRole('button', { name: 'Sign in' }).click();
-        const header = page.getByRole('banner');
-        await expect(header.getByRole('img', { name: 'Ledgerly' })).toBeVisible();
-        const signOut = await header.getByRole('button', { name: 'Sign out' }).boundingBox();
-        expect(signOut.x + signOut.width).toBeLessThanOrEqual(viewport.width);
-        expect(await noOverflow()).toBe(true);
-        await shot(page, testInfo, `home-${name}-${scheme}`);
-      });
-    });
-  }
-}
