@@ -8,6 +8,8 @@ import {
   getInvoice,
   uploadInvoice,
 } from './invoiceApi.js';
+import { isNative } from '../platform/platform.js';
+import { CaptureError, UnavailableError, choosePhoto, takePhoto } from '../platform/camera.js';
 import { ACCEPT, MAX_LABEL, TYPE_LABEL, formatSize, validateFile } from './validate.js';
 
 // Remembers the current picture for this browser tab, so a reload shows it again.
@@ -169,6 +171,22 @@ export default function InvoiceUpload({ onExtracted }) {
       abortRef.current = null;
     }
   }
+
+  // On a phone app the camera and photo library open through the native plugin. If the plugin
+  // is missing, or this is a browser, the ordinary file inputs below are used instead.
+  async function pickNative(getFile, fallbackInput) {
+    setError('');
+    if (!isNative()) return fallbackInput.current.click();
+    try {
+      const file = await getFile();
+      if (file) choose(file);
+    } catch (err) {
+      if (err instanceof UnavailableError) return fallbackInput.current.click();
+      setError(err instanceof CaptureError ? err.message : 'Could not get the picture.');
+    }
+  }
+  const takePicture = () => pickNative(takePhoto, cameraInput);
+  const choosePicture = () => pickNative(choosePhoto, fileInput);
 
   function onPick(e) {
     const file = e.target.files?.[0];
@@ -337,11 +355,7 @@ export default function InvoiceUpload({ onExtracted }) {
                 <button type="button" onClick={read}>
                   Read amounts
                 </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => fileInput.current.click()}
-                >
+                <button type="button" className="secondary" onClick={choosePicture}>
                   Replace picture
                 </button>
                 <button type="button" className="secondary" onClick={typeByHand}>
@@ -358,11 +372,11 @@ export default function InvoiceUpload({ onExtracted }) {
 
       {!uploading && !current && !restoring && (
         <div className="actions pick">
-          <button type="button" className="camera-only" onClick={() => cameraInput.current.click()}>
+          <button type="button" className="camera-only" onClick={takePicture}>
             Take photo
           </button>
-          <button type="button" onClick={() => fileInput.current.click()}>
-            Choose file
+          <button type="button" onClick={choosePicture}>
+            {isNative() ? 'Choose from photos' : 'Choose file'}
           </button>
         </div>
       )}

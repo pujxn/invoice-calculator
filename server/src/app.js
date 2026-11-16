@@ -8,6 +8,7 @@ import { createInvoiceRouter } from './invoices/routes.js';
 import { createCalculateRouter } from './calculate/routes.js';
 import { createExtractor, createVisionProvider } from './extraction/index.js';
 import { createAuthRouter, createRequireAuth } from './auth/routes.js';
+import { createCors } from './cors.js';
 
 // `deps` lets tests inject a fake SMS provider and clock.
 export function createApp(config, deps = {}) {
@@ -47,6 +48,7 @@ export function createApp(config, deps = {}) {
 
   const app = express();
   app.disable('x-powered-by');
+  app.use(createCors(config.cors));
   app.use(express.json());
 
   app.get('/api/health', (_req, res) => {

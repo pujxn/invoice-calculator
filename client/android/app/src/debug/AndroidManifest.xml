@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Debug builds only (the ones Android Studio runs). Allows the app to call a plain http API on
+     your own computer. Release builds do not include this file, so they allow https only. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>
