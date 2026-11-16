@@ -3,12 +3,20 @@ import multer from 'multer';
 import { detectImageType } from './fileType.js';
 import { isValidId } from './store.js';
 import { ExtractionError } from '../extraction/errors.js';
+import { describeError } from '../log.js';
 
 const MB = 1024 * 1024;
 
 // Upload, fetch and delete invoice pictures. Every route needs a signed-in user and only ever
 // touches that user's own files: another user's id behaves exactly like an id that does not exist.
-export function createInvoiceRouter({ store, requireAuth, maxBytes, extractor, extractLimiter }) {
+export function createInvoiceRouter({
+  store,
+  requireAuth,
+  maxBytes,
+  extractor,
+  extractLimiter,
+  secrets = [],
+}) {
   const router = Router();
   const reading = new Set(); // pictures being read right now, so one cannot be read twice at once
   const owner = (req) => req.session.phone;
@@ -134,7 +142,7 @@ export function createInvoiceRouter({ store, requireAuth, maxBytes, extractor, e
       });
     } catch (err) {
       if (!(err instanceof ExtractionError)) return next(err);
-      if (err.cause) console.error(`extract ${err.code}:`, err.cause);
+      if (err.cause) console.error(`extract ${err.code}: ${describeError(err.cause, secrets)}`);
       if (err.retryAfterSeconds) res.set('Retry-After', String(err.retryAfterSeconds));
       if (!res.headersSent) {
         res.status(err.status).json({

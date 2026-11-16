@@ -35,6 +35,10 @@ export function loadConfig(env = process.env) {
   const anthropicKey = env.ANTHROPIC_API_KEY || '';
   return {
     port: Number(env.PORT) || 4000,
+    production: env.NODE_ENV === 'production',
+    // How many proxies sit in front of the server (a load balancer, nginx). Needed so the per-IP
+    // limits see the visitor's address and not the proxy's. Leave unset when there is none.
+    trustProxy: positiveInt(env.TRUST_PROXY, 0),
     cors: {
       // Origins allowed to call the API from a browser on another host: the mobile apps, plus
       // anything listed in CORS_ORIGINS. "*" is not accepted on purpose.
@@ -86,4 +90,24 @@ export function loadConfig(env = process.env) {
       extractionsPerUserPerHour: positiveInt(env.EXTRACT_PER_USER_PER_HOUR, 30),
     },
   };
+}
+
+// Things that are fine on a laptop but wrong on a real server. Shown once at start-up.
+export function configWarnings(config) {
+  if (!config.production) return [];
+  const warnings = [];
+  if (config.sms.provider === 'console') {
+    warnings.push(
+      'SMS_PROVIDER=console prints every sign-in code to the log, so anyone who can read it can sign in. Use SMS_PROVIDER=twilio.',
+    );
+  }
+  if (config.vision.provider === 'mock') {
+    warnings.push(
+      'VISION_PROVIDER=mock: invoices are not read, users are shown made-up demo amounts. Set ANTHROPIC_API_KEY.',
+    );
+  }
+  if (!config.auth.secret) {
+    warnings.push('AUTH_SECRET is not set: codes sent before a restart stop working.');
+  }
+  return warnings;
 }

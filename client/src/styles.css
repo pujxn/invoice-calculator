@@ -176,7 +176,9 @@ button {
   font: inherit;
   font-weight: 600;
   color: var(--on-primary);
-  white-space: nowrap;
+  /* Labels may wrap when the text is enlarged (iOS Larger Text, browser zoom) instead of
+     running out of the button. */
+  white-space: normal;
   background: var(--primary);
   border: 1px solid var(--primary);
   border-radius: var(--radius);
@@ -239,10 +241,13 @@ button.link:hover:not(:disabled) {
 @media (min-width: 30rem) {
   .actions {
     flex-direction: row;
+    flex-wrap: wrap; /* a row that is too full continues on the next line, never squeezes labels */
   }
 
   .actions button {
     width: auto;
+    flex: 0 0 auto;
+    max-width: 100%;
   }
 }
 
@@ -252,7 +257,8 @@ button.link:hover:not(:disabled) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
   max-width: 32rem;
   margin: 0 auto;
   padding: max(0.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0.75rem
@@ -266,6 +272,7 @@ button.link:hover:not(:disabled) {
 
 .brand-link {
   display: inline-block;
+  flex-shrink: 0;
   border-radius: var(--radius);
 }
 
@@ -447,6 +454,10 @@ progress {
 
 .items th,
 .items td {
+  /* Break only between words (the page default can break anywhere): with large text a
+     description column would otherwise shrink to one letter per line. The table scrolls
+     sideways inside its box when it still does not fit. */
+  overflow-wrap: break-word;
   padding: 0.5rem 0.5rem;
   border-bottom: 1px solid var(--rose);
   text-align: left;
@@ -539,4 +550,9 @@ progress {
 .copy-status {
   min-height: 1.25rem;
   margin: 0.5rem 0 0;
+}
+
+/* Keeps the header's buttons at the right even when large text wraps them below the logo. */
+.topbar-actions {
+  margin-left: auto;
 }

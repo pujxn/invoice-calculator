@@ -8,6 +8,7 @@ import { createInvoiceRouter } from './invoices/routes.js';
 import { createCalculateRouter } from './calculate/routes.js';
 import { createExtractor, createVisionProvider } from './extraction/index.js';
 import { createAuthRouter, createRequireAuth } from './auth/routes.js';
+import { describeError, secretsFrom } from './log.js';
 import { createCors } from './cors.js';
 
 // `deps` lets tests inject a fake SMS provider and clock.
@@ -15,8 +16,9 @@ export function createApp(config, deps = {}) {
   const now = deps.now || Date.now;
   const sms = deps.sms || createSmsProvider(config.sms);
   const { auth } = config;
+  const secrets = secretsFrom(config);
 
-  const otp = createOtpService({ config: auth, sms, now, random: deps.random });
+  const otp = createOtpService({ config: auth, sms, now, random: deps.random, secrets });
   const sessions = createSessionStore({ ttlMs: auth.sessionTtlMs, now });
   const ipRequestLimiter = createRateLimiter({
     limit: auth.limits.requestsPerIpPer15Min,
@@ -49,6 +51,19 @@ export function createApp(config, deps = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use(createCors(config.cors));
+  if (config.trustProxy) app.set('trust proxy', config.trustProxy);
+
+  // Every answer is private to one user, so nothing is cached, and the browser is told not to
+  // guess types, embed the API in a frame or send a referrer.
+  app.use((_req, res, next) => {
+    res.set({
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'no-referrer',
+    });
+    next();
+  });
   app.use(express.json());
 
   app.get('/api/health', (_req, res) => {
@@ -73,8 +88,12 @@ export function createApp(config, deps = {}) {
       maxBytes: config.uploads.maxBytes,
       extractor,
       extractLimiter,
+      secrets,
     }),
   );
+
+  // An unknown /api address answers in JSON like everything else, not with an HTML page.
+  app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found.' }));
 
   // Malformed JSON and other errors get the same { error } shape as the rest of the API.
   // eslint-disable-next-line no-unused-vars
@@ -85,7 +104,7 @@ export function createApp(config, deps = {}) {
     if (err.type === 'entity.too.large') {
       return res.status(413).json({ error: 'That request is too large.' });
     }
-    console.error(err);
+    console.error(`Unhandled error: ${describeError(err, secrets)}`);
     res.status(500).json({ error: 'Something went wrong.' });
   });
 
@@ -100,7 +119,8 @@ export function createApp(config, deps = {}) {
     }, 60 * 1000);
     timer.unref();
     // Delete invoice pictures older than UPLOAD_TTL_HOURS.
-    const sweepUploads = () => uploads.sweep().catch((err) => console.error('upload sweep', err));
+    const sweepUploads = () =>
+      uploads.sweep().catch((err) => console.error(`upload sweep: ${describeError(err, secrets)}`));
     sweepUploads();
     const uploadTimer = setInterval(sweepUploads, 10 * 60 * 1000);
     uploadTimer.unref();

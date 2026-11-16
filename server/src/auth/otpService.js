@@ -1,3 +1,4 @@
+import { describeError } from '../log.js';
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 
 // Error with an HTTP status so routes can map failures directly.
@@ -11,7 +12,13 @@ export class AuthError extends Error {
 
 // Issues and checks one-time codes. Codes are stored only as HMAC hashes, expire,
 // lock after too many wrong tries, and can be resent at most once per cooldown.
-export function createOtpService({ config, sms, now = Date.now, random = randomInt }) {
+export function createOtpService({
+  config,
+  sms,
+  now = Date.now,
+  random = randomInt,
+  secrets = [],
+}) {
   const { otpTtlMs, otpLength, maxAttempts, resendSeconds, secret, limits } = config;
   const hmacKey = secret || randomBytes(32);
   const records = new Map(); // phone -> { hash, expiresAt, attempts, sentAt }
@@ -61,7 +68,7 @@ export function createOtpService({ config, sms, now = Date.now, random = randomI
         await sms.send(phone, `Your Ledgerly code is ${code}. It expires in 5 minutes.`);
       } catch (err) {
         records.delete(phone); // let the user retry straight away
-        console.error(`SMS send failed (${sms.name}): ${err.message}`);
+        console.error(`SMS send failed (${sms.name}): ${describeError(err, secrets)}`);
         throw new AuthError(502, 'Could not send the code. Please try again.');
       }
       return { resendAfterSeconds: resendSeconds };

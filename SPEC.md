@@ -4,7 +4,7 @@
 > [Ledgerly: Product Spec](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs).
 > This file is a snapshot of it for the repo. Change the doc first, then update this file and the changelog.
 
-Version 0.7 · 2026-11-16
+Version 0.10 · 2026-11-16
 
 ## Overview
 
@@ -30,7 +30,7 @@ A user goes from phone number to net result in five screens, with a chance to fi
 2. **Enter code.** A 6-digit code arrives by SMS. The user enters it; a wrong code shows an error, and Resend is available after 30 seconds.
 3. **Upload invoice.** The user picks or takes a photo (JPEG, PNG, WebP or HEIC, up to 10 MB) and sees a preview.
 4. **Review amounts.** The user presses Read amounts; AI reads the Debit and Credit amounts and pre-fills two fields, with a confidence note, anything to double check and the lines it found. The user can edit either field, clear one, type the amounts by hand instead, or upload a different photo.
-5. **See result.** The user presses Calculate final amount. The app shows the net amount large, labelled Net Debit, Net Credit, or Balanced, with the working (Debit minus Credit) and a breakdown of the inputs. Debit and Credit can be changed on this screen and the result updates as they are typed. The user can copy the result, go back to the invoice, start a new invoice (no new sign-in), or sign out.
+5. **See result.** The user presses Calculate final amount. The app shows the net amount large, labelled Net Debit, Net Credit, or Balanced, with the working (Debit minus Credit) and a breakdown of the inputs. Debit and Credit can be changed on this screen and the result updates as they are typed. The user can copy the result, go back to the invoice (the browser's Back button does the same), start a new invoice (no new sign-in), or sign out. A reload at any step keeps the user's place and edits; signing out clears them from the browser.
 
 ## From the whiteboard sketch
 
@@ -146,7 +146,7 @@ The Node server exposes JSON endpoints under `/api`; all except the two code cal
 
 Errors use HTTP status codes (400 bad input, 401 not signed in, 404 not found or not yours, 413 file or request too large, 415 not a supported picture, 409 already being read, 422 picture or invoice could not be read, 429 too many requests or AI busy, 502 AI or SMS provider failed, 504 AI too slow) with a body of `{ error: "message" }`. A 429 from the auth calls also carries `retryAfterSeconds` and a `Retry-After` header. A wrong code is 401; after 5 wrong tries the code is locked and further tries get 429 until a new code is requested.
 
-A `GET /api/health` endpoint (no auth) reports that the server is up and which providers are configured.
+A `GET /api/health` endpoint (no auth) reports that the server is up and which providers are configured. An unknown `/api/...` address answers 404 `{ error: "Not found." }` in JSON. Every API answer carries `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`.
 
 ## Configuration
 
@@ -155,6 +155,8 @@ The prototype runs with no settings at all: codes print to the server log and am
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | 4000 | Port for the Node API |
+| `NODE_ENV` | none | `production` makes start-up warn about console SMS, the mock AI and a missing `AUTH_SECRET` |
+| `TRUST_PROXY` | 0 | Number of proxies in front of the server (usually 1), so per-IP limits see the visitor and not the proxy. Only a whole number is accepted, never "trust everyone" |
 | `SMS_PROVIDER` | `console` | `console` prints codes to the log; `twilio` sends real SMS |
 | `TWILIO_ACCOUNT_SID` | none | Twilio account, needed for `twilio` |
 | `TWILIO_AUTH_TOKEN` | none | Twilio secret, needed for `twilio` |
@@ -184,7 +186,12 @@ The prototype keeps invoice images only briefly (see AI-4) and stores codes only
 - Codes are keyed hashes (HMAC-SHA256 with a server secret) tied to the phone number, and are single use.
 - Session tokens are random 32-byte values held in server memory (only their SHA-256 is kept); restarting the server signs everyone out. The web app keeps the token in the browser's localStorage, so a script injected into the page could read it; moving to an HttpOnly cookie is a later hardening item.
 - Uploaded pictures are checked by their bytes (not their name), stored under a hashed owner folder with random file names, readable only by their owner, and deleted after 24 hours or when removed. They are sent only to the configured AI provider, after being converted to a JPEG of at most 2000 px with location data removed, and are deleted as soon as they have been read. Reading is limited per user per hour because each real reading costs money; the AI's answer is validated before it reaches the user, and text inside a picture is treated as data, never as instructions.
-- API keys live in environment variables and never reach the browser.
+- API keys live in environment variables and never reach the browser, and never reach the log: provider errors are logged as one line (name, status, message) with every configured key and anything shaped like a key blanked out, never as raw objects, headers or stack traces.
+- Per-IP limits use the address the server sees. Behind a proxy `TRUST_PROXY` tells it how many proxies to trust; a forged `X-Forwarded-For` is ignored otherwise.
+- API answers are never cached and cannot be framed or type-sniffed (see API endpoints). Uploaded folders are tidied up: pictures older than 24 hours go, and so does the folder of a user who has none left.
+- Signing out (or the session ending, here or in another tab of the same browser) removes the sign-in token and the amounts and picture reference kept for the current tab.
+- Start-up warns when `NODE_ENV=production` is combined with console SMS (anyone who can read the log can sign in), the mock AI (users would see made-up amounts) or no `AUTH_SECRET`.
+- Known gaps, not fixed in the prototype: the session token is in `localStorage` (script injection could read it); sessions, codes and rate-limit counters are in memory, so they reset on restart and are not shared between several server processes; there is no per-user limit on the calculate endpoint (it is cheap, and the request size is capped at 100 KB); `npm start` serves only the API, so hosting the built web app needs a static host or a small addition; a picture whose owner signs out stays on disk until it is read, removed or 24 hours pass.
 - Later, before real users: HTTPS everywhere, a persistent session store, audit logging, and a review of the AI provider's data retention terms.
 
 ## Roadmap
@@ -225,3 +232,4 @@ The build can start without these answers; each has a default assumed in bracket
 | 2026-11-16 | 0.7 | AI amount extraction built (AI-1 to AI-4): `POST /api/invoices/:id/extract`, Claude vision provider with a deterministic mock mode, HEIC to JPEG conversion, strict output validation, exact decimal amounts (strings, not numbers), line items, warnings and confidence, per-user hourly limit, picture deleted after reading. Web: Read amounts, loading and cancel, editable Debit and Credit with checks, type by hand. Endpoint changed from a multipart `extract` to `:id/extract` on the already uploaded picture. |
 | 2026-11-16 | 0.8 | Final amount calculation and result screen built (CALC-1 to CALC-3, RES-1, RES-2). New shared `@ledgerly/money` package (exact BigInt minor units, signed line items, formatting) used by the server and the web app. `POST /api/invoices/calculate` now built, also accepts a list of signed line items and returns `signedNet` and `lineCount`. Web: Calculate final amount button, result screen with live recalculation, breakdown, copy, back, new invoice. Calculation rules extended (zero, large numbers, rounding, formatting). Request body too large now answers 413. |
 | 2026-11-16 | 0.9 | iOS and Android apps with Capacitor 7: native projects, camera and photo picker, status bar and splash, configurable API address, CORS for the app origins (`CORS_ORIGINS`), development-only cleartext, `npm run native:*` scripts, and run instructions. No change to the web behaviour. |
+| 2026-11-16 | 0.10 | End-to-end testing, polish and hardening (no new features). Full-journey browser tests on phone, small phone and desktop with error paths, keyboard-only and enlarged-text runs. Browser Back and Forward now move between the amounts and the final amount; focus returns to the upload heading when starting again; signing out clears the amounts kept in the browser and signs out other tabs; large text no longer overlaps. API answers carry no-store and nosniff headers, unknown `/api` addresses answer JSON 404, `TRUST_PROXY` and `NODE_ENV` settings added, provider errors are logged without keys, empty upload folders are swept, start-up warns about unsafe production settings. README rewritten as a quick start. |
