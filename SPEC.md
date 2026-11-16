@@ -20,7 +20,7 @@ Ledgerly (the working title was Invoice Calculator) reads a photo of a standardi
 - The user checks and corrects the amounts, then sees the final net amount.
 - Runs locally with no paid credentials (mock SMS and manual entry), and with real SMS and AI once keys are added.
 
-**Not in the prototype:** saved history, converting between currencies, adding up long multi-line invoices (the lines are read and shown, but the net uses the printed totals), user profiles, a production database, deployment, and native mobile apps. These are tracked in the Roadmap.
+**Not in the prototype:** saved history, converting between currencies, adding up long multi-line invoices on screen (the lines are read and shown, and the calculation and API can already total a list of lines, but the screen's net uses the printed totals), user profiles, a production database, deployment, and native mobile apps. These are tracked in the Roadmap.
 
 ## User flow
 
@@ -30,7 +30,7 @@ A user goes from phone number to net result in five screens, with a chance to fi
 2. **Enter code.** A 6-digit code arrives by SMS. The user enters it; a wrong code shows an error, and Resend is available after 30 seconds.
 3. **Upload invoice.** The user picks or takes a photo (JPEG, PNG, WebP or HEIC, up to 10 MB) and sees a preview.
 4. **Review amounts.** The user presses Read amounts; AI reads the Debit and Credit amounts and pre-fills two fields, with a confidence note, anything to double check and the lines it found. The user can edit either field, clear one, type the amounts by hand instead, or upload a different photo.
-5. **See result.** The app shows the net amount and labels it Net Debit, Net Credit, or Balanced, with the working (Debit minus Credit). The user can start a new invoice or sign out.
+5. **See result.** The user presses Calculate final amount. The app shows the net amount large, labelled Net Debit, Net Credit, or Balanced, with the working (Debit minus Credit) and a breakdown of the inputs. Debit and Credit can be changed on this screen and the result updates as they are typed. The user can copy the result, go back to the invoice, start a new invoice (no new sign-in), or sign out.
 
 ## From the whiteboard sketch
 
@@ -61,11 +61,11 @@ The prototype has 17 requirements across five areas; the Status column tracks ea
 | AI-2 | Extraction | The response includes a confidence level (high, medium, low), a short note, warnings for anything to check, and the currency code if one is shown. | Built |
 | AI-3 | Extraction | If the AI is not configured (mock mode shows demo values), is busy, times out or fails, the user sees a clear message, can retry, or can type the amounts by hand. Unreadable pictures, missing amounts and ambiguous values are reported the same way. | Built |
 | AI-4 | Extraction | Uploaded images are kept only briefly: deleted when the user removes or replaces them, automatically after 24 hours (`UPLOAD_TTL_HOURS`), and as soon as the amounts have been read (or the user chooses to type them). A failed reading keeps the picture so the user can retry. The image is sent only to the AI provider, resized and stripped of location data. | Built |
-| CALC-1 | Calculation | User can edit both amounts before calculating; amounts must be 0 or more with up to 2 decimals. | Planned |
-| CALC-2 | Calculation | Net = Debit minus Credit, using the rules in Calculation rules. | Planned |
-| CALC-3 | Calculation | Calculation uses exact decimal maths (cents), not floating point. | Planned |
-| RES-1 | Result | Shows the net amount, its label (Net Debit, Net Credit, Balanced) and the working. | Planned |
-| RES-2 | Result | User can start a new invoice without signing in again. | Planned |
+| CALC-1 | Calculation | User can edit both amounts before calculating, and again on the result screen; amounts must be 0 or more with up to 2 decimals (thousands commas are accepted when typing). | Built |
+| CALC-2 | Calculation | Net = Debit minus Credit, using the rules in Calculation rules. The calculation works on a list of signed line items (positive is a Debit line, negative is a Credit line); a Debit and a Credit is a list of two. | Built |
+| CALC-3 | Calculation | Calculation uses exact decimal maths (whole cents in BigInt, amounts as decimal strings), not floating point. One shared module is used by the server and the web app. | Built |
+| RES-1 | Result | Shows the net amount, its label (Net Debit, Net Credit, Balanced) and the working, with a breakdown of the inputs. Debit and Credit can be edited on the screen and the result updates as they are typed. The result can be copied. | Built |
+| RES-2 | Result | User can start a new invoice without signing in again. | Built |
 
 ## Calculation rules
 
@@ -78,7 +78,12 @@ net = Debit - Credit
 - A missing value counts as 0, so an invoice with only a Debit gives a Net Debit of that amount, and only a Credit gives a Net Credit.
 - If both values are missing, the app asks the user to enter at least one before calculating.
 - Negative inputs are not allowed; a minus sign read from the image is shown to the user to confirm.
-- Results are rounded to 2 decimal places.
+- Results are rounded to 2 decimal places. Inputs already have at most 2 decimals, so the maths never needs to round: an amount with more than 2 decimals is refused, never silently rounded. (The shared module can round half away from zero line by line when a caller asks for it; nothing uses that yet.)
+- Zero is a real amount: a Debit of 0 and a Credit of 0 is Balanced 0.00, while two blank boxes is "enter at least one amount".
+- One amount can be up to 999,999,999,999.99. Totals of several lines may go beyond that and keep every digit.
+- Amounts are shown with thousands separators and 2 decimals. The currency symbol is shown when the invoice has a currency code (£ $ € ₹ and similar; an unknown code is written before the number, for example CHF 1,250.00). Indian rupee amounts use lakh grouping (12,34,567.00). With no currency, only the number is shown.
+
+**Line items.** The calculation takes a list of signed line items and totals them: net is the sum of the lines, a positive line is a Debit and a negative line a Credit. The usual invoice is a list of two lines (Debit, minus Credit). The screen still works on the printed Debit and Credit; the API (below) already accepts a list of up to 5,000 lines, ready for invoices with many line items.
 
 | Debit | Credit | Result |
 | --- | --- | --- |
@@ -129,9 +134,9 @@ The Node server exposes JSON endpoints under `/api`; all except the two code cal
 | `GET /api/invoices/:id/image` | none | the picture bytes, or 404 |
 | `DELETE /api/invoices/:id` | none | `{ ok: true }`, or 404 |
 | `POST /api/invoices/:id/extract` | none | `{ invoiceId, provider, model, imageDeleted, debit, credit, currency, confidence, notes, warnings, lineItems, itemTotals }`; amounts are decimal strings or null. Deletes the picture on success |
-| `POST /api/invoices/calculate` | `{ debit, credit }` | `{ debit, credit, net, type }` where `type` is `debit`, `credit` or `balanced` and `net` is never negative |
+| `POST /api/invoices/calculate` | `{ debit, credit }` (text or null), or `{ items: [...] }` of signed line items (text, or `{ amount }`) | `{ debit, credit, net, signedNet, type, lineCount }`: all amounts are exact decimal strings, `debit` and `credit` are the totals of each side, `net` is never negative, `signedNet` is Debit minus Credit, and `type` is `debit`, `credit` or `balanced`. Needs a signed-in user. Numbers instead of text are refused (400) |
 
-Errors use HTTP status codes (400 bad input, 401 not signed in, 404 not found or not yours, 413 file too large, 415 not a supported picture, 409 already being read, 422 picture or invoice could not be read, 429 too many requests or AI busy, 502 AI or SMS provider failed, 504 AI too slow) with a body of `{ error: "message" }`. A 429 from the auth calls also carries `retryAfterSeconds` and a `Retry-After` header. A wrong code is 401; after 5 wrong tries the code is locked and further tries get 429 until a new code is requested.
+Errors use HTTP status codes (400 bad input, 401 not signed in, 404 not found or not yours, 413 file or request too large, 415 not a supported picture, 409 already being read, 422 picture or invoice could not be read, 429 too many requests or AI busy, 502 AI or SMS provider failed, 504 AI too slow) with a body of `{ error: "message" }`. A 429 from the auth calls also carries `retryAfterSeconds` and a `Retry-After` header. A wrong code is 401; after 5 wrong tries the code is locked and further tries get 429 until a new code is requested.
 
 A `GET /api/health` endpoint (no auth) reports that the server is up and which providers are configured.
 
@@ -209,3 +214,4 @@ The build can start without these answers; each has a default assumed in bracket
 | 2026-11-16 | 0.5 | Rebranded to a pink palette (pink, green, white) with a matching dark theme, requested by the manager. New logo colours, icons, splash and favicon; no layout or behaviour changes. |
 | 2026-11-16 | 0.6 | Invoice picture upload built (UP-1 to UP-3): upload, fetch and delete endpoints, size and type checks, per-user storage with automatic deletion, upload screen with camera, preview, progress, replace and remove. AI-4 changed: pictures are stored briefly instead of kept only in memory. Added 404 and 415 status codes and the `UPLOAD_*` settings. |
 | 2026-11-16 | 0.7 | AI amount extraction built (AI-1 to AI-4): `POST /api/invoices/:id/extract`, Claude vision provider with a deterministic mock mode, HEIC to JPEG conversion, strict output validation, exact decimal amounts (strings, not numbers), line items, warnings and confidence, per-user hourly limit, picture deleted after reading. Web: Read amounts, loading and cancel, editable Debit and Credit with checks, type by hand. Endpoint changed from a multipart `extract` to `:id/extract` on the already uploaded picture. |
+| 2026-11-16 | 0.8 | Final amount calculation and result screen built (CALC-1 to CALC-3, RES-1, RES-2). New shared `@ledgerly/money` package (exact BigInt minor units, signed line items, formatting) used by the server and the web app. `POST /api/invoices/calculate` now built, also accepts a list of signed line items and returns `signedNet` and `lineCount`. Web: Calculate final amount button, result screen with live recalculation, breakdown, copy, back, new invoice. Calculation rules extended (zero, large numbers, rounding, formatting). Request body too large now answers 413. |

@@ -1,0 +1,11 @@
+{
+  "name": "@ledgerly/money",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Exact decimal money maths shared by the Ledgerly server and web app",
+  "exports": "./src/index.js",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
