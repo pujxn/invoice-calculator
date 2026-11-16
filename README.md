@@ -48,7 +48,7 @@ Enter it to sign in. `GET /api/health` shows the active providers.
 | `npm run lint`            | ESLint across the repo                                   |
 | `npm run format`          | Format with Prettier (`format:check` to verify)          |
 
-CI runs lint, format check, server tests, build and UI tests on every pull request.
+CI runs lint, format check, server tests, client tests, build and UI tests on every pull request.
 
 ## UI tests
 
