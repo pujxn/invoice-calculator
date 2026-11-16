@@ -91,7 +91,7 @@ export default function LoginPage() {
         </form>
       ) : (
         <form onSubmit={submitCode}>
-          <p>
+          <p className="status good" role="status">
             We sent a code to <strong>{phone}</strong>.{' '}
             <button
               type="button"

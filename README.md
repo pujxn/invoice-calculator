@@ -55,21 +55,24 @@ Enter it to sign in. `GET /api/health` shows the active providers.
 ### See the branding
 
 - **Sign-in screen** (http://localhost:5173/login, sign out first if needed) shows the logo, the tagline and the browser tab title and icon. The home page after sign-in shows the logo in the header.
-- **Dark mode:** switch your computer to dark mode (or in Chrome press F12, open the three-dot menu, **More tools**, **Rendering**, and set _Emulate CSS prefers-color-scheme_ to dark). The logo and colours switch by themselves.
+- **Dark mode:** switch your computer to dark mode (or in Chrome press F12, open the three-dot menu, **More tools**, **Rendering**, and set _Emulate CSS prefers-color-scheme_ to dark). The logo and colours switch by themselves (pink on blush white by day, soft pink on deep plum at night).
 - **Phone size:** in Chrome press F12, then Ctrl+Shift+M (Cmd+Shift+M on Mac), and pick a phone such as iPhone SE or iPhone 14.
+- **Green and yellow:** after you click **Send code**, the "We sent a code" notice is green. Once signed in, a thin yellow line runs under the header.
 - Logo files are in `client/public/brand/`; a preview sheet is in [docs/brand/logo-preview.png](docs/brand/logo-preview.png).
+- **Changing the colours:** edit the tokens at the top of `client/src/styles.css` and the palette at the top of `scripts/build-brand.mjs`, then run `npm run brand` to rebuild the logos, icons and splash images.
 
 ## Scripts
 
-| Command            | What it does                                           |
-| ------------------ | ------------------------------------------------------ |
-| `npm run dev`      | Start API and web app together with reload             |
-| `npm run build`    | Production build of the web app (`client/dist`)        |
-| `npm start`        | Start the API only                                     |
-| `npm test`         | Server tests (Node) and React component tests (Vitest) |
-| `npm run test:e2e` | Browser UI and accessibility tests (Playwright)        |
-| `npm run lint`     | ESLint across the repo                                 |
-| `npm run format`   | Format with Prettier (`format:check` to verify)        |
+| Command            | What it does                                            |
+| ------------------ | ------------------------------------------------------- |
+| `npm run dev`      | Start API and web app together with reload              |
+| `npm run build`    | Production build of the web app (`client/dist`)         |
+| `npm start`        | Start the API only                                      |
+| `npm test`         | Server tests (Node) and React component tests (Vitest)  |
+| `npm run test:e2e` | Browser UI and accessibility tests (Playwright)         |
+| `npm run brand`    | Rebuild logos, icons and splash images from the palette |
+| `npm run lint`     | ESLint across the repo                                  |
+| `npm run format`   | Format with Prettier (`format:check` to verify)         |
 
 UI tests need a browser once: `npx playwright install chromium`. They start the web app themselves and mock the API, so nothing else has to be running. Screenshots of the branded screens are attached to each run; set `SCREENSHOT_DIR=docs/screenshots` to save them as files.
 

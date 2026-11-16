@@ -1,5 +1,6 @@
 /* Ledgerly design tokens. Colours meet WCAG AA: text on --bg is at least
-   4.5:1, and button text on --primary is at least 4.5:1. */
+   4.5:1, and button text on --primary is at least 4.5:1. Change colours here
+   (and in scripts/build-brand.mjs for the logo), not in components. */
 :root {
   --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -11,17 +12,19 @@
 
   --radius: 8px;
 
-  --primary: #0b6b5d; /* ledger green */
-  --primary-hover: #095549;
+  /* Palette: pink (brand), green (credit, success), yellow (highlight), white. */
+  --primary: #c2185b; /* ledger pink */
+  --primary-hover: #a8124c;
   --on-primary: #ffffff;
-  --accent: #f5b544; /* credit amber, decoration only */
-  --bg: #f6f9f8;
+  --accent: #ffc83d; /* credit yellow, decoration only */
+  --bg: #fff7fa; /* blush white */
   --surface: #ffffff;
-  --text: #0e2b27;
-  --text-muted: #46605c;
-  --border: #657f7b;
-  --focus: #0b6b5d;
-  --good-bg: #dff3e8;
+  --text: #2b1020;
+  --text-muted: #7a4a60;
+  --border: #9b7587;
+  --focus: #c2185b;
+  --good-bg: #e1f5e8;
+  --good-text: #145c33; /* credit green */
   --bad-bg: #fde4e4;
   --bad-text: #8a1c1c;
 
@@ -33,17 +36,18 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --primary: #4fd1b5;
-    --primary-hover: #7be0ca;
-    --on-primary: #06231f;
-    --accent: #f5b544;
-    --bg: #0f1b1a;
-    --surface: #162726;
-    --text: #e8f3f1;
-    --text-muted: #a8c2be;
-    --border: #5b7773;
-    --focus: #7be0ca;
-    --good-bg: #123d2e;
+    --primary: #ff8fb8;
+    --primary-hover: #ffb3d0;
+    --on-primary: #3a0a1f;
+    --accent: #ffd25e;
+    --bg: #1c0f16;
+    --surface: #2a1822;
+    --text: #fbeaf1;
+    --text-muted: #d4a5ba;
+    --border: #8a6677;
+    --focus: #ff8fb8;
+    --good-bg: #12361f;
+    --good-text: #9be8b4;
     --bad-bg: #4a1f1f;
     --bad-text: #ffc9c9;
   }
@@ -104,6 +108,11 @@ h1 {
 
 .status.good {
   background: var(--good-bg);
+  color: var(--good-text);
+}
+
+.status.good button.link {
+  color: inherit;
 }
 
 .status.bad {
@@ -200,8 +209,13 @@ button.link {
   gap: 1rem;
   max-width: 32rem;
   margin: 0 auto;
-  padding: max(0.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0
+  padding: max(0.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0.75rem
     max(1rem, env(safe-area-inset-left));
+}
+
+/* Thin yellow rule under the header, the one place the accent colour shows. */
+.topbar-wrap {
+  border-bottom: 3px solid var(--accent);
 }
 
 .topbar button {
