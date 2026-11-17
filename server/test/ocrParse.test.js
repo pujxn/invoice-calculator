@@ -110,6 +110,11 @@ test('a clean invoice: the printed totals are read and the table lines are ignor
   const out = decide([invoice(), invoice()]);
   assert.deepEqual([out.debit, out.credit, out.confidence], ['125050.00', '40000.00', 'medium']);
   assert.equal('line_items' in out, false);
+  assert.doesNotMatch(
+    out.notes,
+    /left empty|could not be read/,
+    'amounts that were read are not reported as empty',
+  );
 });
 
 test('a total that does not match the table below it is still the printed total', () => {

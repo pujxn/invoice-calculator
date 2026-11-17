@@ -37,6 +37,7 @@ test('demo invoice 1 (net debit): both amounts, at medium confidence with a chec
   assert.deepEqual(r.warnings, []);
   assert.equal(r.currency, 'INR');
   assert.match(r.notes, ASK);
+  assert.doesNotMatch(r.notes, /left empty|could not be read/);
 });
 
 test('demo invoice 2 (net credit, lakh grouping 1,12,575.00)', async () => {

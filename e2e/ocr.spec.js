@@ -72,6 +72,7 @@ test('read a clean invoice with Local OCR: both amounts', async ({ page }) => {
   await expect(page.getByText(/local OCR \(free, no AI\)/)).toBeVisible();
   await expect(page.getByText(/Confidence:/)).toContainText('Medium');
   await expect(page.getByText(/check each amount against your picture/)).toBeVisible();
+  await expect(page.getByText(/left empty|could not be read/)).toHaveCount(0);
   await expect(page.getByRole('table')).toHaveCount(0);
   await expectNoSideScroll(page);
   await shot(page, 'method-03-result-local-ocr');

@@ -71,6 +71,8 @@ export function decide(wordLists) {
     out[field] = d;
     const name = NAME[field];
     switch (d.kind) {
+      case 'agreed':
+        break; // nothing to add: the base note already says to check
       case 'unclear':
         notes.push(`The ${name} amount ${d.text} could be read two ways.`);
         break;
