@@ -2,8 +2,7 @@ import { analysePass, judgeField } from './ocrParse.js';
 
 // OCR is run several times over the same picture with different clean-up (see ocr.js). This file
 // compares those readings and decides what, if anything, is safe to show in the Debit and Credit
-// boxes. A box is only filled when at least two separate readings agree on the amount and it does
-// not look like a rupee sign was read as a digit. Anything else is left empty with a reason,
+// boxes. A box is only filled when at least two separate readings agree on the amount. Anything else is left empty with a reason,
 // never guessed.
 
 const FIELDS = ['debit', 'credit'];
@@ -14,29 +13,15 @@ function decideField(field, passes) {
   const seen = judged.some(({ j }) => j.status !== 'absent');
   if (!seen) return { kind: 'absent' };
 
-  // Trust only what several readings agree on. The rupee sign is the
-  // usual culprit when they differ ("12,500.50" read as "712,500.50"), so when one reading is
-  // the other with a digit in front, the two count as one vote for the shorter number.
+  // Trust only what several readings agree on.
   const unchecked = judged.filter(({ j }) => j.status === 'unchecked');
   const votes = new Map();
   for (const { j } of unchecked) votes.set(j.value, (votes.get(j.value) ?? 0) + 1);
-  let suspect = false;
-  for (const [longer, count] of [...votes]) {
-    const shorter = longer.slice(1);
-    if (votes.has(shorter) && votes.get(shorter) >= count) {
-      votes.set(shorter, votes.get(shorter) + count); // not outvoted: the shorter number wins
-      votes.delete(longer);
-      suspect = true;
-    }
-  }
   const ranked = [...votes].sort((a, b) => b[1] - a[1]);
   if (ranked.length > 0 && ranked[0][1] >= 2 && (!ranked[1] || ranked[1][1] < ranked[0][1])) {
-    return { kind: 'agreed', value: ranked[0][0], suspect };
+    return { kind: 'agreed', value: ranked[0][0] };
   }
   if (ranked.length > 1 && ranked[0][1] >= 2) return { kind: 'conflict' };
-
-  const looksWrong = judged.find(({ j }) => j.status === 'suspect');
-  if (looksWrong) return { kind: 'suspect', text: looksWrong.j.text };
 
   const unclear = judged.find(({ j }) => j.status === 'unclear');
   if (unclear) return { kind: 'unclear', text: unclear.j.text };
@@ -86,18 +71,6 @@ export function decide(wordLists) {
     out[field] = d;
     const name = NAME[field];
     switch (d.kind) {
-      case 'agreed':
-        if (d.suspect) {
-          notes.push(
-            `The ${name} readings differed by a leading digit (a ₹ sign can look like one), so check its first digit especially.`,
-          );
-        }
-        break;
-      case 'suspect':
-        notes.push(
-          `The ${name} amount ${d.text} looks like it has an extra leading digit (a ₹ sign read as a digit), so it was left empty. Please type it.`,
-        );
-        break;
       case 'unclear':
         notes.push(`The ${name} amount ${d.text} could be read two ways.`);
         break;
@@ -122,7 +95,7 @@ export function decide(wordLists) {
   const confidence = trusted.length > 0 ? 'medium' : 'low';
 
   const base =
-    'Read with free OCR on the server (no AI). OCR can misread digits (the ₹ sign is often read as an extra digit in front), so check each amount against your picture.';
+    'Read with free OCR on the server (no AI). OCR can misread digits, so check each amount against your picture.';
   return {
     readable: true,
     debit,

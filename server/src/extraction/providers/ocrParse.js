@@ -3,10 +3,9 @@ import { parseAmount } from '../money.js';
 // Turns the words an OCR engine found (text plus a box for each) into what Ledgerly needs:
 // the printed Debit and Credit amounts. Nothing else is read from the picture.
 //
-// OCR is not reliable with digits, so this file is deliberately suspicious:
-//  - the rupee sign is often read as a digit ("₹64,000.00" -> "364,000.00"), so an amount that
-//    breaks the page's digit grouping is flagged as suspect instead of being used;
-//  - an ambiguous number is never guessed (parseAmount refuses "1,234" and similar).
+// OCR is not reliable with digits, so this file is deliberately suspicious: an ambiguous number
+// is never guessed (parseAmount refuses "1,234" and similar). Invoices are plain numbers with no
+// currency sign; a stray sign in front is still ignored.
 // Everything here is pure (no OCR, no I/O), so it is tested with recorded OCR output.
 
 // ---------------------------------------------------------------- words, rows and labels
@@ -132,15 +131,7 @@ export function amountFrom(text) {
   t = [...t].map((c) => DIGIT_LOOKALIKE[c] ?? c).join('');
   if (!/^\d[\d.,]*\d$|^\d$/.test(t)) return null;
   const spaced = repairSeparators(t);
-  return { text: groupingToPlain(spaced), symbol, grouping: groupingOf(spaced) };
-}
-
-// How the commas were placed: lakh ("2,48,025.00"), western with three-digit groups only
-// ("291,500.00"), or none. Used to spot a total that breaks the style of the rest of the page.
-function groupingOf(t) {
-  if (/^\d{1,2}(?:,\d{2})+,\d{3}(?:\.\d+)?$/.test(t)) return 'lakh';
-  if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(t)) return 'western';
-  return 'none';
+  return { text: groupingToPlain(spaced), symbol };
 }
 
 // Ledgerly is rupees only, and in India a comma only ever groups digits: "45,000" is forty-five
@@ -171,7 +162,6 @@ const candidateFrom = (found, word, row) => {
     reason: parsed.ok ? null : parsed.reason,
     message: parsed.ok ? null : parsed.message,
     symbol: found.symbol,
-    grouping: found.grouping,
     conf: word.conf,
     cy: row.cy,
   };
@@ -219,12 +209,7 @@ function findLabels(rows) {
 export function analysePass(rawWords) {
   const rows = toRows(toWords(rawWords));
   const { seen, totals } = findLabels(rows);
-  // Does this page write its amounts the Indian way (12,34,567)? Then an amount with the same
-  // size written the western way (291,500.00) is suspect: see judgeField.
-  const lakhStyle = rows.some((row) =>
-    row.words.some((w) => !labelOf(w.text) && amountFrom(w.text)?.grouping === 'lakh'),
-  );
-  return { labels: seen, totals, lakhStyle };
+  return { labels: seen, totals };
 }
 
 // ---------------------------------------------------------------- deciding what was printed
@@ -234,7 +219,6 @@ export function analysePass(rawWords) {
 //  { status: 'empty' }                          the label was seen, no readable amount beside it
 //  { status: 'unchecked', value, conf, symbol } an amount was read (it counts once two readings agree)
 //  { status: 'unclear', message, text }         a number we cannot read one way ("1,234")
-//  { status: 'suspect', text }                  it breaks the page's digit grouping, so it may have a stray digit
 //  { status: 'conflict' }                       two different amounts beside the same label
 export function judgeField(pass, field) {
   if (!pass.labels[field]) return { status: 'absent' };
@@ -248,11 +232,5 @@ export function judgeField(pass, field) {
   const values = [...new Set(readable.map((c) => c.value))];
   if (values.length > 1) return { status: 'conflict' };
   const best = readable[0];
-  // A page that groups digits the Indian way, but an amount of a lakh or more grouped the western
-  // way: "291,500.00" where "2,91,500.00" was expected. The classic sign of a ₹ read as a digit.
-  const wholeDigits = best.value.split('.')[0].length;
-  if (pass.lakhStyle && best.grouping === 'western' && wholeDigits >= 6) {
-    return { status: 'suspect', text: best.text };
-  }
   return { status: 'unchecked', value: best.value, conf: best.conf, symbol: best.symbol };
 }

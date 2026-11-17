@@ -50,7 +50,7 @@ test('with no AI key, Local OCR is chosen and AI is greyed out with the reason',
   expect(axe.violations).toEqual([]);
 });
 
-test('read a clean invoice with Local OCR: the Debit amount', async ({ page }) => {
+test('read a clean invoice with Local OCR: both amounts', async ({ page }) => {
   await signIn(page);
   await upload(page, demo('demo-1-net-debit.png'));
   await expect(page.getByText('Picture uploaded.')).toBeVisible();
@@ -63,10 +63,11 @@ test('read a clean invoice with Local OCR: the Debit amount', async ({ page }) =
   const reading = await (await response).json();
   expect(reading.provider).toBe('ocr');
 
-  // OCR cannot prove an amount without lines to add up, so it never says High and it asks the
-  // user to check. Any amount it does fill in must be right (the rupee sign can read as a digit).
-  expect(reading.debit).toBe('125050.00');
+  // Plain numbers, no currency sign. OCR cannot prove an amount, so it says Medium and asks the
+  // user to check.
+  expect([reading.debit, reading.credit]).toEqual(['125050.00', '40000.00']);
   await expect(debit(page)).toHaveValue('125050.00');
+  await expect(credit(page)).toHaveValue('40000.00');
   await expect(page.getByTestId('read-with')).toHaveText('Local OCR');
   await expect(page.getByText(/local OCR \(free, no AI\)/)).toBeVisible();
   await expect(page.getByText(/Confidence:/)).toContainText('Medium');

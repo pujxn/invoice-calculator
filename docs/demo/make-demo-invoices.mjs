@@ -54,8 +54,8 @@ function page(inv) {
     <div class="top"><div><h1>INVOICE</h1><div class="muted">No. ${inv.no} &middot; ${inv.date}</div></div>
     <div class="muted right">Billed to<br><b>${inv.client}</b></div></div>
     <div class="totals">
-      <div class="t"><b>Debit:</b><b>₹${fmt(inv.debit)}</b></div>
-      <div class="t"><b>Credit:</b><b>₹${fmt(inv.credit)}</b></div>
+      <div class="t"><b>Debit:</b><b>${fmt(inv.debit)}</b></div>
+      <div class="t"><b>Credit:</b><b>${fmt(inv.credit)}</b></div>
     </div>
   </div>`;
   const css = `

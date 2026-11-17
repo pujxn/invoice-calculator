@@ -25,7 +25,7 @@ The sign-in code is never sent as a real text: it appears in the terminal (**Liv
 
 **Demo values (mock) mode** is the old placeholder mode: `VISION_PROVIDER=mock` in `server/.env`. Pictures are not read at all, the boxes show made-up numbers, and the switch is hidden. The screen says "Demo values, not read from your picture." Only use it if OCR misbehaves on the day; say so plainly and type the real figures in step 5.
 
-**Be honest about OCR.** It does not understand the invoice; it reads the letters and numbers next to **Debit** and **Credit**, and nothing else (Ledgerly has no line items). It cannot prove an amount, so it only ever says **Medium** and tells you to check each amount against the picture. It fills a box only when two readings agree, and otherwise leaves it empty with **Please check**. Its known weakness is the ₹ sign, which it sometimes reads as a digit in front (₹64,000.00 can come back as 264,000.00), so always compare with the picture. If a reading is wrong, that is the moment to show the **AI (Claude)** choice, or to correct the box by hand (step 5).
+**Be honest about OCR.** It does not understand the invoice; it reads the letters and numbers next to **Debit** and **Credit**, and nothing else (Ledgerly has no line items and invoices carry plain numbers, no currency sign). It cannot prove an amount, so it only ever says **Medium** and tells you to check each amount against the picture. It fills a box only when two readings agree, and otherwise leaves it empty with **Please check**. If a reading is wrong on the day, correct the box by hand (step 5) or flip to the **AI (Claude)** choice.
 
 ## Sample invoices (in `docs/demo/`)
 
@@ -38,20 +38,18 @@ Made-up inputs, not screenshots. Regenerate with `node docs/demo/make-demo-invoi
 | `demo-3-balanced.png`      | ₹64,000.00    | ₹64,000.00     | **Balanced ₹0.00**         | `64000` / `64000`        |
 | `demo-4-tricky-blurry.jpg` | ₹2,48,025.00  | ₹91,500.00     | **Net Debit ₹1,56,525.00** | `248025` / `91500`       |
 
-Ledgerly works in Indian rupees only, so every result shows the ₹ sign with lakh grouping (`₹85,050.00`), in both modes and when you use **Type the amounts instead**. The sample invoices are in rupees too.
+Ledgerly works in Indian rupees only, so every result shows the ₹ sign with lakh grouping (`₹85,050.00`), in both modes and when you use **Type the amounts instead**. The sample invoices are plain numbers (no currency sign), in rupees.
 
-**What has and has not been checked.** Local OCR was run for real on the four pictures, offline, while writing this (table below). The AI choice (real Claude) was not run, because no API key was available: do one rehearsal with your key first. **Rehearse OCR with all four pictures before the demo**: results vary by picture, and OCR can leave a box empty or misread the ₹ sign.
+**What has and has not been checked.** Local OCR was run for real, offline, on the four pictures and on degraded copies of them (blurred, heavily compressed, half size, tilted 4 and 6 degrees, dark and low contrast, turned 90 and 180 degrees): all 31 readings gave exactly the right Debit and Credit, with Medium confidence. Only the deliberately noisy copy of each picture was unreadable, and OCR said so instead of guessing. The AI choice (real Claude) was not run, because no API key was available: do one rehearsal with your key first.
 
-| File                       | Local OCR reads (Debit / Credit)                                          | Confidence |
-| -------------------------- | ------------------------------------------------------------------------- | ---------- |
-| `demo-1-net-debit.png`     | 125050.00 / empty (Please check)                                          | Medium     |
-| `demo-2-net-credit.png`    | empty (Please check) / 112575.00                                          | Medium     |
-| `demo-3-balanced.png`      | 264000.00 / 264000.00 (both wrong: the ₹ read as a 2; should be 64000.00) | Medium     |
-| `demo-4-tricky-blurry.jpg` | 248025.00 / 91500.00                                                      | Medium     |
+| File                       | Local OCR reads (Debit / Credit) | Confidence |
+| -------------------------- | -------------------------------- | ---------- |
+| `demo-1-net-debit.png`     | 125050.00 / 40000.00             | Medium     |
+| `demo-2-net-credit.png`    | 30000.00 / 112575.00             | Medium     |
+| `demo-3-balanced.png`      | 64000.00 / 64000.00              | Medium     |
+| `demo-4-tricky-blurry.jpg` | 248025.00 / 91500.00             | Medium     |
 
-An empty box means OCR was not sure and left it for you. A wrong number such as 264000.00 is the ₹ sign misread, which is why the screen says to check each amount. Use these moments to show step 5 (correct a box) rather than hiding them.
-
-These are made-up, computer-drawn invoices with clear printed text, so they are the friendly case. A real photo of a crumpled paper, handwriting, or a table drawn differently may fail or come back at Medium; that is why the screen always asks you to check. The blurry one is a deliberately rough "phone photo" (soft focus, tilted, uneven light); OCR needs about 7 seconds for it because it tries three clean-ups of the picture.
+These are made-up, computer-drawn invoices with clear printed text, so they are the friendly case. A real photo of a crumpled paper, handwriting, or a different layout may fail or come back at Medium; that is why the screen always asks you to check. The blurry one is a deliberately rough "phone photo" (soft focus, tilted, uneven light); OCR needs about 7 seconds for it because it tries three clean-ups of the picture.
 
 ## Before the demo (checklist)
 
@@ -96,7 +94,7 @@ Optional 10 seconds if asked about security: type a wrong code ("Wrong code. 4 t
 ### 4. The amounts are read (about 1.5 minutes). **Live**
 
 1. With **Local OCR** selected, press **Read amounts**. **Expect:** a spinner and "Reading your invoice with local OCR..." then, after a few seconds, **Amounts we found**: "Read from your picture with local OCR (free, no AI)", **Read with: Local OCR**.
-2. **Expect:** Debit `125050.00` filled in, Credit empty with **Please check** (OCR was not sure of it), "Amounts in rupees (₹)", **Confidence: Medium** and a note to check each amount against the picture. **Say:** "It only fills in a number when two readings agree, and it tells you to check. It never claims to be certain, and there are no line items: just the Debit and the Credit." Type `40000` into Credit.
+2. **Expect:** Debit `125050.00` and Credit `40000.00` filled in, "Amounts in rupees (₹)", **Confidence: Medium** and a note to check each amount against the picture. **Say:** "It only fills in a number when two readings agree, and it tells you to check. It never claims to be certain, and there are no line items: just the Debit and the Credit."
 3. **Show the switch (optional, strong in a demo).** Press **Upload a different invoice**, choose `demo-4-tricky-blurry.jpg` and read it with **Local OCR**: it takes about 7 seconds and should give `248025.00` / `91500.00`. Then, if you have a key, upload it again, flip **Read with** to **AI (Claude)** and read: **Read with: AI (Claude)** appears on the result. **Say:** "Same picture, two readers. The result says which one was used." If you have no key, point at the greyed-out **AI (Claude)** and read out why.
 4. **Demo values mode only:** the notice "Demo values, not read from your picture" and unrelated numbers such as `1484.91` and `147.63`. **Say:** "These are placeholders; an agent would check them." Go straight to step 5.
 

@@ -26,32 +26,27 @@ async function read(file) {
   return extractor.extract({ data: await readFile(file), mimeType: mimeOf(file) });
 }
 
-// Only the printed Debit and Credit amounts are read. Without lines to add up, OCR cannot prove an
-// amount: it never reports "high", it always asks the user to check, and the rupee sign is
-// sometimes read as an extra digit in front ("₹64,000.00" as "264,000.00"). So these tests pin
-// down what is dependable (amounts that are read are right, confidence, notes), not that every
-// amount on every picture is found.
+// Only the printed Debit and Credit amounts are read, as plain numbers (no currency sign). OCR
+// cannot prove an amount, so it never reports "high" and always asks the user to check.
 const ASK = /check each amount against your picture/;
 
-test('demo invoice 1 (net debit): an amount that is read is right, at medium confidence', async () => {
+test('demo invoice 1 (net debit): both amounts, at medium confidence with a check note', async () => {
   const r = await read(demo('demo-1-net-debit.png'));
-  assert.equal(r.debit, '125050.00');
-  assert.equal(r.confidence, 'medium');
+  assert.deepEqual([r.debit, r.credit, r.confidence], ['125050.00', '40000.00', 'medium']);
   assert.equal('lineItems' in r, false);
+  assert.deepEqual(r.warnings, []);
   assert.equal(r.currency, 'INR');
   assert.match(r.notes, ASK);
 });
 
 test('demo invoice 2 (net credit, lakh grouping 1,12,575.00)', async () => {
   const r = await read(demo('demo-2-net-credit.png'));
-  assert.equal(r.credit, '112575.00');
-  assert.equal(r.confidence, 'medium');
+  assert.deepEqual([r.debit, r.credit, r.confidence], ['30000.00', '112575.00', 'medium']);
 });
 
-test('demo invoice 3 (balanced): never reported as certain, and the user is told to check', async () => {
+test('demo invoice 3 (balanced): the same amount on both sides', async () => {
   const r = await read(demo('demo-3-balanced.png'));
-  assert.notEqual(r.confidence, 'high');
-  assert.match(r.notes, ASK);
+  assert.deepEqual([r.debit, r.credit, r.confidence], ['64000.00', '64000.00', 'medium']);
 });
 
 test('demo invoice 4 (tilted, blurry photo on a dark desk)', async () => {
@@ -59,7 +54,7 @@ test('demo invoice 4 (tilted, blurry photo on a dark desk)', async () => {
   assert.deepEqual([r.debit, r.credit, r.confidence], ['248025.00', '91500.00', 'medium']);
 });
 
-test('a plain note with no table: read at medium confidence and with a check note', async () => {
+test('a plain note with no table: both amounts, at medium confidence', async () => {
   const r = await read(fixture('plain-text.png'));
   assert.deepEqual([r.debit, r.credit, r.confidence], ['12500.50', '3200.00', 'medium']);
   assert.match(r.notes, ASK);
@@ -70,8 +65,9 @@ test('DEBIT - Rs. 45,000/- and lakh grouping, no decimals', async () => {
   assert.deepEqual([r.debit, r.credit], ['45000.00', '125000.00']);
 });
 
-test('only a Debit column: Credit stays empty and the notes say it was not found', async () => {
+test('only a Debit amount: Credit stays empty and the notes say it was not found', async () => {
   const r = await read(fixture('debit-only.png'));
+  assert.equal(r.debit, '1650.50');
   assert.equal(r.credit, null);
   assert.equal(r.confidence, 'medium');
   assert.match(r.notes, /No Credit label/);
@@ -89,11 +85,46 @@ test('a picture turned upside down or on its side is turned back before reading'
   for (const turn of [180, 90, 270]) {
     const data = await sharp(upright).rotate(turn).png().toBuffer();
     const r = await extractor.extract({ data, mimeType: 'image/png' });
-    assert.equal(r.debit, '30000.00', `${turn}`);
-    // A lakh amount whose commas OCR dropped looks like a ₹ sign read as a digit, and with no
-    // lines to prove it the box is left empty rather than guessed. Never a wrong number.
-    assert.ok(['112575.00', null].includes(r.credit), `${turn}: credit was ${r.credit}`);
+    assert.deepEqual([r.debit, r.credit], ['30000.00', '112575.00'], `${turn}`);
     assert.equal(r.confidence, 'medium');
+  }
+});
+
+test('a degraded photo is still read: blurred, heavily compressed, small, tilted, dark', async () => {
+  const raw = await readFile(demo('demo-1-net-debit.png'));
+  const meta = await sharp(raw).metadata();
+  const variants = {
+    blurred: sharp(raw).blur(1.6),
+    'jpeg quality 25': sharp(raw).jpeg({ quality: 25 }),
+    'half size': sharp(raw).resize({ width: Math.round(meta.width / 2) }),
+    'tilted 6 degrees': sharp(raw).rotate(-6, { background: '#fff' }),
+    'dark, low contrast': sharp(raw).linear(0.45, 25),
+  };
+  for (const [name, image] of Object.entries(variants)) {
+    const data = await image.png().toBuffer();
+    const r = await extractor.extract({ data, mimeType: 'image/png' });
+    assert.deepEqual([r.debit, r.credit], ['125050.00', '40000.00'], name);
+  }
+});
+
+test('so much noise that nothing can be read is "not an invoice", never a wrong number', async () => {
+  const raw = await readFile(demo('demo-1-net-debit.png'));
+  const { width, height } = await sharp(raw).metadata();
+  const noise = await sharp({
+    create: { width, height, channels: 3, noise: { type: 'gaussian', mean: 128, sigma: 45 } },
+  })
+    .png()
+    .toBuffer();
+  const data = await sharp(raw)
+    .composite([{ input: noise, blend: 'multiply' }])
+    .png()
+    .toBuffer();
+  try {
+    const r = await extractor.extract({ data, mimeType: 'image/png' });
+    if (r.debit !== null) assert.equal(r.debit, '125050.00');
+    if (r.credit !== null) assert.equal(r.credit, '40000.00');
+  } catch (err) {
+    assert.ok(err instanceof ExtractionError && err.code === 'unreadable_invoice', String(err));
   }
 });
 
