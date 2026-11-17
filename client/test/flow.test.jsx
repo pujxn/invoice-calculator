@@ -29,8 +29,6 @@ const reading = {
   confidence: 'high',
   notes: '',
   warnings: [],
-  lineItems: [],
-  itemTotals: null,
 };
 
 let router; // lets a test press the browser's Back and Forward buttons

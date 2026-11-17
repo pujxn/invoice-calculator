@@ -4,8 +4,7 @@
 // ("1250.50", "12.345"); nothing here ever turns money into a JavaScript number.
 //
 // Limits (stated on screen, in the API and in SPEC.md): at most 15 digits before the decimal
-// point, at most 12 decimal places, and at most 100 characters of input. Totals of several lines
-// may go beyond the one-amount limit and keep every digit.
+// point, at most 12 decimal places, and at most 100 characters of input.
 
 export const MAX_WHOLE_DIGITS = 15;
 export const MAX_DECIMALS = 12;

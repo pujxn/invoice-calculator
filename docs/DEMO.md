@@ -25,7 +25,7 @@ The sign-in code is never sent as a real text: it appears in the terminal (**Liv
 
 **Demo values (mock) mode** is the old placeholder mode: `VISION_PROVIDER=mock` in `server/.env`. Pictures are not read at all, the boxes show made-up numbers, and the switch is hidden. The screen says "Demo values, not read from your picture." Only use it if OCR misbehaves on the day; say so plainly and type the real figures in step 5.
 
-**Be honest about OCR.** It does not understand the invoice; it reads the letters and numbers, then checks them. It is sure only when the Debit and Credit totals equal the sum of their lines (**High** confidence). When there are no lines to check against it says **Medium** and tells you to check the first digit. When the total does not match its lines, or the picture is too poor, it leaves the box empty with **Please check**. It never guesses.
+**Be honest about OCR.** It does not understand the invoice; it reads the letters and numbers next to **Debit** and **Credit**, and nothing else (Ledgerly has no line items). It cannot prove an amount, so it only ever says **Medium** and tells you to check each amount against the picture. It fills a box only when two readings agree, and otherwise leaves it empty with **Please check**. Its known weakness is the ₹ sign, which it sometimes reads as a digit in front (₹64,000.00 can come back as 264,000.00), so always compare with the picture. If a reading is wrong, that is the moment to show the **AI (Claude)** choice, or to correct the box by hand (step 5).
 
 ## Sample invoices (in `docs/demo/`)
 
@@ -40,14 +40,16 @@ Made-up inputs, not screenshots. Regenerate with `node docs/demo/make-demo-invoi
 
 Ledgerly works in Indian rupees only, so every result shows the ₹ sign with lakh grouping (`₹85,050.00`), in both modes and when you use **Type the amounts instead**. The sample invoices are in rupees too.
 
-**What has and has not been checked.** Local OCR was run for real on all four pictures (see the table below), offline, on `main` while writing this. The AI choice (real Claude) was not run, because no API key was available: do one rehearsal with your key first.
+**What has and has not been checked.** Local OCR was run for real on the four pictures, offline, while writing this (table below). The AI choice (real Claude) was not run, because no API key was available: do one rehearsal with your key first. **Rehearse OCR with all four pictures before the demo**: results vary by picture, and OCR can leave a box empty or misread the ₹ sign.
 
-| File                       | Local OCR reads (Debit / Credit) | Confidence | Right? |
-| -------------------------- | -------------------------------- | ---------- | ------ |
-| `demo-1-net-debit.png`     | 125050.00 / 40000.00             | High       | Yes    |
-| `demo-2-net-credit.png`    | 30000.00 / 112575.00             | High       | Yes    |
-| `demo-3-balanced.png`      | 64000.00 / 64000.00              | High       | Yes    |
-| `demo-4-tricky-blurry.jpg` | 248025.00 / 91500.00             | High       | Yes    |
+| File                       | Local OCR reads (Debit / Credit)                                          | Confidence |
+| -------------------------- | ------------------------------------------------------------------------- | ---------- |
+| `demo-1-net-debit.png`     | 125050.00 / empty (Please check)                                          | Medium     |
+| `demo-2-net-credit.png`    | empty (Please check) / 112575.00                                          | Medium     |
+| `demo-3-balanced.png`      | 264000.00 / 264000.00 (both wrong: the ₹ read as a 2; should be 64000.00) | Medium     |
+| `demo-4-tricky-blurry.jpg` | 248025.00 / 91500.00                                                      | Medium     |
+
+An empty box means OCR was not sure and left it for you. A wrong number such as 264000.00 is the ₹ sign misread, which is why the screen says to check each amount. Use these moments to show step 5 (correct a box) rather than hiding them.
 
 These are made-up, computer-drawn invoices with clear printed text, so they are the friendly case. A real photo of a crumpled paper, handwriting, or a table drawn differently may fail or come back at Medium; that is why the screen always asks you to check. The blurry one is a deliberately rough "phone photo" (soft focus, tilted, uneven light); OCR needs about 7 seconds for it because it tries three clean-ups of the picture.
 
@@ -74,7 +76,7 @@ Do this 10 minutes ahead, on the computer you will present from.
 
 **Say:** "Agents get invoices as photos or PDFs. For each one they read the Debit and the Credit by eye, subtract by hand, and write down whether it is a net debit or credit. It is slow, and one slipped digit means a wrong balance. Ledgerly takes the photo and does that for them."
 
-Show the sample picture `demo-1-net-debit.png` on screen so people see what an agent sees: a table with a Debit column and a Credit column, and the Debit and Credit totals at the bottom.
+Show the sample picture `demo-1-net-debit.png` on screen so people see what an agent sees: the Debit amount and the Credit amount printed on it. Those are the only two figures Ledgerly reads.
 
 ### 2. Sign in with a text-message code (about 1 minute). **Live**
 
@@ -94,8 +96,8 @@ Optional 10 seconds if asked about security: type a wrong code ("Wrong code. 4 t
 ### 4. The amounts are read (about 1.5 minutes). **Live**
 
 1. With **Local OCR** selected, press **Read amounts**. **Expect:** a spinner and "Reading your invoice with local OCR..." then, after a few seconds, **Amounts we found**: "Read from your picture with local OCR (free, no AI)", **Read with: Local OCR**.
-2. **Expect:** Debit `125050.00`, Credit `40000.00`, "Amounts in rupees (₹)", **Confidence: High**, and a **Lines found on the invoice** table showing Kitchen rewiring 90050.00, Materials 35000.00 and Deposit received 40000.00, with "Lines add up to" 125050.00 and 40000.00. **Say:** "It read the totals and every line, and it only says High because the lines add up to the totals. If they did not, it would leave the box empty."
-3. **Show the switch (optional, strong in a demo).** Press **Upload a different invoice**, choose `demo-4-tricky-blurry.jpg` and read it with **Local OCR**: it takes about 7 seconds and should still give `248025.00` / `91500.00`. Then, if you have a key, upload it again, flip **Read with** to **AI (Claude)** and read: **Read with: AI (Claude)** appears on the result. **Say:** "Same picture, two readers. The result says which one was used." If you have no key, point at the greyed-out **AI (Claude)** and read out why.
+2. **Expect:** Debit `125050.00` filled in, Credit empty with **Please check** (OCR was not sure of it), "Amounts in rupees (₹)", **Confidence: Medium** and a note to check each amount against the picture. **Say:** "It only fills in a number when two readings agree, and it tells you to check. It never claims to be certain, and there are no line items: just the Debit and the Credit." Type `40000` into Credit.
+3. **Show the switch (optional, strong in a demo).** Press **Upload a different invoice**, choose `demo-4-tricky-blurry.jpg` and read it with **Local OCR**: it takes about 7 seconds and should give `248025.00` / `91500.00`. Then, if you have a key, upload it again, flip **Read with** to **AI (Claude)** and read: **Read with: AI (Claude)** appears on the result. **Say:** "Same picture, two readers. The result says which one was used." If you have no key, point at the greyed-out **AI (Claude)** and read out why.
 4. **Demo values mode only:** the notice "Demo values, not read from your picture" and unrelated numbers such as `1484.91` and `147.63`. **Say:** "These are placeholders; an agent would check them." Go straight to step 5.
 
 ### 5. Check and correct (about 1 minute). **Live**
@@ -126,7 +128,6 @@ Optional, if time: press **Start a new invoice** and run `demo-2-net-credit.png`
 
 **Say:** "What you have seen is the core loop. Next:"
 
-- **Line-item totals.** Real invoices can have long lists. The maths already adds up lists of signed lines; the screen to review and total long lists is next.
 - **Agents and a superadmin.** Agent accounts, a superadmin who sees across agents, and roles. (Not designed in detail yet; this is the next phase.)
 - **Saving and history.** Today nothing is kept after you finish: pictures are deleted after reading and the result is not stored. A history per agent comes with the accounts work.
 - **iOS and Android apps.** The web app is built mobile-first and is meant to be wrapped as a store app. It is not wrapped yet.
@@ -136,20 +137,20 @@ Then stop and take questions.
 
 ## If something goes wrong
 
-| Problem                                                                  | What to do                                                                                                                                                                                                                         |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Local OCR leaves a box empty and shows **Please check**                  | Working as designed: it could not prove the number (for example the total does not match its lines). Type the figure yourself, or press **Upload a different invoice** and try again with a clearer photo. Good point about trust. |
-| Local OCR says "We could not find an invoice in this picture"            | It found no Debit or Credit label. Try a straighter, brighter photo, or press **Type the amounts instead**.                                                                                                                        |
-| The first Local OCR reading is slow                                      | The engine starts on first use (a few seconds). Warm it up before the demo (see the checklist). If it says it took too long, press **Read amounts** again.                                                                         |
-| **AI (Claude)** is greyed out                                            | No API key on the server. Use Local OCR, or add the key to `server/.env`, restart `npm run dev` and sign in again.                                                                                                                 |
-| AI is slow or says "Reading the invoice took too long"                   | The picture is kept. Press **Read amounts** once more, or flip **Read with** to **Local OCR** and read it again (no internet needed). Last resort: **Type the amounts instead**.                                                   |
-| "Could not reach the AI service" or "AI reading is not set up correctly" | No internet or a bad key. Flip **Read with** to **Local OCR** and press **Read amounts** again.                                                                                                                                    |
-| The AI returned an empty box and **Please check**                        | Working as designed: it will not guess an unclear amount. Type the figure yourself and continue.                                                                                                                                   |
-| "The AI service is busy"                                                 | Wait the stated time, or flip to **Local OCR**.                                                                                                                                                                                    |
-| Code is not in the terminal                                              | Scroll the terminal or check you are looking at the window running `npm run dev`. Press **Resend code** after 30 seconds (the new code is a new line).                                                                             |
-| Back on the Sign in page unexpectedly                                    | The server restarted. Sign in again.                                                                                                                                                                                               |
-| Phone cannot open the page                                               | Wi-Fi mismatch or firewall. Fall back to Chrome device mode on the computer, which looks the same.                                                                                                                                 |
-| Everything is broken                                                     | Say "let me show you the screens", and open the sample picture `demo-1-net-debit.png` plus your screenshots if you have them. Nothing in the story needs the internet apart from the AI choice.                                    |
+| Problem                                                                  | What to do                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Local OCR leaves a box empty and shows **Please check**                  | Working as designed: two readings did not agree on the number, so it was left empty. Type the figure yourself, or press **Upload a different invoice** and try again with a clearer photo. Good point about trust. |
+| Local OCR says "We could not find an invoice in this picture"            | It found no Debit or Credit label. Try a straighter, brighter photo, or press **Type the amounts instead**.                                                                                                        |
+| The first Local OCR reading is slow                                      | The engine starts on first use (a few seconds). Warm it up before the demo (see the checklist). If it says it took too long, press **Read amounts** again.                                                         |
+| **AI (Claude)** is greyed out                                            | No API key on the server. Use Local OCR, or add the key to `server/.env`, restart `npm run dev` and sign in again.                                                                                                 |
+| AI is slow or says "Reading the invoice took too long"                   | The picture is kept. Press **Read amounts** once more, or flip **Read with** to **Local OCR** and read it again (no internet needed). Last resort: **Type the amounts instead**.                                   |
+| "Could not reach the AI service" or "AI reading is not set up correctly" | No internet or a bad key. Flip **Read with** to **Local OCR** and press **Read amounts** again.                                                                                                                    |
+| The AI returned an empty box and **Please check**                        | Working as designed: it will not guess an unclear amount. Type the figure yourself and continue.                                                                                                                   |
+| "The AI service is busy"                                                 | Wait the stated time, or flip to **Local OCR**.                                                                                                                                                                    |
+| Code is not in the terminal                                              | Scroll the terminal or check you are looking at the window running `npm run dev`. Press **Resend code** after 30 seconds (the new code is a new line).                                                             |
+| Back on the Sign in page unexpectedly                                    | The server restarted. Sign in again.                                                                                                                                                                               |
+| Phone cannot open the page                                               | Wi-Fi mismatch or firewall. Fall back to Chrome device mode on the computer, which looks the same.                                                                                                                 |
+| Everything is broken                                                     | Say "let me show you the screens", and open the sample picture `demo-1-net-debit.png` plus your screenshots if you have them. Nothing in the story needs the internet apart from the AI choice.                    |
 
 ## Reset between runs
 

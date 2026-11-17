@@ -10,7 +10,7 @@ import { decide, evidence, isSettled } from './ocrDecide.js';
 // reading needs no download either.
 //
 // The picture is cleaned up in up to three different ways and read once for each. The readings
-// are compared (see ocrDecide.js); a number is only reported when it is proven or confirmed.
+// are compared (see ocrDecide.js); a number is only reported when separate readings agree on it.
 
 const PASSES = [
   {
@@ -235,7 +235,7 @@ export function createOcrProvider({ timeoutMs, engine, passes = PASSES } = {}) {
       await engine.run(
         async (worker) => {
           // Reads one orientation of the picture with the given passes, stopping early once
-          // both totals are proved.
+          // two readings agree on both amounts.
           const read = async (jpeg, which) => {
             const skew = await estimateSkew(jpeg).catch(() => 0);
             const done = [];

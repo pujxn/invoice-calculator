@@ -1,13 +1,11 @@
-import { parseAmount, sameAmount, sumAmounts } from '../money.js';
+import { parseAmount } from '../money.js';
 
 // Turns the words an OCR engine found (text plus a box for each) into what Ledgerly needs:
-// the printed Debit and Credit totals, and the lines of the Debit and Credit columns.
+// the printed Debit and Credit amounts. Nothing else is read from the picture.
 //
 // OCR is not reliable with digits, so this file is deliberately suspicious:
-//  - a total is only "verified" when it equals the sum of the lines in its column;
-//  - the rupee sign is often read as a digit ("₹64,000.00" -> "364,000.00"), so a total that
-//    does not match its lines is retried without its first character, and a total with no lines
-//    to check against is never reported as verified;
+//  - the rupee sign is often read as a digit ("₹64,000.00" -> "364,000.00"), so an amount that
+//    breaks the page's digit grouping is flagged as suspect instead of being used;
 //  - an ambiguous number is never guessed (parseAmount refuses "1,234" and similar).
 // Everything here is pure (no OCR, no I/O), so it is tested with recorded OCR output.
 
@@ -199,143 +197,58 @@ function amountAfter(row, index, rest) {
   return null;
 }
 
-// Finds every Debit/Credit label and sorts them into
-//   headers  (a column heading: no amount beside it) and
-//   totals   (a label with an amount beside it).
+// Finds every Debit/Credit label that has an amount beside it, and notes labels with none
+// (a column heading, or an amount OCR could not read).
 function findLabels(rows) {
-  const headers = { debit: [], credit: [] };
+  const seen = { debit: false, credit: false };
   const totals = { debit: [], credit: [] };
-  rows.forEach((row, r) => {
+  for (const row of rows) {
     row.words.forEach((word, i) => {
       const label = labelOf(word.text);
       if (!label) return;
       const hit = amountAfter(row, i, label.rest);
       if (hit) totals[label.field].push(candidateFrom(hit.found, hit.word, row));
-      else if (!label.rest) headers[label.field].push({ ...word, row: r });
+      if (hit || !label.rest) seen[label.field] = true;
     });
-  });
-  return { headers, totals };
+  }
+  return { seen, totals };
 }
 
-// How far apart two edges may be and still count as the same column.
-const alignment = (word, head) =>
-  Math.min(Math.abs(word.x1 - head.x1), Math.abs(word.cx - head.cx), Math.abs(word.x0 - head.x0));
-
-// The lines of the table: every amount sitting under the Debit or Credit heading.
-function findItems(rows, headers, totals) {
-  const head = {};
-  for (const field of ['debit', 'credit']) {
-    // The heading is the highest label with no amount beside it.
-    head[field] = headers[field].sort((a, b) => a.cy - b.cy)[0] ?? null;
-  }
-  const columns = Object.entries(head).filter(([, h]) => h);
-  if (columns.length === 0) return [];
-  const top = Math.max(...columns.map(([, h]) => h.cy));
-  const totalsTop = Math.min(
-    ...['debit', 'credit'].flatMap((f) => totals[f].map((c) => c.cy)),
-    Infinity,
-  );
-
-  const items = [];
-  for (const row of rows) {
-    if (row.cy <= top + 0.5 * row.h || row.cy >= totalsTop - 0.5 * row.h) continue;
-    for (const [i, word] of row.words.entries()) {
-      if (labelOf(word.text)) continue;
-      const found = amountFrom(word.text);
-      if (!found) continue;
-      const scored = columns
-        .map(([field, h]) => ({
-          field,
-          gap: alignment(word, h),
-          tolerance: 0.6 * Math.max(word.x1 - word.x0, h.x1 - h.x0),
-        }))
-        .filter((c) => c.gap <= c.tolerance)
-        .sort((a, b) => a.gap - b.gap);
-      if (scored.length === 0) continue;
-      if (scored[1] && scored[1].gap - scored[0].gap < 0.05 * (word.x1 - word.x0)) continue; // cannot tell which column
-      const parsed = parseAmount(found.text);
-      if (!parsed.ok || parsed.value === null) continue;
-      const description = row.words
-        .slice(0, i)
-        .map((w) => w.text)
-        .join(' ')
-        .replace(/[|_]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      items.push({
-        description: description || 'Line',
-        column: scored[0].field,
-        amount: parsed.value,
-      });
-    }
-  }
-  return items;
-}
-
-// Reads one OCR result. `totals[field]` lists every amount that appeared beside that label,
-// `labels[field]` says whether the label was seen at all, and `items` are the table lines.
+// Reads one OCR result. `totals[field]` lists every amount that appeared beside that label and
+// `labels[field]` says whether the label was seen at all.
 export function analysePass(rawWords) {
   const rows = toRows(toWords(rawWords));
-  const { headers, totals } = findLabels(rows);
-  const items = findItems(rows, headers, totals);
-  // Does this page write its amounts the Indian way (12,34,567)? Then a total with the same
+  const { seen, totals } = findLabels(rows);
+  // Does this page write its amounts the Indian way (12,34,567)? Then an amount with the same
   // size written the western way (291,500.00) is suspect: see judgeField.
   const lakhStyle = rows.some((row) =>
     row.words.some((w) => !labelOf(w.text) && amountFrom(w.text)?.grouping === 'lakh'),
   );
-  const labels = {
-    debit: headers.debit.length + totals.debit.length > 0,
-    credit: headers.credit.length + totals.credit.length > 0,
-  };
-  return { labels, totals, items, lakhStyle };
+  return { labels: seen, totals, lakhStyle };
 }
 
 // ---------------------------------------------------------------- deciding what was printed
 
-// First digit removed ("364,000.00" -> "64,000.00"): the usual way a rupee sign is misread.
-function withoutFirstDigit(text) {
-  const plain = text.replace(/^\d/, '');
-  if (plain === text || !/^[\d]/.test(plain.replace(/^,/, ''))) return null;
-  const parsed = parseAmount(plain.replace(/^,/, ''));
-  return parsed.ok && parsed.value !== null ? parsed.value : null;
-}
-
 // What one pass says about one field:
 //  { status: 'absent' }                         the label was not seen
 //  { status: 'empty' }                          the label was seen, no readable amount beside it
-//  { status: 'verified', value, repaired }      equals the sum of its lines (maybe after dropping a misread first digit)
-//  { status: 'mismatch', text, sum }            does not equal its lines and could not be repaired
-//  { status: 'unchecked', value, conf, symbol } no lines to check against
+//  { status: 'unchecked', value, conf, symbol } an amount was read (it counts once two readings agree)
 //  { status: 'unclear', message, text }         a number we cannot read one way ("1,234")
-//  { status: 'suspect', text }                  no lines to check, and it breaks the page's grouping style
+//  { status: 'suspect', text }                  it breaks the page's digit grouping, so it may have a stray digit
 //  { status: 'conflict' }                       two different amounts beside the same label
 export function judgeField(pass, field) {
   if (!pass.labels[field]) return { status: 'absent' };
-  const lines = pass.items.filter((i) => i.column === field).map((i) => i.amount);
-  const sum = lines.length > 0 ? sumAmounts(lines) : null;
   const all = pass.totals[field];
-  if (all.length === 0) return { status: 'empty', sum };
+  if (all.length === 0) return { status: 'empty' };
 
   const readable = all.filter((c) => c.value !== null);
   if (readable.length === 0) {
     return { status: 'unclear', text: all[0].text, message: all[0].message, reason: all[0].reason };
   }
-  if (sum !== null) {
-    for (const c of readable) {
-      if (sameAmount(c.value, sum)) return { status: 'verified', value: c.value, repaired: false };
-    }
-    for (const c of readable) {
-      const repaired = withoutFirstDigit(c.text);
-      if (repaired !== null && sameAmount(repaired, sum)) {
-        return { status: 'verified', value: repaired, repaired: true, was: c.text };
-      }
-    }
-    return { status: 'mismatch', text: readable[0].text, sum };
-  }
   const values = [...new Set(readable.map((c) => c.value))];
   if (values.length > 1) return { status: 'conflict' };
   const best = readable[0];
-  // A page that groups digits the Indian way, but a total of a lakh or more grouped the western
+  // A page that groups digits the Indian way, but an amount of a lakh or more grouped the western
   // way: "291,500.00" where "2,91,500.00" was expected. The classic sign of a ₹ read as a digit.
   const wholeDigits = best.value.split('.')[0].length;
   if (pass.lakhStyle && best.grouping === 'western' && wholeDigits >= 6) {

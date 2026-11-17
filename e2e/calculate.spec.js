@@ -25,8 +25,6 @@ const reading = (over = {}) => ({
   confidence: 'high',
   notes: '',
   warnings: [],
-  lineItems: [],
-  itemTotals: null,
   ...over,
 });
 
@@ -338,11 +336,19 @@ test('the calculate API gives the same answer as the screen', async ({ page }) =
   });
   expect(tooLong.status()).toBe(400);
   expect((await tooLong.json()).error).toMatch(/at most 12 decimal places/);
+  // A list of line items is not understood: only a Debit and a Credit.
   const lines = await page.request.post('/api/invoices/calculate', {
     headers,
     data: { items: ['1000.50', '250.00', '-400.00'] },
   });
-  expect(await lines.json()).toMatchObject({ net: '850.50', type: 'debit', lineCount: 3 });
+  expect(lines.status()).toBe(400);
+  const plain = await page.request.post('/api/invoices/calculate', {
+    headers,
+    data: { debit: '1250.50', credit: '400.00' },
+  });
+  const body = await plain.json();
+  expect(body).toMatchObject({ net: '850.50', type: 'debit' });
+  expect('lineCount' in body).toBe(false);
   const bad = await page.request.post('/api/invoices/calculate', {
     headers,
     data: { debit: 12.5 },

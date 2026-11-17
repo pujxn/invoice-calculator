@@ -26,19 +26,8 @@ const reading = (over = {}) => ({
   confidence: 'high',
   notes: '',
   warnings: [],
-  lineItems: [],
-  itemTotals: null,
   ...over,
 });
-const withItems = {
-  lineItems: [
-    { description: 'Parts', column: 'debit', amount: '1000.50' },
-    { description: 'Labour', column: 'debit', amount: '250.00' },
-    { description: 'Deposit', column: 'credit', amount: '400.00' },
-  ],
-  itemTotals: { debit: '1250.50', credit: '400.00' },
-};
-
 const user = () => userEvent.setup({ applyAccept: false });
 const photo = () => new File(['x'], 'march.jpg', { type: 'image/jpeg' });
 const debit = () => screen.getByLabelText(/^Debit/);
@@ -148,28 +137,14 @@ describe('reading the amounts', () => {
     expect(screen.getByText(/Demo values, not read from your picture/)).toBeInTheDocument();
   });
 
-  it('lists the lines found, with totals under the right column', async () => {
+  it('shows only the Debit and Credit boxes: no table of lines', async () => {
     await uploadAPicture();
-    await readIt(reading(withItems));
-    const table = screen.getByRole('table', { name: 'Lines found on the invoice' });
-    const rows = within(table).getAllByRole('row');
-    expect(rows.map((r) => r.textContent)).toEqual([
-      'DescriptionDebitCredit',
-      'Parts1000.50',
-      'Labour250.00',
-      'Deposit400.00',
-      'Lines add up to1250.50400.00',
-    ]);
-    expect(
-      within(rows[1])
-        .getAllByRole('cell')
-        .map((c) => c.textContent),
-    ).toEqual(['1000.50', '']);
-    expect(
-      within(rows[3])
-        .getAllByRole('cell')
-        .map((c) => c.textContent),
-    ).toEqual(['', '400.00']);
+    await readIt(reading({ lineItems: [{ description: 'Parts', column: 'debit', amount: '1' }] }));
+    expect(debit()).toHaveValue('1250.50');
+    expect(credit()).toHaveValue('400.00');
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.queryByText(/Lines found on the invoice/)).toBeNull();
+    expect(screen.queryByText('Parts')).toBeNull();
   });
 
   it('shows warnings to check, and a missing amount as a blank box', async () => {
@@ -345,7 +320,7 @@ describe('editing the amounts', () => {
 describe('keeping and leaving the reading', () => {
   it('keeps the edited values across a reload of this tab', async () => {
     await uploadAPicture();
-    await readIt(reading(withItems));
+    await readIt(reading());
     await user().clear(debit());
     await user().type(debit(), '999.99');
     document.body.innerHTML = '';
@@ -355,7 +330,6 @@ describe('keeping and leaving the reading', () => {
     expect(await screen.findByRole('heading', { name: 'Amounts we found' })).toBeInTheDocument();
     expect(debit()).toHaveValue('999.99');
     expect(credit()).toHaveValue('400.00');
-    expect(screen.getByRole('table')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reset to what was found' })).toBeInTheDocument();
   });
 

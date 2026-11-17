@@ -22,11 +22,6 @@ const sheets = {
   'debit-only.png': `<h1>INVOICE</h1><table><tr><th>Description</th><th class="n">Debit</th></tr>
     <tr><td>Paint</td><td class="n">1,200.00</td></tr><tr><td>Brushes</td><td class="n">450.50</td></tr></table>
     <div class="t"><span>Debit:</span><span>₹1,650.50</span></div>`,
-  // The printed total does not add up: OCR must not show it as if it were certain.
-  'total-does-not-add-up.png': `<h1>INVOICE</h1><table><tr><th>Description</th><th class="n">Debit</th><th class="n">Credit</th></tr>
-    <tr><td>Parts</td><td class="n">1,000.00</td><td class="n"></td></tr><tr><td>Labour</td><td class="n">500.00</td><td class="n"></td></tr>
-    <tr><td>Paid</td><td class="n"></td><td class="n">200.00</td></tr></table>
-    <div class="t"><span>Debit:</span><span>₹1,600.00</span></div><div class="t"><span>Credit:</span><span>₹200.00</span></div>`,
   // A picture of text that is not an invoice.
   'not-an-invoice.png': `<h1>Meeting notes</h1><p class="big">Call the supplier about the delivery date.</p><p class="big">Book the room for Thursday.</p>`,
 };

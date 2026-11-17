@@ -33,8 +33,6 @@ const sample = (over = {}) => ({
   confidence: 'high',
   notes: '',
   warnings: [],
-  lineItems: [],
-  itemTotals: null,
   ...over,
 });
 const failWith =
@@ -65,9 +63,8 @@ test('read the amounts from an uploaded picture, then check them', async ({ page
   await expect(credit(page)).toHaveValue(reading.credit);
   await expect(page.getByText(/Demo values, not read from your picture/)).toBeVisible();
   await expect(page.getByText(/Confidence:/)).toContainText('High');
-  const table = page.getByRole('table', { name: 'Lines found on the invoice' });
-  await expect(table).toBeVisible();
-  await expect(table.getByRole('row')).toHaveCount(reading.lineItems.length + 2);
+  expect('lineItems' in reading).toBe(false);
+  await expect(page.getByRole('table', { name: 'Lines found on the invoice' })).toHaveCount(0);
   await expectNoSideScroll(page);
   await expectTouchFriendly(page);
   await shot(page, 'extract-03-results');

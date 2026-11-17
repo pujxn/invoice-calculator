@@ -275,8 +275,6 @@ export default function InvoiceUpload({ onExtracted, focusHeading = false }) {
       confidence: null,
       notes: '',
       warnings: [],
-      lineItems: [],
-      itemTotals: null,
     });
   }
 
