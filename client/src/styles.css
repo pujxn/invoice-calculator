@@ -435,48 +435,6 @@ progress {
   min-height: 1.25rem;
 }
 
-.items {
-  margin-top: 1.25rem;
-  overflow-x: auto;
-}
-
-.items table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.items caption {
-  padding-bottom: 0.5rem;
-  text-align: left;
-  font-weight: 600;
-}
-
-.items th,
-.items td {
-  /* Break only between words (the page default can break anywhere): with large text a
-     description column would otherwise shrink to one letter per line. The table scrolls
-     sideways inside its box when it still does not fit. */
-  overflow-wrap: break-word;
-  padding: 0.5rem 0.5rem;
-  border-bottom: 1px solid var(--rose);
-  text-align: left;
-  font-weight: 400;
-  vertical-align: top;
-}
-
-.items thead th,
-.items tfoot th,
-.items tfoot td {
-  font-weight: 600;
-}
-
-.items .num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
 /* The final amount (step 5). The label says Net Debit / Net Credit / Balanced in words;
    the coloured edge is only a second cue. */
 .final {

@@ -45,8 +45,6 @@ const reading = (over = {}) => ({
   confidence: 'high',
   notes: '',
   warnings: [],
-  lineItems: [],
-  itemTotals: null,
   ...over,
 });
 

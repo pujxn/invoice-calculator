@@ -12,7 +12,6 @@ const good = (over = {}) => ({
   credit: '400.00',
   confidence: 'high',
   notes: '',
-  line_items: [],
   ...over,
 });
 
@@ -29,15 +28,10 @@ const rejects = (raw, pattern) =>
   );
 
 test('a well formed model answer passes validation unchanged', () => {
-  const out = validateModelOutput(
-    good({
-      notes: '  small print  ',
-      line_items: [{ description: ' Parts ', column: 'debit', amount: '5.00' }],
-    }),
-  );
+  const out = validateModelOutput(good({ notes: '  small print  ' }));
   assert.equal(out.notes, 'small print');
-  assert.deepEqual(out.lineItems, [{ description: 'Parts', column: 'debit', amount: '5.00' }]);
   assert.equal(out.debit, '1250.00');
+  assert.deepEqual(Object.keys(out).sort(), ['confidence', 'credit', 'debit', 'notes', 'readable']);
 });
 
 test('validation rejects anything that is not exactly the agreed shape', () => {
@@ -54,19 +48,8 @@ test('validation rejects anything that is not exactly the agreed shape', () => {
   rejects(good({ currency: 'INR' }), /unexpected field "currency"/); // rupees only: not asked for
   rejects(good({ confidence: 'certain' }), /confidence/);
   rejects(good({ notes: 5 }), /notes/);
-  rejects(good({ line_items: 'none' }), /line_items must be a list/);
-  rejects(good({ line_items: [null] }), /not an object/);
-  rejects(good({ line_items: [{ description: 'a', column: 'net', amount: '1' }] }), /column/);
-  rejects(good({ line_items: [{ description: 'a', column: 'debit', amount: 1 }] }), /amount/);
-  rejects(good({ line_items: [{ description: 'a', column: 'debit' }] }), /missing field/);
-  rejects(
-    good({ line_items: [{ description: 'a', column: 'debit', amount: '1', tax: '2' }] }),
-    /unexpected field/,
-  );
-  rejects(
-    good({ line_items: Array(201).fill({ description: 'a', column: 'debit', amount: '1' }) }),
-    /too many/,
-  );
+  // Line items are not part of the answer any more: an AI that still sends them is refused.
+  rejects(good({ line_items: [] }), /unexpected field "line_items"/);
 });
 
 test('normalising turns text amounts into exact decimals', () => {
@@ -76,7 +59,8 @@ test('normalising turns text amounts into exact decimals', () => {
   assert.equal(r.currency, 'INR');
   assert.equal(r.confidence, 'high');
   assert.deepEqual(r.warnings, []);
-  assert.equal(r.itemTotals, null);
+  assert.equal('lineItems' in r, false);
+  assert.equal('itemTotals' in r, false);
 });
 
 test('a missing amount stays null (it is not turned into zero)', () => {
@@ -137,63 +121,6 @@ test('negative, over-long and garbage amounts are flagged, not passed on', () =>
   );
 });
 
-test('line items with extra decimals add up exactly and are checked against the totals', () => {
-  const items = [
-    { description: 'A', column: 'debit', amount: '0.001' },
-    { description: 'B', column: 'debit', amount: '0.0004' },
-  ];
-  const ok = normalizeExtraction(
-    validateModelOutput(good({ debit: '0.0014', credit: null, line_items: items })),
-  );
-  assert.deepEqual(ok.itemTotals, { debit: '0.0014', credit: '0.00' });
-  assert.deepEqual(ok.warnings, []);
-  const off = normalizeExtraction(
-    validateModelOutput(good({ debit: '0.002', credit: null, line_items: items })),
-  );
-  assert.equal(off.warnings[0].code, 'items_mismatch');
-});
-
-test('line items are summed exactly and checked against the stated totals', () => {
-  const items = [
-    { description: 'A', column: 'debit', amount: '0.10' },
-    { description: 'B', column: 'debit', amount: '0.20' },
-    { description: 'C', column: 'credit', amount: '1,000.00' },
-  ];
-  const ok = normalizeExtraction(
-    validateModelOutput(good({ debit: '0.30', credit: '1000.00', line_items: items })),
-  );
-  assert.deepEqual(ok.itemTotals, { debit: '0.30', credit: '1000.00' });
-  assert.deepEqual(ok.warnings, []);
-  assert.equal(ok.lineItems[2].amount, '1000.00');
-
-  const off = normalizeExtraction(
-    validateModelOutput(good({ debit: '0.31', credit: '1000.00', line_items: items })),
-  );
-  assert.equal(off.warnings.length, 1);
-  assert.equal(off.warnings[0].code, 'items_mismatch');
-  assert.equal(off.confidence, 'medium');
-  assert.equal(off.debit, '0.31', 'the printed total is kept; the user decides');
-});
-
-test('lines without a usable amount are skipped with a warning', () => {
-  const r = normalizeExtraction(
-    validateModelOutput(
-      good({
-        debit: null,
-        credit: null,
-        line_items: [
-          { description: 'Good', column: 'debit', amount: '10' },
-          { description: 'Smudge', column: 'debit', amount: 'n/a' },
-          { description: 'Odd', column: 'credit', amount: '1,234' },
-        ],
-      }),
-    ),
-  );
-  assert.deepEqual(r.lineItems, [{ description: 'Good', column: 'debit', amount: '10.00' }]);
-  assert.deepEqual(r.warnings.map((w) => w.code).sort(), ['ambiguous', 'invalid', 'total_missing']);
-  assert.deepEqual(r.itemTotals, { debit: '10.00', credit: '0.00' });
-});
-
 test('the extractor reports an unreadable invoice as a 422', async () => {
   const extractor = createExtractor({
     provider: {
@@ -240,7 +167,7 @@ test('the extractor wraps unexpected provider failures and rejects bad output', 
   );
 });
 
-test('the mock provider is deterministic, valid and self-consistent', async () => {
+test('the mock provider is deterministic, valid and has no line items', async () => {
   const mock = createMockProvider();
   const a = await mock.extract({ fingerprint: Buffer.from('invoice one') });
   const again = await mock.extract({ fingerprint: Buffer.from('invoice one') });
@@ -248,8 +175,8 @@ test('the mock provider is deterministic, valid and self-consistent', async () =
   assert.deepEqual(a, again);
   assert.notDeepEqual(a, b);
   const r = normalizeExtraction(validateModelOutput(a));
-  assert.deepEqual(r.warnings, [], 'its line items add up to its totals');
-  assert.equal(r.debit, r.itemTotals.debit);
-  assert.equal(r.credit, r.itemTotals.credit);
+  assert.deepEqual(r.warnings, []);
+  assert.match(r.debit, /^\d+\.\d{2}$/);
+  assert.match(r.credit, /^\d+\.\d{2}$/);
   assert.match(a.notes, /mock mode/i);
 });

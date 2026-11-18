@@ -47,7 +47,6 @@ test('answers with exact decimal strings and the totals of each side', () =>
       rounded: false,
       signedNet: '0.20',
       type: 'debit',
-      lineCount: 2,
     });
     const credit = await calc(app, token, { debit: '1', credit: '3.50' });
     assert.equal(credit.body.net, '2.50');
@@ -94,22 +93,25 @@ test('accepts any amount a person types and keeps every decimal', () =>
     assert.equal(credit.body.signedNet, '-0.001');
   }));
 
-test('totals a list of signed line items', () =>
+test('has no line items: only a Debit and a Credit are read, and the answer has no line count', () =>
   withApp(async (app, token) => {
-    const items = ['1000.50', '250.00', { description: 'Deposit', amount: '-400.00' }, '', null];
-    const res = await calc(app, token, { items });
+    const res = await calc(app, token, { debit: '1250.50', credit: '400.00' });
     assert.equal(res.status, 200);
-    assert.equal(res.body.type, 'debit');
-    assert.equal(res.body.debit, '1250.50');
-    assert.equal(res.body.credit, '400.00');
-    assert.equal(res.body.net, '850.50');
-    assert.equal(res.body.lineCount, 3);
-
-    const many = await calc(app, token, { items: Array(2000).fill('0.01') });
-    assert.equal(many.body.net, '20.00');
-    const long = await calc(app, token, { items: Array(3).fill('0.004') });
-    assert.equal(long.body.net, '0.012');
-    assert.equal(long.body.netRounded, '0.01');
+    assert.deepEqual(Object.keys(res.body).sort(), [
+      'credit',
+      'debit',
+      'net',
+      'netRounded',
+      'rounded',
+      'signedNet',
+      'type',
+    ]);
+    // A list of lines is not understood any more: it counts as no amount at all.
+    const items = await calc(app, token, { items: ['1000.50', '-400.00'] });
+    assert.equal(items.status, 400);
+    assert.match(items.body.error, /at least one amount/);
+    const mixed = await calc(app, token, { debit: '5', items: ['1000.50'] });
+    assert.equal(mixed.body.net, '5.00');
   }));
 
 test('refuses missing, negative, imprecise and non-text amounts with a clear message', () =>
@@ -133,15 +135,9 @@ test('refuses missing, negative, imprecise and non-text amounts with a clear mes
     });
     await bad({ debit: '1'.repeat(101) }, /too long/);
     await bad({ debit: '£5' }, /rupees/);
-    await bad({ items: ['1', '2.0000000000001'] }, /Line 2: Use at most 12 decimal/, { line: 2 });
     await bad({ debit: 'abc' }, /number such as/);
     await bad({ debit: 12.5, credit: '1' }, /as text/);
     await bad({ debit: { amount: 1 } }, /as text/);
-    await bad({ items: ['1', 'x'] }, /Line 2/, { line: 2 });
-    await bad({ items: [] }, /at least one amount/);
-    await bad({ items: Array(5001).fill('1') }, /at most 5000/);
-    await bad({ items: '5' }, /list/);
-    await bad({ items: [1.5] }, /as text/);
   }));
 
 test('refuses a body that is not an object or not JSON', () =>

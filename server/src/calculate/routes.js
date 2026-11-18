@@ -1,10 +1,9 @@
 import { Router } from 'express';
-import { calculateNet, totalLines } from '@ledgerly/money';
+import { calculateNet } from '@ledgerly/money';
 
 // POST /api/invoices/calculate
-//   { debit, credit }  the usual invoice: decimal strings or null for "none"
-//   { items: [...] }   a list of signed line items: "1250.50" is a Debit line, "-400.00" a Credit line
-// Answers { debit, credit, net, netRounded, rounded, signedNet, type, lineCount } with every
+//   { debit, credit }  decimal strings, or null for "none"
+// Answers { debit, credit, net, netRounded, rounded, signedNet, type } with every
 // amount as an exact decimal string; `net` is never negative, keeps every decimal ("10.001"),
 // and `type` is "debit", "credit" or "balanced". `netRounded` is the same figure rounded to 2
 // decimals for showing, and `rounded` says whether that changed it. Amounts are in rupees; any
@@ -19,28 +18,21 @@ export function createCalculateRouter({ requireAuth }) {
       return res.status(400).json({ error: 'Send { "debit": "1250.50", "credit": "400.00" }.' });
     }
     const isText = (v) => v === null || v === undefined || typeof v === 'string';
-    const values = Array.isArray(body.items) ? body.items : [body.debit, body.credit];
-    if (!values.every((v) => isText(v) || (v && typeof v === 'object' && isText(v.amount)))) {
+    if (!isText(body.debit) || !isText(body.credit)) {
       return res
         .status(400)
         .json({ error: 'Send amounts as text such as "1250.50", not as numbers.' });
     }
-    if (body.items !== undefined && !Array.isArray(body.items)) {
-      return res.status(400).json({ error: '"items" must be a list of amounts.' });
-    }
 
-    const result = Array.isArray(body.items)
-      ? totalLines(body.items)
-      : calculateNet({ debit: body.debit, credit: body.credit });
+    const result = calculateNet({ debit: body.debit, credit: body.credit });
     if (!result.ok) {
       return res.status(400).json({
         error: result.message,
         ...(result.field ? { field: result.field } : {}),
-        ...(result.line ? { line: result.line } : {}),
       });
     }
-    const { debit, credit, net, netRounded, rounded, signedNet, type, lineCount } = result;
-    res.json({ debit, credit, net, netRounded, rounded, signedNet, type, lineCount });
+    const { debit, credit, net, netRounded, rounded, signedNet, type } = result;
+    res.json({ debit, credit, net, netRounded, rounded, signedNet, type });
   });
 
   return router;

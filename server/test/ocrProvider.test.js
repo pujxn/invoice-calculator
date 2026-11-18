@@ -26,33 +26,39 @@ async function read(file) {
   return extractor.extract({ data: await readFile(file), mimeType: mimeOf(file) });
 }
 
-test('demo invoice 1 (net debit): both totals read and proved by their lines', async () => {
+// Only the printed Debit and Credit amounts are read, as plain numbers (no currency sign). OCR
+// cannot prove an amount, so it never reports "high" and always asks the user to check.
+const ASK = /check each amount against your picture/;
+
+test('demo invoice 1 (net debit): both amounts, at medium confidence with a check note', async () => {
   const r = await read(demo('demo-1-net-debit.png'));
-  assert.deepEqual([r.debit, r.credit, r.confidence], ['125050.00', '40000.00', 'high']);
-  assert.equal(r.lineItems.length, 3);
+  assert.deepEqual([r.debit, r.credit, r.confidence], ['125050.00', '40000.00', 'medium']);
+  assert.equal('lineItems' in r, false);
   assert.deepEqual(r.warnings, []);
   assert.equal(r.currency, 'INR');
+  assert.match(r.notes, ASK);
+  assert.doesNotMatch(r.notes, /left empty|could not be read/);
 });
 
 test('demo invoice 2 (net credit, lakh grouping 1,12,575.00)', async () => {
   const r = await read(demo('demo-2-net-credit.png'));
-  assert.deepEqual([r.debit, r.credit, r.confidence], ['30000.00', '112575.00', 'high']);
+  assert.deepEqual([r.debit, r.credit, r.confidence], ['30000.00', '112575.00', 'medium']);
 });
 
-test('demo invoice 3 (balanced): the ₹ sign misread as a digit is caught by the lines', async () => {
+test('demo invoice 3 (balanced): the same amount on both sides', async () => {
   const r = await read(demo('demo-3-balanced.png'));
-  assert.deepEqual([r.debit, r.credit, r.confidence], ['64000.00', '64000.00', 'high']);
+  assert.deepEqual([r.debit, r.credit, r.confidence], ['64000.00', '64000.00', 'medium']);
 });
 
 test('demo invoice 4 (tilted, blurry photo on a dark desk)', async () => {
   const r = await read(demo('demo-4-tricky-blurry.jpg'));
-  assert.deepEqual([r.debit, r.credit, r.confidence], ['248025.00', '91500.00', 'high']);
+  assert.deepEqual([r.debit, r.credit, r.confidence], ['248025.00', '91500.00', 'medium']);
 });
 
-test('a plain note with no table: read, but only at medium confidence and with a check warning', async () => {
+test('a plain note with no table: both amounts, at medium confidence', async () => {
   const r = await read(fixture('plain-text.png'));
   assert.deepEqual([r.debit, r.credit, r.confidence], ['12500.50', '3200.00', 'medium']);
-  assert.match(r.notes, /could not be checked against any lines/);
+  assert.match(r.notes, ASK);
 });
 
 test('DEBIT - Rs. 45,000/- and lakh grouping, no decimals', async () => {
@@ -60,22 +66,12 @@ test('DEBIT - Rs. 45,000/- and lakh grouping, no decimals', async () => {
   assert.deepEqual([r.debit, r.credit], ['45000.00', '125000.00']);
 });
 
-test('only a Debit column: Credit stays empty and the notes say it was not found', async () => {
+test('only a Debit amount: Credit stays empty and the notes say it was not found', async () => {
   const r = await read(fixture('debit-only.png'));
-  assert.deepEqual([r.debit, r.credit, r.confidence], ['1650.50', null, 'medium']);
+  assert.equal(r.debit, '1650.50');
+  assert.equal(r.credit, null);
+  assert.equal(r.confidence, 'medium');
   assert.match(r.notes, /No Credit label/);
-});
-
-test('a total that does not add up is left empty, never shown as certain', async () => {
-  const r = await read(fixture('total-does-not-add-up.png'));
-  assert.equal(r.debit, null);
-  assert.equal(r.credit, '200.00');
-  assert.notEqual(r.confidence, 'high');
-  assert.match(r.notes, /lines add up to 1500\.00, so it was left empty/);
-  assert.ok(
-    r.warnings.some((w) => w.field === 'debit'),
-    'the Please-check list mentions Debit',
-  );
 });
 
 test('a picture with no Debit or Credit is "not an invoice", not a made-up answer', async () => {
@@ -90,11 +86,46 @@ test('a picture turned upside down or on its side is turned back before reading'
   for (const turn of [180, 90, 270]) {
     const data = await sharp(upright).rotate(turn).png().toBuffer();
     const r = await extractor.extract({ data, mimeType: 'image/png' });
-    assert.deepEqual(
-      [r.debit, r.credit, r.confidence],
-      ['30000.00', '112575.00', 'high'],
-      `${turn}`,
-    );
+    assert.deepEqual([r.debit, r.credit], ['30000.00', '112575.00'], `${turn}`);
+    assert.equal(r.confidence, 'medium');
+  }
+});
+
+test('a degraded photo is still read: blurred, heavily compressed, small, tilted, dark', async () => {
+  const raw = await readFile(demo('demo-1-net-debit.png'));
+  const meta = await sharp(raw).metadata();
+  const variants = {
+    blurred: sharp(raw).blur(1.6),
+    'jpeg quality 25': sharp(raw).jpeg({ quality: 25 }),
+    'half size': sharp(raw).resize({ width: Math.round(meta.width / 2) }),
+    'tilted 6 degrees': sharp(raw).rotate(-6, { background: '#fff' }),
+    'dark, low contrast': sharp(raw).linear(0.45, 25),
+  };
+  for (const [name, image] of Object.entries(variants)) {
+    const data = await image.png().toBuffer();
+    const r = await extractor.extract({ data, mimeType: 'image/png' });
+    assert.deepEqual([r.debit, r.credit], ['125050.00', '40000.00'], name);
+  }
+});
+
+test('so much noise that nothing can be read is "not an invoice", never a wrong number', async () => {
+  const raw = await readFile(demo('demo-1-net-debit.png'));
+  const { width, height } = await sharp(raw).metadata();
+  const noise = await sharp({
+    create: { width, height, channels: 3, noise: { type: 'gaussian', mean: 128, sigma: 45 } },
+  })
+    .png()
+    .toBuffer();
+  const data = await sharp(raw)
+    .composite([{ input: noise, blend: 'multiply' }])
+    .png()
+    .toBuffer();
+  try {
+    const r = await extractor.extract({ data, mimeType: 'image/png' });
+    if (r.debit !== null) assert.equal(r.debit, '125050.00');
+    if (r.credit !== null) assert.equal(r.credit, '40000.00');
+  } catch (err) {
+    assert.ok(err instanceof ExtractionError && err.code === 'unreadable_invoice', String(err));
   }
 });
 
@@ -209,14 +240,8 @@ test('an engine failure becomes a plain error, not a stack trace', async () => {
   await engine.stop();
 });
 
-test('the provider stops after the first reading when both totals are proved', async () => {
+test('the provider stops once two readings agree on both amounts', async () => {
   const words = [
-    ['Debit', 100, 100],
-    ['Credit', 400, 100],
-    ['Pipes', 10, 160],
-    ['100.00', 100, 160],
-    ['Paid', 10, 220],
-    ['100.00', 400, 220],
     ['Debit:', 10, 300],
     ['100.00', 400, 300],
     ['Credit:', 10, 360],
@@ -226,7 +251,6 @@ test('the provider stops after the first reading when both totals are proved', a
     confidence: 95,
     bbox: { x0: x, y0: y - 12, x1: x + (text.length > 6 ? 120 : 90), y1: y + 12 },
   }));
-  // Right edges: header/lines/totals all end at the same x for their column.
   const fake = fakeWorkers({
     job: async () => ({
       data: { blocks: [{ paragraphs: [{ lines: [{ words }] }] }] },
@@ -241,13 +265,9 @@ test('the provider stops after the first reading when both totals are proved', a
   const out = await p.extract({ image });
   assert.deepEqual(
     [out.readable, out.debit, out.credit, out.confidence],
-    [true, '100.00', '100.00', 'high'],
+    [true, '100.00', '100.00', 'medium'],
   );
-  assert.equal(
-    fake.log.recognized,
-    1,
-    'proved on the first reading, so the other two were skipped',
-  );
+  assert.equal(fake.log.recognized, 2, 'two readings agreed, so the third was skipped');
   await p.close();
 });
 
@@ -259,7 +279,6 @@ const answer = (over = {}) => ({
   credit: '5.00',
   confidence: 'high',
   notes: '',
-  line_items: [],
   ...over,
 });
 const stub = (name, reply) => ({

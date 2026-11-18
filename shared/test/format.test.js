@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateNet, describeResult, formatAmount, totalLines } from '../src/index.js';
+import { calculateNet, describeResult, formatAmount } from '../src/index.js';
 
 describe('formatAmount', () => {
   it('writes rupees with the ₹ sign and always 2 decimals', () => {
@@ -86,12 +86,5 @@ describe('describeResult', () => {
     assert.equal(credit.label, 'Net Credit');
     assert.equal(credit.amount, '₹0.00');
     assert.equal(credit.working, 'Debit ₹0.001 − Credit ₹0.002 = −₹0.001');
-  });
-
-  it('describes a total of many lines the same way', () => {
-    const r = describeResult(totalLines(['1,00,000.255', '-0.005']));
-    assert.equal(r.amount, '₹1,00,000.25');
-    assert.equal(r.exact, '₹1,00,000.25');
-    assert.equal(r.rounded, false);
   });
 });

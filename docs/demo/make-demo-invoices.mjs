@@ -10,40 +10,31 @@ const here = (name) => fileURLToPath(new URL(name, import.meta.url));
 const fmt = (n) =>
   n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// Each invoice lists its Debit and Credit lines; the printed totals are the sums.
+// Each invoice prints just a Debit amount and a Credit amount (Ledgerly reads nothing else).
 const invoices = [
   {
     file: 'demo-1-net-debit.png',
     no: '2026-0142',
     date: '16 Nov 2026',
     client: 'Harbour Street Cafe',
-    debit: [
-      ['Kitchen rewiring', 90050],
-      ['Materials', 35000],
-    ],
-    credit: [['Deposit received', 40000]],
+    debit: 125050,
+    credit: 40000,
   },
   {
     file: 'demo-2-net-credit.png',
     no: '2026-0157',
     date: '18 Nov 2026',
     client: 'Maple Court Dental',
-    debit: [
-      ['Call-out fee', 12000],
-      ['Fittings', 18000],
-    ],
-    credit: [
-      ['Deposit received', 100000],
-      ['Adjustment for returned parts', 12575],
-    ],
+    debit: 30000,
+    credit: 112575,
   },
   {
     file: 'demo-3-balanced.png',
     no: '2026-0163',
     date: '20 Nov 2026',
     client: 'Northgate Print Shop',
-    debit: [['Consulting, 8 hours', 64000]],
-    credit: [['Payment received', 64000]],
+    debit: 64000,
+    credit: 64000,
   },
   {
     // Looks like a quick phone photo: slightly rotated, soft focus, uneven light, on a desk.
@@ -51,40 +42,20 @@ const invoices = [
     no: '2026-0171',
     date: '23 Nov 2026',
     client: 'Willow Farm Supplies',
-    debit: [
-      ['Fencing and gates', 198025],
-      ['Delivery', 50000],
-    ],
-    credit: [
-      ['Deposit received', 60000],
-      ['Part payment', 31500],
-    ],
+    debit: 248025,
+    credit: 91500,
     photo: true,
   },
 ];
 
-const sum = (lines) => lines.reduce((t, [, a]) => t + a, 0);
-
 function page(inv) {
-  const rows = [
-    ...inv.debit.map(
-      ([d, a]) => `<tr><td>${d}</td><td class="n">${fmt(a)}</td><td class="n"></td></tr>`,
-    ),
-    ...inv.credit.map(
-      ([d, a]) => `<tr><td>${d}</td><td class="n"></td><td class="n">${fmt(a)}</td></tr>`,
-    ),
-  ].join('');
   const sheet = `
   <div class="sheet">
     <div class="top"><div><h1>INVOICE</h1><div class="muted">No. ${inv.no} &middot; ${inv.date}</div></div>
     <div class="muted right">Billed to<br><b>${inv.client}</b></div></div>
-    <table>
-      <tr><th>Description</th><th class="n">Debit</th><th class="n">Credit</th></tr>
-      ${rows}
-    </table>
     <div class="totals">
-      <div class="t"><b>Debit:</b><b>₹${fmt(sum(inv.debit))}</b></div>
-      <div class="t"><b>Credit:</b><b>₹${fmt(sum(inv.credit))}</b></div>
+      <div class="t"><b>Debit:</b><b>${fmt(inv.debit)}</b></div>
+      <div class="t"><b>Credit:</b><b>${fmt(inv.credit)}</b></div>
     </div>
   </div>`;
   const css = `
@@ -93,10 +64,7 @@ function page(inv) {
     h1{margin:0 0 4px;font-size:34px;letter-spacing:1px}
     .muted{color:#666;font-size:16px}.right{text-align:right}
     .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px}
-    table{width:100%;border-collapse:collapse}
-    th{background:#fde8f0;text-align:left;padding:8px}td{padding:8px;border-bottom:1px solid #eee}
-    .n{text-align:right}
-    .totals{margin-top:28px;border-top:2px solid #222;padding-top:12px}
+    .totals{margin-top:12px;border-top:2px solid #222;padding-top:12px}
     .t{display:flex;justify-content:space-between;font-size:26px;margin-top:6px}`;
   if (!inv.photo) return `<style>${css}</style><body>${sheet}</body>`;
   return `<style>${css}

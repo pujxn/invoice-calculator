@@ -13,7 +13,6 @@ const ANSWER = {
   credit: null,
   confidence: 'high',
   notes: '',
-  line_items: [],
 };
 const reply = (over = {}) => ({
   stop_reason: 'end_turn',

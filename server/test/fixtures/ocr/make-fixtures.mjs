@@ -15,18 +15,11 @@ const css = `body{margin:0;font:22px Arial,Helvetica,sans-serif;color:#222}
 
 const sheets = {
   // No table at all: just the two totals, as a quick note.
-  'plain-text.png': `<h1>Invoice 88</h1><div class="big">Debit: ₹12,500.50</div><div class="big">Credit: ₹3,200.00</div>`,
-  // Capitals, dashes, "Rs." and the Indian "/-" ending.
+  'plain-text.png': `<h1>Invoice 88</h1><div class="big">Debit: 12,500.50</div><div class="big">Credit: 3,200.00</div>`,
+  // Capitals, dashes, "Rs." and the Indian "/-" ending (tolerated, though invoices should have no currency sign).
   'rs-slash.png': `<h1>BILL</h1><div class="big">DEBIT - Rs. 45,000/-</div><div class="big">CREDIT - Rs. 1,25,000/-</div>`,
-  // Only a Debit column (no Credit at all).
-  'debit-only.png': `<h1>INVOICE</h1><table><tr><th>Description</th><th class="n">Debit</th></tr>
-    <tr><td>Paint</td><td class="n">1,200.00</td></tr><tr><td>Brushes</td><td class="n">450.50</td></tr></table>
-    <div class="t"><span>Debit:</span><span>₹1,650.50</span></div>`,
-  // The printed total does not add up: OCR must not show it as if it were certain.
-  'total-does-not-add-up.png': `<h1>INVOICE</h1><table><tr><th>Description</th><th class="n">Debit</th><th class="n">Credit</th></tr>
-    <tr><td>Parts</td><td class="n">1,000.00</td><td class="n"></td></tr><tr><td>Labour</td><td class="n">500.00</td><td class="n"></td></tr>
-    <tr><td>Paid</td><td class="n"></td><td class="n">200.00</td></tr></table>
-    <div class="t"><span>Debit:</span><span>₹1,600.00</span></div><div class="t"><span>Credit:</span><span>₹200.00</span></div>`,
+  // Only a Debit amount (no Credit at all).
+  'debit-only.png': `<h1>INVOICE</h1><div class="big">Debit: 1,650.50</div>`,
   // A picture of text that is not an invoice.
   'not-an-invoice.png': `<h1>Meeting notes</h1><p class="big">Call the supplier about the delivery date.</p><p class="big">Book the room for Thursday.</p>`,
 };

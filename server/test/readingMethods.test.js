@@ -12,7 +12,6 @@ const answer = (debit, notes) => ({
   credit: null,
   confidence: 'high',
   notes,
-  line_items: [],
 });
 const reader = (name, debit) => ({
   name,

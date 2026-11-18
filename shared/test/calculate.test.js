@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_LINES, calculateNet, totalLines } from '../src/index.js';
+import { calculateNet } from '../src/index.js';
 
 const net = (debit, credit, options) => {
   const r = calculateNet({ debit, credit }, options);
@@ -26,13 +26,11 @@ describe('calculateNet: the worked examples in SPEC.md', () => {
 });
 
 describe('calculateNet', () => {
-  it('reports the totals, the signed net and the number of amounts given', () => {
+  it('reports both amounts and the signed net', () => {
     const r = net('1250.50', '400');
     assert.equal(r.debit, '1250.50');
     assert.equal(r.credit, '400.00');
     assert.equal(r.signedNet, '850.50');
-    assert.equal(r.lineCount, 2);
-    assert.equal(net('5', undefined).lineCount, 1);
     assert.equal(net('', '5').debit, '0.00');
   });
 
@@ -135,102 +133,51 @@ describe('calculateNet: any amount a person types', () => {
   });
 });
 
-describe('totalLines: signed line items', () => {
-  it('totals debits (positive) and credits (negative)', () => {
-    const r = totalLines(['1000.50', '250.00', '-400.00']);
-    assert.equal(r.type, 'debit');
-    assert.equal(r.debit, '1250.50');
-    assert.equal(r.credit, '400.00');
-    assert.equal(r.net, '850.50');
-    assert.equal(r.lineCount, 3);
-  });
-
-  it('gives the same answer as calculateNet for a list of two', () => {
-    for (const [d, c] of [
-      ['1250.00', '400.00'],
-      ['300.00', '975.50'],
-      ['5', '5'],
-      ['0', '7.77'],
-    ]) {
-      const a = totalLines([d, `-${c}`]);
-      const b = net(d, c);
-      assert.deepEqual(
-        [a.type, a.net, a.debit, a.credit, a.signedNet],
-        [b.type, b.net, b.debit, b.credit, b.signedNet],
-      );
-    }
-  });
-
-  it('accepts objects with an amount, and ignores blank lines', () => {
-    const r = totalLines([
-      { description: 'Parts', amount: '10.00' },
-      '',
-      null,
-      { amount: '-2.50' },
+describe('calculateNet: exact maths and rounding', () => {
+  it('has no list of lines: only a Debit and a Credit', () => {
+    const r = net('1250.50', '400.00');
+    assert.deepEqual(Object.keys(r).sort(), [
+      'credit',
+      'debit',
+      'net',
+      'netRounded',
+      'ok',
+      'rounded',
+      'signedNet',
+      'type',
     ]);
-    assert.equal(r.net, '7.50');
-    assert.equal(r.lineCount, 2);
   });
 
-  it('adds 0.01 a thousand times to exactly 10.00, where floating point drifts', () => {
-    const r = totalLines(Array(1000).fill('0.01'));
-    assert.equal(r.net, '10.00');
-    // Plain floating point drifts on exactly this sum.
-    assert.notEqual(
-      Array(1000)
-        .fill(0.1)
-        .reduce((a, b) => a + b, 0),
-      100,
-    );
-    assert.equal(totalLines(Array(1000).fill('0.10')).net, '100.00');
-    assert.equal(totalLines(['0.1', '0.2']).net, '0.30');
+  it('is exact where floating point drifts', () => {
+    assert.equal(net('0.3', '0.1').net, '0.20');
+    assert.equal(net('0.1', '0.3').net, '0.20');
+    assert.equal(net('0.1', '0.3').type, 'credit');
+    assert.equal(net('10.10', '5.05').net, '5.05');
   });
 
-  it('totals a long list quickly and exactly, going past the single-amount limit', () => {
-    const items = Array.from({ length: MAX_LINES }, (_, i) =>
-      i % 2 ? '999999999999999.99' : '-0.01',
-    );
-    const r = totalLines(items);
-    assert.equal(r.ok, true);
-    assert.equal(r.type, 'debit');
-    assert.equal(r.debit, '2499999999999999975.00'); // 2500 x 999,999,999,999,999.99
-    assert.equal(r.credit, '25.00'); // 2500 x 0.01
-    assert.equal(r.net, '2499999999999999950.00');
-    assert.equal(r.netRounded, r.net);
-  });
-
-  it('nets a list that cancels out to Balanced', () => {
-    const r = totalLines(['10.10', '-5.05', '-5.05']);
+  it('nets equal amounts to Balanced', () => {
+    const r = net('10.10', '10.10');
     assert.equal(r.type, 'balanced');
     assert.equal(r.net, '0.00');
     assert.equal(r.signedNet, '0.00');
   });
 
-  it('names the line that is wrong', () => {
-    const r = totalLines(['1', '2', 'x']);
+  it('names the side that is wrong', () => {
+    const r = calculateNet({ debit: '1', credit: 'x' });
     assert.equal(r.ok, false);
-    assert.equal(r.line, 3);
-    assert.match(r.message, /^Line 3: /);
-    assert.equal(totalLines(['1', '2.0000000000001']).line, 2);
-    assert.equal(totalLines(['1', '1'.repeat(16)]).reason, 'too_large');
+    assert.equal(r.field, 'credit');
+    assert.match(r.message, /^Credit: /);
+    assert.equal(calculateNet({ debit: '1'.repeat(16) }).reason, 'too_large');
+    assert.equal(calculateNet({ debit: '-1', credit: '1' }).field, 'debit');
   });
 
-  it('adds long decimals exactly and rounds only the total', () => {
-    // Three lines of 0.004 total 0.012, shown as 0.01: lines are never rounded one by one.
-    const r = totalLines(['0.004', '0.004', '0.004']);
+  it('keeps every decimal and rounds only the figure shown', () => {
+    const r = net('0.012', '0');
     assert.equal(r.net, '0.012');
     assert.equal(r.netRounded, '0.01');
     assert.equal(r.rounded, true);
-    assert.equal(totalLines(['0.005', '0.005']).net, '0.01');
-    assert.equal(totalLines(['12.345', '-0.345']).net, '12.00');
-    assert.equal(totalLines(['12.345', '-0.345']).rounded, false);
-  });
-
-  it('needs at least one amount, and a real list within the limit', () => {
-    assert.equal(totalLines([]).reason, 'nothing');
-    assert.equal(totalLines(['', null]).reason, 'nothing');
-    assert.equal(totalLines('5').reason, 'invalid');
-    assert.equal(totalLines(null).reason, 'invalid');
-    assert.equal(totalLines(Array(MAX_LINES + 1).fill('1')).reason, 'too_many');
+    assert.equal(net('0.005', '0').netRounded, '0.01');
+    assert.equal(net('12.345', '0.345').net, '12.00');
+    assert.equal(net('12.345', '0.345').rounded, false);
   });
 });

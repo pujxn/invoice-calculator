@@ -42,7 +42,7 @@ export function formatAmount(amount, { exact = false } = {}) {
   return `${m[1]}${SYMBOL}${group(m[2].replace(/^0+(?=\d)/, ''))}.${frac}`;
 }
 
-// Words for a result from calculateNet or totalLines, ready for the screen and for copying.
+// Words for a result from calculateNet, ready for the screen and for copying.
 //   { label: 'Net Debit', amount: '₹850.00', working: 'Debit ₹1,250.00 − Credit ₹400.00 = ₹850.00',
 //     text: 'Net Debit ₹850.00 (Debit ₹1,250.00 − Credit ₹400.00)', rounded: false, exact: '₹850.00',
 //     note: null }

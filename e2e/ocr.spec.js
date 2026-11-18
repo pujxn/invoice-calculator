@@ -50,7 +50,7 @@ test('with no AI key, Local OCR is chosen and AI is greyed out with the reason',
   expect(axe.violations).toEqual([]);
 });
 
-test('read a clean invoice with Local OCR: both amounts, proved by the lines', async ({ page }) => {
+test('read a clean invoice with Local OCR: both amounts', async ({ page }) => {
   await signIn(page);
   await upload(page, demo('demo-1-net-debit.png'));
   await expect(page.getByText('Picture uploaded.')).toBeVisible();
@@ -63,12 +63,17 @@ test('read a clean invoice with Local OCR: both amounts, proved by the lines', a
   const reading = await (await response).json();
   expect(reading.provider).toBe('ocr');
 
+  // Plain numbers, no currency sign. OCR cannot prove an amount, so it says Medium and asks the
+  // user to check.
+  expect([reading.debit, reading.credit]).toEqual(['125050.00', '40000.00']);
   await expect(debit(page)).toHaveValue('125050.00');
   await expect(credit(page)).toHaveValue('40000.00');
   await expect(page.getByTestId('read-with')).toHaveText('Local OCR');
   await expect(page.getByText(/local OCR \(free, no AI\)/)).toBeVisible();
-  await expect(page.getByText(/Confidence:/)).toContainText('High');
-  await expect(page.getByRole('table', { name: 'Lines found on the invoice' })).toBeVisible();
+  await expect(page.getByText(/Confidence:/)).toContainText('Medium');
+  await expect(page.getByText(/check each amount against your picture/)).toBeVisible();
+  await expect(page.getByText(/left empty|could not be read/)).toHaveCount(0);
+  await expect(page.getByRole('table')).toHaveCount(0);
   await expectNoSideScroll(page);
   await shot(page, 'method-03-result-local-ocr');
 
@@ -77,9 +82,7 @@ test('read a clean invoice with Local OCR: both amounts, proved by the lines', a
   await expect(page.getByTestId('final')).toContainText('Net Debit');
 });
 
-test('a tilted, blurry phone photo is still read, and a number it cannot prove is left empty', async ({
-  page,
-}) => {
+test('a tilted, blurry phone photo is still read', async ({ page }) => {
   await signIn(page);
   await upload(page, demo('demo-4-tricky-blurry.jpg'));
   await expect(page.getByText('Picture uploaded.')).toBeVisible();
@@ -126,8 +129,6 @@ test('with AI available, the switch changes which reader the request asks for, a
         confidence: 'high',
         notes: 'Clear photo.',
         warnings: [],
-        lineItems: [],
-        itemTotals: null,
       },
     });
   });
@@ -173,10 +174,10 @@ test('if the server cannot say which readers it has, there is no switch and read
   await page.route(METHODS, (route) => route.fulfill({ status: 500, json: { error: 'no' } }));
   await signIn(page);
   await expect(page.getByRole('group', { name: 'Read with' })).toHaveCount(0);
-  await upload(page, demo('demo-3-balanced.png'));
+  await upload(page, demo('demo-1-net-debit.png'));
   await readButton(page).click();
   await expect(resultsHeading(page)).toBeVisible({ timeout: 60_000 });
-  await expect(debit(page)).toHaveValue('64000.00');
+  await expect(debit(page)).toHaveValue('125050.00');
 });
 
 test('a method the server refuses shows a clear message and keeps the picture', async ({

@@ -98,54 +98,33 @@ test('words on the same line are grouped even when the engine split them', () =>
   assert.ok(labels.includes('Kitchen rewiring 90,050.00'));
 });
 
-test('a clean invoice: totals proved by their lines', () => {
+test('a clean invoice: the printed totals are read and the table lines are ignored', () => {
   const pass = analysePass(invoice());
   assert.deepEqual(pass.labels, { debit: true, credit: true });
-  assert.deepEqual(
-    pass.items.map((i) => [i.column, i.amount]),
-    [
-      ['debit', '90050.00'],
-      ['debit', '35000.00'],
-      ['credit', '40000.00'],
-    ],
-  );
-  assert.deepEqual(judgeField(pass, 'debit'), {
-    status: 'verified',
-    value: '125050.00',
-    repaired: false,
-  });
+  assert.equal('items' in pass, false, 'lines of the table are not read at all');
+  assert.equal(judgeField(pass, 'debit').value, '125050.00');
   assert.equal(judgeField(pass, 'credit').value, '40000.00');
-  assert.equal(isSettled([invoice()]), true);
-  const out = decide([invoice()]);
-  assert.deepEqual([out.debit, out.credit, out.confidence], ['125050.00', '40000.00', 'high']);
-  assert.equal(out.line_items.length, 3);
-});
-
-test('a rupee sign read as a digit is repaired only when the lines prove it', () => {
-  // ₹1,25,050.00 came out as 31,25,050.00 (a 3 in front)
-  const pass = analysePass(invoice({ debitTotal: '31,25,050.00' }));
-  const j = judgeField(pass, 'debit');
-  assert.equal(j.status, 'verified');
-  assert.equal(j.repaired, true);
-  assert.equal(j.value, '125050.00');
-  assert.match(
-    decide([invoice({ debitTotal: '31,25,050.00' })]).notes,
-    /₹ sign was read as a digit/,
+  // One reading is never enough, two that agree are.
+  assert.equal(isSettled([invoice()]), false);
+  assert.equal(isSettled([invoice(), invoice()]), true);
+  const out = decide([invoice(), invoice()]);
+  assert.deepEqual([out.debit, out.credit, out.confidence], ['125050.00', '40000.00', 'medium']);
+  assert.equal('line_items' in out, false);
+  assert.doesNotMatch(
+    out.notes,
+    /left empty|could not be read/,
+    'amounts that were read are not reported as empty',
   );
 });
 
-test('a total that does not match its lines is left empty and says why', () => {
+test('a total that does not match the table below it is still the printed total', () => {
+  // Nothing adds up the lines any more, so the printed Debit total is what counts.
   const words = invoice({ debitTotal: '₹1,25,060.00' });
-  const j = judgeField(analysePass(words), 'debit');
-  assert.equal(j.status, 'mismatch');
-  const out = decide([words]);
-  assert.equal(out.debit, null);
-  assert.equal(out.credit, '40000.00');
-  assert.match(out.notes, /lines add up to 125050\.00, so it was left empty/);
-  assert.equal(out.confidence, 'medium');
+  const out = decide([words, words]);
+  assert.deepEqual([out.debit, out.credit], ['125060.00', '40000.00']);
 });
 
-test('with no lines, one reading is never trusted; two agreeing readings are, at medium', () => {
+test('one reading is never trusted; two agreeing readings are, at medium', () => {
   const note = (debit) => [
     word('Debit:', 40, 100, 120),
     word(debit, 300, 100, 220),
@@ -156,16 +135,15 @@ test('with no lines, one reading is never trusted; two agreeing readings are, at
   assert.deepEqual([single.debit, single.credit, single.confidence], [null, null, 'low']);
   const two = decide([note('₹12,500.50'), note('₹12,500.50')]);
   assert.deepEqual([two.debit, two.credit, two.confidence], ['12500.50', '3200.00', 'medium']);
-  assert.match(two.notes, /could not be checked against any lines/);
+  assert.match(two.notes, /check each amount against your picture/);
   // disagreeing readings: nothing is guessed
   const split = decide([note('₹12,500.50'), note('₹12,900.50')]);
   assert.equal(split.debit, null);
-  // a leading-digit difference (₹ read as 7) counts for the shorter number, and says so
+  // a reading that differs is simply outvoted; a tie leaves the box empty (nothing is guessed)
   const prefixed = decide([note('712,500.50'), note('12,500.50'), note('12,500.50')]);
   assert.equal(prefixed.debit, '12500.50');
   const tie = decide([note('712,500.50'), note('12,500.50')]);
-  assert.equal(tie.debit, '12500.50');
-  assert.match(tie.notes, /differed by a leading digit/);
+  assert.equal(tie.debit, null);
   // but a clear majority for the longer number is believed
   const majority = decide([note('3,200.00'), note('3,200.00'), note('200.00')]);
   assert.equal(majority.debit, '3200.00');
@@ -201,7 +179,7 @@ test('the same words in a different order, or with junk words around, still read
   const words = invoice();
   const junk = [word('|', 5, 50, 10, 5), word('~~', 900, 300, 30, 3), word('2026', 40, 30, 80)];
   const shuffled = [...junk, ...[...words].reverse()];
-  const out = decide([shuffled]);
+  const out = decide([shuffled, junk.concat(words)]);
   assert.deepEqual([out.debit, out.credit], ['125050.00', '40000.00']);
 });
 
@@ -212,37 +190,24 @@ test('boxes missing or malformed in the engine output are ignored, not fatal', (
     null,
     ...invoice(),
   ];
-  assert.equal(decide([bad]).debit, '125050.00');
+  assert.equal(decide([bad, bad]).debit, '125050.00');
 });
 
-test('a lakh-style page with a western-style six-digit total and no lines is not trusted', () => {
-  // The page writes 2,48,025.00 (lakh style), so 291,500.00 for the total looks like ₹91,500
-  // with the rupee sign read as a 2. With nothing to prove it, the box stays empty.
-  const page = (total) => [
+test('lakh and western digit grouping are both read as written', () => {
+  const page = (debit, credit) => [
     word('Debit:', 40, 100, 120),
-    word('₹2,48,025.00', 300, 100, 240),
+    word(debit, 300, 100, 240),
     word('Credit:', 40, 160, 130),
-    word(total, 300, 160, 220),
+    word(credit, 300, 160, 220),
   ];
-  const out = decide([page('291,500.00'), page('291,500.00')]);
-  assert.equal(out.credit, null);
-  assert.equal(out.debit, '248025.00');
-  assert.match(out.notes, /extra leading digit/);
-  // The same total written the Indian way, or a smaller one, is fine.
-  assert.equal(decide([page('2,91,500.00'), page('2,91,500.00')]).credit, '291500.00');
-  assert.equal(decide([page('91,500.00'), page('91,500.00')]).credit, '91500.00');
-  // A page in western style throughout is not second-guessed.
-  const western = (total) => [
-    word('Debit:', 40, 100, 120),
-    word('248,025.00', 300, 100, 240),
-    word('Credit:', 40, 160, 130),
-    word(total, 300, 160, 220),
-  ];
-  assert.equal(decide([western('291,500.00'), western('291,500.00')]).credit, '291500.00');
-});
-
-test('a total proved by its lines is never second-guessed by the grouping rule', () => {
-  const words = invoice({ debitTotal: '125,050.00' }); // lines add up to it, written western style
-  const out = decide([words]);
-  assert.equal(out.debit, '125050.00');
+  const lakh = decide([page('2,48,025.00', '2,91,500.00'), page('2,48,025.00', '2,91,500.00')]);
+  assert.deepEqual([lakh.debit, lakh.credit], ['248025.00', '291500.00']);
+  const western = decide([page('248,025.00', '291,500.00'), page('248,025.00', '291,500.00')]);
+  assert.deepEqual([western.debit, western.credit], ['248025.00', '291500.00']);
+  // no currency sign is needed (or expected)
+  const plain = decide([page('64000.00', '64000.00'), page('64000.00', '64000.00')]);
+  assert.deepEqual(
+    [plain.debit, plain.credit, plain.confidence],
+    ['64000.00', '64000.00', 'medium'],
+  );
 });

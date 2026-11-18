@@ -15,11 +15,6 @@ const ANSWER = {
   credit: '400',
   confidence: 'high',
   notes: 'Clear photo.',
-  line_items: [
-    { description: 'Parts', column: 'debit', amount: '1000.50' },
-    { description: 'Labour', column: 'debit', amount: '250.00' },
-    { description: 'Deposit', column: 'credit', amount: '400.00' },
-  ],
 };
 
 // A real, tiny PNG so the default image step (sharp) has something to open.
@@ -96,12 +91,6 @@ test('a good picture returns exact amounts, items and warnings, then the picture
         confidence: 'high',
         notes: 'Clear photo.',
         warnings: [],
-        lineItems: [
-          { description: 'Parts', column: 'debit', amount: '1000.50' },
-          { description: 'Labour', column: 'debit', amount: '250.00' },
-          { description: 'Deposit', column: 'credit', amount: '400.00' },
-        ],
-        itemTotals: { debit: '1250.50', credit: '400.00' },
       });
 
       // AI-4: nothing of the picture is left once it has been read.
@@ -216,7 +205,7 @@ test('unreadable invoices, unreadable files and unusable answers are reported, a
   const cases = [
     {
       name: 'model says the picture is not readable',
-      vision: fakeVision({ ...ANSWER, readable: false, debit: null, credit: null, line_items: [] }),
+      vision: fakeVision({ ...ANSWER, readable: false, debit: null, credit: null }),
       status: 422,
       code: 'unreadable_invoice',
     },
