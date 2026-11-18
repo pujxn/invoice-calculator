@@ -563,3 +563,74 @@ progress {
 .topbar-actions {
   margin-left: auto;
 }
+
+/* "Read with: Local OCR | AI (Claude)" switch on the upload screen. Real radio buttons, drawn as
+   two big pills; the chosen one is filled. A way that is not set up is greyed out. */
+.method {
+  margin: 1rem 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.method legend {
+  padding: 0;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+
+.method-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.method-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0 1.1rem;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.method-option.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+  font-weight: 600;
+}
+
+.method-option.off {
+  border-style: dashed;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* The radio itself is hidden but stays focusable; focus shows on the pill. */
+.method-option input {
+  font-size: 1rem;
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: inherit;
+}
+
+.method-option:has(input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.method-why {
+  margin: 0.5rem 0 0;
+}
+
+fieldset.method:disabled {
+  opacity: 0.6;
+}

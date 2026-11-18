@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { calculateNet } from '@ledgerly/money';
 import useFocusOnMount from '../useFocusOnMount.js';
 import AmountFields from './AmountFields.jsx';
+import { methodName } from './ReadingMethod.jsx';
 
 const CONFIDENCE = { high: 'High', medium: 'Medium', low: 'Low' };
 
@@ -39,13 +40,16 @@ export default function ExtractedAmounts({
           ? 'Type the Debit and Credit from your invoice. Leave one blank if the invoice has none.'
           : `${
               demo
-                ? 'Demo values (no AI key is set), not read from your picture.'
-                : 'Read from your picture by AI.'
+                ? 'Demo values, not read from your picture.'
+                : result.provider === 'ocr'
+                  ? 'Read from your picture with local OCR (free, no AI).'
+                  : 'Read from your picture by AI.'
             } Check them against your invoice and correct anything that is wrong.`}
       </p>
 
       {!manual && (
         <p className={`confidence ${result.confidence}`}>
+          Read with: <strong data-testid="read-with">{methodName(result.provider)}</strong> ·
           Confidence: <strong>{CONFIDENCE[result.confidence]}</strong> · Amounts in rupees (
           <strong>₹</strong>)
         </p>

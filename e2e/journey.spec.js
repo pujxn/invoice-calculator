@@ -71,7 +71,7 @@ test('the whole journey: sign in, upload, read, calculate, start again, sign out
   const c = await credit(page).inputValue();
   expect(Number(d)).toBeGreaterThan(0);
   expect(Number(c)).toBeGreaterThan(0);
-  await expect(page.getByText(/Demo values \(no AI key is set\)/)).toBeVisible();
+  await expect(page.getByText(/Demo values, not read from your picture/)).toBeVisible();
   await expectNoSideScroll(page);
   await shot(page, 'journey-04-amounts');
 

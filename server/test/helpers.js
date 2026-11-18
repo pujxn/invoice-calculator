@@ -5,7 +5,7 @@ import { createApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 
 // Starts the app on a random port with a recording fake SMS provider and a fake clock.
-export async function startTestApp({ env = {}, sms, vision, prepare } = {}) {
+export async function startTestApp({ env = {}, sms, vision, visionMethods, prepare } = {}) {
   const clock = { t: 1_700_000_000_000 };
   const sent = [];
   const fakeSms = sms || {
@@ -16,7 +16,13 @@ export async function startTestApp({ env = {}, sms, vision, prepare } = {}) {
   };
   const uploadDir = await mkdtemp(path.join(tmpdir(), 'invoice-uploads-'));
   const config = loadConfig({ AUTH_SECRET: 'test-secret', UPLOAD_DIR: uploadDir, ...env });
-  const app = createApp(config, { sms: fakeSms, now: () => clock.t, vision, prepare });
+  const app = createApp(config, {
+    sms: fakeSms,
+    now: () => clock.t,
+    vision,
+    visionMethods,
+    prepare,
+  });
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
 
@@ -80,6 +86,7 @@ export async function startTestApp({ env = {}, sms, vision, prepare } = {}) {
     close: async () => {
       server.close();
       server.closeAllConnections?.();
+      await app.locals.close?.();
       await rm(uploadDir, { recursive: true, force: true });
     },
   };

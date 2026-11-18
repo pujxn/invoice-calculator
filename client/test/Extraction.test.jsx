@@ -11,6 +11,7 @@ vi.mock('../src/invoices/invoiceApi.js', () => ({
   deleteInvoice: vi.fn(),
   fetchInvoiceImage: vi.fn(),
   extractInvoice: vi.fn(),
+  getReadingMethods: vi.fn(),
 }));
 
 const ID = 'a'.repeat(32);
@@ -144,7 +145,7 @@ describe('reading the amounts', () => {
   it('says plainly when the values come from the demo (mock) reader', async () => {
     await uploadAPicture();
     await readIt(reading({ provider: 'mock' }));
-    expect(screen.getByText(/Demo values \(no AI key is set\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Demo values, not read from your picture/)).toBeInTheDocument();
   });
 
   it('lists the lines found, with totals under the right column', async () => {

@@ -6,7 +6,7 @@ import { createRateLimiter } from './auth/rateLimiter.js';
 import { createUploadStore } from './invoices/store.js';
 import { createInvoiceRouter } from './invoices/routes.js';
 import { createCalculateRouter } from './calculate/routes.js';
-import { createExtractor, createVisionProvider } from './extraction/index.js';
+import { createExtractor, createVisionMethods } from './extraction/index.js';
 import { createAuthRouter, createRequireAuth } from './auth/routes.js';
 import { describeError, secretsFrom } from './log.js';
 import { createCors } from './cors.js';
@@ -37,11 +37,33 @@ export function createApp(config, deps = {}) {
     maxPerUser: config.uploads.maxPerUser,
   });
 
-  // `deps.vision` and `deps.prepare` let tests inject a fake vision provider and image step.
-  const extractor = createExtractor({
-    provider: deps.vision || createVisionProvider(config.vision),
-    ...(deps.prepare ? { prepare: deps.prepare } : {}),
+  // `deps.vision` (one provider) or `deps.visionMethods` (several) and `deps.prepare` let tests inject
+  // fake vision providers and a fake image step.
+  // One extractor per reading method that works on this server; the person picks one per reading.
+  const vision = createVisionMethods(config.vision, {
+    provider: deps.vision,
+    methods: deps.visionMethods,
   });
+  const extractors = Object.fromEntries(
+    vision.methods
+      .filter((m) => m.available)
+      .map((m) => [
+        m.id,
+        createExtractor({
+          provider: m.provider,
+          ...(deps.prepare ? { prepare: deps.prepare } : {}),
+        }),
+      ]),
+  );
+  const readingMethods = {
+    default: vision.default,
+    methods: vision.methods.map(({ id, label, available, reason }) => ({
+      id,
+      label,
+      available,
+      ...(reason ? { reason } : {}),
+    })),
+  };
   const extractLimiter = createRateLimiter({
     limit: config.vision.extractionsPerUserPerHour,
     windowMs: 60 * 60 * 1000,
@@ -69,7 +91,7 @@ export function createApp(config, deps = {}) {
   app.get('/api/health', (_req, res) => {
     res.json({
       ok: true,
-      providers: { sms: config.sms.provider, vision: extractor.provider },
+      providers: { sms: config.sms.provider, vision: vision.default },
     });
   });
 
@@ -86,7 +108,8 @@ export function createApp(config, deps = {}) {
       store: uploads,
       requireAuth,
       maxBytes: config.uploads.maxBytes,
-      extractor,
+      extractors,
+      readingMethods,
       extractLimiter,
       secrets,
     }),
@@ -127,5 +150,7 @@ export function createApp(config, deps = {}) {
   }
 
   app.locals.requireAuth = requireAuth; // for later routers (extract, calculate)
+  // Stops the local OCR engine (a background thread) so a test or shutdown can exit cleanly.
+  app.locals.close = () => Promise.all(vision.methods.map((m) => m.provider?.close?.()));
   return app;
 }

@@ -5,6 +5,8 @@
 export const SESSION_KEY = 'invoice-calculator.session';
 export const PICTURE_KEY = 'invoice-calculator.current-invoice';
 export const READING_KEY = 'invoice-calculator.extracted';
+// How the person chose to read pictures ("ocr" or "claude"): a preference, kept for this tab.
+export const METHOD_KEY = 'invoice-calculator.reading-method';
 
 // Signing out must not leave one person's invoice amounts behind for the next sign-in.
 export function forgetInvoiceData() {

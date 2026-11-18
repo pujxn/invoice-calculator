@@ -67,5 +67,14 @@ export async function fetchInvoiceImage(id, token) {
 // Asks the server to read the Debit and Credit amounts from one uploaded picture. The AI call can
 // take many seconds, so it can be cancelled with `signal`. On success the server has already
 // deleted the picture. Rejects with ApiError (message safe to show) or an AbortError.
-export const extractInvoice = (id, { token, signal } = {}) =>
-  api(`/invoices/${id}/extract`, { method: 'POST', token, signal });
+// `method` is how to read it ("ocr" = free, on the server; "claude" = AI); left out, the server picks.
+export const extractInvoice = (id, { token, signal, method } = {}) =>
+  api(`/invoices/${id}/extract`, {
+    method: 'POST',
+    token,
+    signal,
+    ...(method ? { body: { method } } : {}),
+  });
+
+// The ways this server can read a picture: { default, methods: [{ id, label, available, reason? }] }.
+export const getReadingMethods = (token) => api('/invoices/reading-methods', { token });

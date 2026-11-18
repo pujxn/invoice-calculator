@@ -10,6 +10,7 @@ vi.mock('../src/invoices/invoiceApi.js', () => ({
   getInvoice: vi.fn(),
   deleteInvoice: vi.fn(),
   fetchInvoiceImage: vi.fn(),
+  getReadingMethods: vi.fn(),
 }));
 
 const ID = 'a'.repeat(32);

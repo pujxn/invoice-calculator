@@ -13,7 +13,8 @@ export function createInvoiceRouter({
   store,
   requireAuth,
   maxBytes,
-  extractor,
+  extractors,
+  readingMethods,
   extractLimiter,
   secrets = [],
 }) {
@@ -92,6 +93,9 @@ export function createInvoiceRouter({
     }
   }
 
+  // Which ways of reading a picture this server offers, and which one is used when none is chosen.
+  router.get('/reading-methods', requireAuth, (_req, res) => res.json(readingMethods));
+
   router.get('/:id', requireAuth, find, (req, res) => {
     res.json(publicMeta(req.invoice));
   });
@@ -110,6 +114,21 @@ export function createInvoiceRouter({
   // Reads the Debit and Credit amounts from one of the user's pictures. On success the picture
   // is deleted (it is not needed any more); on failure it stays so the user can try again.
   router.post('/:id/extract', requireAuth, find, async (req, res, next) => {
+    // Which reader to use: the one named in the request, else the server's default.
+    const asked = req.body?.method;
+    if (asked !== undefined && asked !== null && typeof asked !== 'string') {
+      return res.status(400).json({ error: 'Choose a reading method from the list.' });
+    }
+    const methodId = asked ?? readingMethods.default;
+    const listed = readingMethods.methods.find((m) => m.id === methodId);
+    if (!listed) return res.status(400).json({ error: 'Choose a reading method from the list.' });
+    const extractor = extractors[methodId];
+    if (!extractor) {
+      return res.status(409).json({
+        error: `${listed.label} is not available. ${listed.reason ?? ''}`.trim(),
+        code: 'method_unavailable',
+      });
+    }
     const key = `${owner(req)}:${req.invoice.id}`;
     if (reading.has(key)) {
       return res.status(409).json({ error: 'This picture is already being read.' });
