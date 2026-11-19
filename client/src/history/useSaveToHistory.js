@@ -22,6 +22,15 @@ export default function useSaveToHistory({ active, token, result, values, histor
   const chain = useRef(Promise.resolve()); // saves go one after another, never two at once
   const idRef = useRef(historyId);
   idRef.current = historyId ?? idRef.current;
+  // A new invoice (another picture) starts a new record. The screen that owns this hook stays
+  // mounted after "Start a new invoice", so what was saved for the last one must be forgotten.
+  const readingKey = result.invoiceId ?? null;
+  const lastReading = useRef(readingKey);
+  if (lastReading.current !== readingKey) {
+    lastReading.current = readingKey;
+    idRef.current = historyId ?? null;
+    lastSent.current = '';
+  }
   const pending = useRef(null); // the save that is waiting for its pause, if any
   const mounted = useRef(true);
   const onSavedRef = useRef(onSaved);
@@ -29,6 +38,11 @@ export default function useSaveToHistory({ active, token, result, values, histor
 
   const valid = calculateNet(values).ok;
   const key = JSON.stringify([values.debit, values.credit]);
+
+  // The note on the screen belongs to one invoice: a new one starts with none.
+  useEffect(() => {
+    setStatus(idRef.current ? 'saved' : 'idle');
+  }, [readingKey]);
 
   useEffect(() => {
     // A correction still waiting for its pause is replaced by a newer one, dropped if the amounts

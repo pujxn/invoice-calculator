@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
+import * as invoiceApi from '../src/invoices/invoiceApi.js';
 import userEvent from '@testing-library/user-event';
 import { HISTORY_ID, renderApp, storeSession, stubApi } from './helpers.jsx';
 
@@ -94,6 +95,53 @@ describe('saving to history from the final amount screen', () => {
     );
     // The id is kept with the reading, so a reload does not save it again.
     expect(JSON.parse(sessionStorage.getItem(KEY)).historyId).toBe(HISTORY_ID);
+  });
+
+  it('a second invoice in the same session is a new record, not a correction of the first', async () => {
+    const SECOND = 'b'.repeat(32);
+    const ids = ['1'.repeat(32), '2'.repeat(32)];
+    let made = 0;
+    const mock = await openResult({
+      handlers: {
+        'POST /history': (body) => [201, entry({ ...body, id: ids[made++] })],
+      },
+    });
+    await waitFor(() => expect(calls(mock, 'POST', '/history')).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.getByTestId('history-status')).toHaveTextContent('Saved to your history'),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Start a new invoice' }));
+    await screen.findByRole('heading', { name: 'Upload your invoice' });
+    invoiceApi.deleteInvoice.mockResolvedValue({ ok: true });
+    invoiceApi.uploadInvoice.mockResolvedValue({
+      id: SECOND,
+      size: 10,
+      mimeType: 'image/jpeg',
+      createdAt: 'x',
+    });
+    await user.upload(
+      screen.getByTestId('file-input'),
+      new File(['x'], 'second.jpg', { type: 'image/jpeg' }),
+    );
+    await user.click(await screen.findByRole('button', { name: 'Type the amounts instead' }));
+    await user.type(screen.getByLabelText(/^Debit/), '75');
+    await user.click(screen.getByRole('button', { name: 'Calculate final amount' }));
+    await screen.findByRole('heading', { name: 'Final amount' });
+
+    await waitFor(() => expect(calls(mock, 'POST', '/history')).toHaveLength(2));
+    expect(sentBody(calls(mock, 'POST', '/history')[1])).toEqual({
+      debit: '75',
+      credit: '',
+      imageRef: SECOND,
+      method: 'manual',
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('history-status')).toHaveTextContent('Saved to your history'),
+    );
+    // Nothing was ever sent as a correction of the first invoice's record.
+    expect(calls(mock, 'PATCH', `/history/${ids[0]}`)).toHaveLength(0);
+    expect(JSON.parse(sessionStorage.getItem(KEY)).historyId).toBe(ids[1]);
   });
 
   it('an invoice typed by hand is saved with no picture reference', async () => {
