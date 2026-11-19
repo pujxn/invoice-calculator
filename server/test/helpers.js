@@ -15,7 +15,12 @@ export async function startTestApp({ env = {}, sms, vision, visionMethods, prepa
     },
   };
   const uploadDir = await mkdtemp(path.join(tmpdir(), 'invoice-uploads-'));
-  const config = loadConfig({ AUTH_SECRET: 'test-secret', UPLOAD_DIR: uploadDir, ...env });
+  const config = loadConfig({
+    AUTH_SECRET: 'test-secret',
+    UPLOAD_DIR: uploadDir,
+    HISTORY_FILE: path.join(uploadDir, 'history', 'history.json'),
+    ...env,
+  });
   const app = createApp(config, {
     sms: fakeSms,
     now: () => clock.t,
