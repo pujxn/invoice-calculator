@@ -30,7 +30,8 @@ export async function startTestApp({
   const config = loadConfig({
     AUTH_SECRET: 'test-secret',
     UPLOAD_DIR: uploadDir,
-    DATA_FILE: path.join(dataDir, 'ledgerly.json'),
+    AGENTS_FILE: path.join(dataDir, 'agents.json'),
+    HISTORY_FILE: path.join(dataDir, 'history.json'),
     ...env,
   });
   const app = createApp(config, {
@@ -107,6 +108,7 @@ export async function startTestApp({
     app,
     config,
     store: app.locals.store,
+    history: app.locals.history,
     uploadDir,
     dataDir,
     signInSuperadmin,

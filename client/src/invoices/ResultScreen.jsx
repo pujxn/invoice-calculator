@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext.jsx';
-import { saveEntry } from '../roles/rolesApi.js';
 import { calculateNet, describeResult, formatAmount } from '@ledgerly/money';
 import useFocusOnMount from '../useFocusOnMount.js';
 import AmountFields from './AmountFields.jsx';
@@ -16,40 +14,15 @@ export default function ResultScreen({
   onReset,
   onBack,
   onStartOver,
-  saved,
-  onSaved,
+  saveStatus = 'idle', // 'idle' | 'saving' | 'saved' | 'failed': is this invoice in the history?
+  onRetrySave,
 }) {
-  const { token } = useAuth();
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
   const headingRef = useFocusOnMount();
   const [copy, setCopy] = useState(''); // '', 'copied' or 'failed'
   const outcome = calculateNet(values);
   const words = outcome.ok ? describeResult(outcome) : null;
   const edited = ['debit', 'credit'].some((f) => values[f] !== (result[f] ?? ''));
   const money = (value) => formatAmount(value, { exact: true }); // every decimal, so the sum adds up
-
-  // `saved` is the Debit and Credit text that was saved from this invoice. Changing an amount
-  // afterwards makes the invoice saveable again (the earlier one stays in the list until deleted).
-  const key = `${values.debit}|${values.credit}`;
-  const isSaved = saved === key;
-
-  async function save() {
-    setSaving(true);
-    setSaveError('');
-    try {
-      await saveEntry(token, {
-        debit: values.debit.trim() || null,
-        credit: values.credit.trim() || null,
-        method: result.provider,
-      });
-      onSaved(key);
-    } catch (err) {
-      setSaveError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function copyResult() {
     try {
@@ -136,22 +109,25 @@ export default function ResultScreen({
           'Your browser would not let us copy. Select the amount and copy it by hand.'}
       </p>
 
-      {saveError && (
-        <p className="status bad" role="alert">
-          {saveError}
-        </p>
-      )}
-      {isSaved && (
-        <p className="status good" role="status" data-testid="saved-note">
-          Saved to your list. <Link to="/list">View my list</Link>
-        </p>
-      )}
+      <p className="hint save-status" aria-live="polite" data-testid="history-status">
+        {saveStatus === 'saving' && 'Saving to history…'}
+        {saveStatus === 'saved' && (
+          <>
+            Saved to your history. <Link to="/history">View history</Link>
+          </>
+        )}
+        {saveStatus === 'failed' && (
+          <>
+            Could not save this invoice to your history.{' '}
+            <button type="button" className="link" onClick={onRetrySave}>
+              Try again
+            </button>
+          </>
+        )}
+      </p>
 
       <div className="actions">
-        <button type="button" onClick={save} disabled={!outcome.ok || saving || isSaved}>
-          {saving ? 'Saving…' : isSaved ? 'Saved' : 'Save to my list'}
-        </button>
-        <button type="button" className="secondary" onClick={copyResult} disabled={!outcome.ok}>
+        <button type="button" onClick={copyResult} disabled={!outcome.ok}>
           Copy result
         </button>
         {edited && (

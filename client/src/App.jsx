@@ -4,9 +4,10 @@ import RequireAuth from './auth/RequireAuth.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import HomePage from './pages/HomePage.jsx';
 import RequireRole from './roles/RequireRole.jsx';
-import MyListPage from './roles/MyListPage.jsx';
 import AdminPage from './roles/AdminPage.jsx';
 import AgentDetailPage from './roles/AgentDetailPage.jsx';
+import HistoryPage from './pages/HistoryPage.jsx';
+import HistoryEntryPage from './pages/HistoryEntryPage.jsx';
 
 export default function App() {
   return (
@@ -18,7 +19,8 @@ export default function App() {
           <Route element={<RequireAuth />}>
             <Route path="/" element={<HomePage />} />
             <Route element={<RequireRole role="agent" />}>
-              <Route path="/list" element={<MyListPage />} />
+              <Route path="/history" element={<HistoryPage />} />
+              <Route path="/history/:id" element={<HistoryEntryPage />} />
             </Route>
             <Route element={<RequireRole role="superadmin" />}>
               <Route path="/admin" element={<AdminPage />} />

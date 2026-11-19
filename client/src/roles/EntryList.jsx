@@ -19,9 +19,8 @@ export function formatWhen(iso) {
   });
 }
 
-// A list of saved invoices, newest first. `onDelete(entry)` makes each row deletable (agents only);
-// `confirming` is the id of the row waiting for a yes.
-export default function EntryList({ entries, onDelete, confirming, onAsk, onCancel, busyId }) {
+// A read-only list of saved invoices, newest first (the superadmin's view of an agent's list).
+export default function EntryList({ entries }) {
   const money = (value) => formatAmount(value, { exact: true });
   return (
     <ul className="entries" aria-label="Saved invoices">
@@ -37,28 +36,6 @@ export default function EntryList({ entries, onDelete, confirming, onAsk, onCanc
           <p className="entry-parts">
             Debit {money(entry.debit)} · Credit {money(entry.credit)}
           </p>
-          {onDelete &&
-            (confirming === entry.id ? (
-              <div className="entry-actions" role="group" aria-label="Delete this invoice?">
-                <span className="hint">Delete this invoice from your list?</span>
-                <button
-                  type="button"
-                  disabled={busyId === entry.id}
-                  onClick={() => onDelete(entry)}
-                >
-                  Yes, delete
-                </button>
-                <button type="button" className="secondary" onClick={onCancel}>
-                  Keep it
-                </button>
-              </div>
-            ) : (
-              <div className="entry-actions">
-                <button type="button" className="secondary" onClick={() => onAsk(entry.id)}>
-                  Delete
-                </button>
-              </div>
-            ))}
         </li>
       ))}
     </ul>

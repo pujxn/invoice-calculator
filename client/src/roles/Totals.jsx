@@ -7,7 +7,7 @@ export default function Totals({ summary, title, headingLevel = 2 }) {
   const money = (value) => formatAmount(value, { exact: true });
   const empty = summary.count === 0;
   return (
-    <section className={`totals ${empty ? 'balanced' : summary.type}`} aria-label={title}>
+    <section className={`totals ${empty ? 'balanced' : summary.type}`}>
       <Heading className="totals-title">{title}</Heading>
       <p className="totals-net" data-testid="totals-net">
         <span className="totals-label">{empty ? 'Nothing yet' : LABELS[summary.type]}</span>

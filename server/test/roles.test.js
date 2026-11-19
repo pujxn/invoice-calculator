@@ -4,8 +4,9 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { startTestApp } from './helpers.js';
 import { loadConfig, configWarnings, DEMO_SUPERADMIN } from '../src/config.js';
-import { createDataStore } from '../src/data/store.js';
-import { summarize } from '../src/data/totals.js';
+import { createAgentStore } from '../src/agents/store.js';
+import { createHistoryStore } from '../src/history/store.js';
+import { summarize } from '../src/agents/totals.js';
 
 const BOSS = '+919876500001';
 const ASHA = '+919876500002';
@@ -137,44 +138,48 @@ test('only agents process invoices; the superadmin is refused there', async () =
     for (const [method, url, body] of [
       ['POST', '/api/invoices/calculate', { debit: '1', credit: '1' }],
       ['GET', '/api/invoices/reading-methods'],
-      ['GET', '/api/entries'],
-      ['POST', '/api/entries', { debit: '1', credit: '1' }],
+      ['GET', '/api/history'],
+      ['POST', '/api/history', { debit: '1', credit: '1' }],
+      ['GET', '/api/my-totals'],
     ]) {
       assert.equal((await app.call(method, url, { token: boss, body })).status, 403, url);
+      assert.equal((await app.call(method, url, { body })).status, 401, url);
     }
   } finally {
     await app.close();
   }
 });
 
-test('an agent saves invoices, sees them newest first with exact totals, and can delete one', async () => {
+// Saves one invoice a second apart, so "newest first" has an order to show.
+const save = (app, token, body) => {
+  app.advance(1000);
+  return app.call('POST', '/api/history', { token, body });
+};
+
+test('an agent’s saved invoices are tagged with their number and add up exactly in /api/my-totals', async () => {
   const app = await strict();
   try {
     const boss = await signInAs(app, BOSS);
     await addAgent(app, boss, ASHA, 'Asha');
     const asha = await signInAs(app, ASHA);
 
-    const first = await app.call('POST', '/api/entries', {
-      token: asha,
-      body: { debit: '1,250.50', credit: '400', method: 'ocr' },
-    });
+    const first = await save(app, asha, { debit: '1,250.50', credit: '400', method: 'ocr' });
     assert.equal(first.status, 201);
-    assert.equal(first.body.entry.debit, '1250.50');
-    assert.equal(first.body.entry.credit, '400.00');
-    assert.equal(first.body.entry.net, '850.50');
-    assert.equal(first.body.entry.type, 'debit');
-    assert.equal(first.body.entry.method, 'ocr');
-    await app.call('POST', '/api/entries', { token: asha, body: { debit: '0.1', credit: null } });
-    const third = await app.call('POST', '/api/entries', {
-      token: asha,
-      body: { debit: '0.2', credit: '2000.5' },
-    });
+    assert.equal(first.body.agentId, ASHA, 'set by the server');
+    assert.equal(first.body.net, '850.50');
+    await save(app, asha, { debit: '0.1', credit: null });
+    await save(app, asha, { debit: '0.2', credit: '2000.5' });
 
-    const list = await app.call('GET', '/api/entries', { token: asha });
-    assert.equal(list.body.entries.length, 3);
-    assert.equal(list.body.entries[0].id, third.body.entry.id);
+    // A client cannot claim to be someone else's agent.
+    const sneaky = await save(app, asha, { debit: '1', agentId: '+919999999999' });
+    assert.equal(sneaky.body.agentId, ASHA);
+    await app.call('DELETE', `/api/history/${sneaky.body.id}`, { token: asha });
+
+    const list = await app.call('GET', '/api/history', { token: asha });
+    assert.equal(list.body.total, 3);
     // Exact: 1250.50 + 0.1 + 0.2 = 1250.80, never 1250.8000000000002.
-    assert.deepEqual(list.body.summary, {
+    const totals = await app.call('GET', '/api/my-totals', { token: asha });
+    assert.deepEqual(totals.body, {
       count: 3,
       debit: '1250.80',
       credit: '2400.50',
@@ -183,43 +188,20 @@ test('an agent saves invoices, sees them newest first with exact totals, and can
       type: 'credit',
     });
 
-    const gone = await app.call('DELETE', `/api/entries/${third.body.entry.id}`, { token: asha });
-    assert.equal(gone.status, 200);
-    assert.equal(gone.body.summary.count, 2);
-    assert.equal(gone.body.summary.credit, '400.00');
+    const third = list.body.entries[0];
     assert.equal(
-      (await app.call('DELETE', `/api/entries/${third.body.entry.id}`, { token: asha })).status,
-      404,
+      (await app.call('DELETE', `/api/history/${third.id}`, { token: asha })).status,
+      200,
     );
+    const after = await app.call('GET', '/api/my-totals', { token: asha });
+    assert.equal(after.body.count, 2);
+    assert.equal(after.body.credit, '400.00');
   } finally {
     await app.close();
   }
 });
 
-test('saving checks the amounts like the calculation does', async () => {
-  const app = await strict();
-  try {
-    const boss = await signInAs(app, BOSS);
-    await addAgent(app, boss, ASHA, 'Asha');
-    const token = await signInAs(app, ASHA);
-    const save = (body) => app.call('POST', '/api/entries', { token, body });
-    assert.equal((await save({})).status, 400, 'at least one amount');
-    assert.equal((await save({ debit: 5 })).status, 400, 'numbers must be text');
-    assert.equal((await save({ debit: '-5' })).status, 400);
-    assert.equal((await save({ debit: '$5' })).status, 400);
-    assert.equal((await save({ debit: '5', method: 'telepathy' })).status, 400);
-    assert.equal((await save([])).status, 400);
-    assert.equal((await app.call('GET', '/api/entries', { token })).body.entries.length, 0);
-    // A Debit of 0 and a Credit of 0 is a real, balanced invoice.
-    const zero = await save({ debit: '0', credit: '0' });
-    assert.equal(zero.status, 201);
-    assert.equal(zero.body.entry.type, 'balanced');
-  } finally {
-    await app.close();
-  }
-});
-
-test('agents see only their own list, and cannot delete anyone else’s entry', async () => {
+test('agents see only their own list, and cannot read or delete anyone else’s', async () => {
   const app = await strict();
   try {
     const boss = await signInAs(app, BOSS);
@@ -227,13 +209,19 @@ test('agents see only their own list, and cannot delete anyone else’s entry', 
     await addAgent(app, boss, RAVI, 'Ravi');
     const asha = await signInAs(app, ASHA);
     const ravi = await signInAs(app, RAVI);
-    const mine = await app.call('POST', '/api/entries', { token: asha, body: { debit: '10' } });
-    await app.call('POST', '/api/entries', { token: ravi, body: { credit: '3' } });
+    const mine = await save(app, asha, { debit: '10' });
+    await save(app, ravi, { credit: '3' });
 
-    assert.equal((await app.call('GET', '/api/entries', { token: ravi })).body.entries.length, 1);
-    const stolen = await app.call('DELETE', `/api/entries/${mine.body.entry.id}`, { token: ravi });
-    assert.equal(stolen.status, 404);
-    assert.equal((await app.call('GET', '/api/entries', { token: asha })).body.entries.length, 1);
+    assert.equal((await app.call('GET', '/api/history', { token: ravi })).body.total, 1);
+    assert.equal(
+      (await app.call('GET', `/api/history/${mine.body.id}`, { token: ravi })).status,
+      404,
+    );
+    assert.equal(
+      (await app.call('DELETE', `/api/history/${mine.body.id}`, { token: ravi })).status,
+      404,
+    );
+    assert.equal((await app.call('GET', '/api/my-totals', { token: asha })).body.count, 1);
   } finally {
     await app.close();
   }
@@ -247,12 +235,9 @@ test('the superadmin sees each agent’s list and totals and an overall total', 
     await addAgent(app, boss, RAVI, 'Ravi');
     const asha = await signInAs(app, ASHA);
     const ravi = await signInAs(app, RAVI);
-    await app.call('POST', '/api/entries', {
-      token: asha,
-      body: { debit: '50000', credit: '10000' },
-    });
-    await app.call('POST', '/api/entries', { token: asha, body: { debit: '1.5' } });
-    await app.call('POST', '/api/entries', { token: ravi, body: { credit: '70000.25' } });
+    await save(app, asha, { debit: '50000', credit: '10000' });
+    await save(app, asha, { debit: '1.5' });
+    await save(app, ravi, { credit: '70000.25' });
 
     const all = await app.call('GET', '/api/agents', { token: boss });
     assert.equal(all.status, 200);
@@ -279,7 +264,17 @@ test('the superadmin sees each agent’s list and totals and an overall total', 
     });
     assert.equal(detail.body.agent.name, 'Asha');
     assert.equal(detail.body.entries.length, 2);
+    assert.equal(detail.body.total, 2);
     assert.equal(detail.body.entries[1].debit, '50000.00');
+    assert.equal(detail.body.entries[1].owner, undefined, 'the owner’s number is not repeated');
+    assert.equal(detail.body.agent.net, '40001.50');
+    // Pages: the totals still cover everything.
+    const page = await app.call('GET', `/api/agents/${encodeURIComponent(ASHA)}?limit=1&offset=1`, {
+      token: boss,
+    });
+    assert.equal(page.body.entries.length, 1);
+    assert.equal(page.body.total, 2);
+    assert.equal(page.body.agent.count, 2);
     assert.equal(
       (await app.call('GET', '/api/agents/%2B919999999999', { token: boss })).status,
       404,
@@ -296,7 +291,7 @@ test('removing an agent signs them out at once, keeps their list in the totals, 
     const boss = await signInAs(app, BOSS);
     await addAgent(app, boss, ASHA, 'Asha');
     const asha = await signInAs(app, ASHA);
-    await app.call('POST', '/api/entries', { token: asha, body: { debit: '100' } });
+    await save(app, asha, { debit: '100' });
 
     const removed = await app.call('DELETE', `/api/agents/${encodeURIComponent(ASHA)}`, {
       token: boss,
@@ -335,25 +330,26 @@ test('agents and saved invoices survive a restart', async () => {
     const boss = await signInAs(app, BOSS);
     await addAgent(app, boss, ASHA, 'Asha');
     const asha = await signInAs(app, ASHA);
-    await app.call('POST', '/api/entries', { token: asha, body: { debit: '12.345' } });
+    await save(app, asha, { debit: '12.345' });
 
-    const again = createDataStore({ file: app.config.data.file });
+    const again = createAgentStore({ file: app.config.agents.file });
     assert.equal(again.getAgent(ASHA).name, 'Asha');
-    assert.equal(again.listEntries(ASHA)[0].debit, '12.345');
-    assert.deepEqual(summarize(again.listEntries()).debit, '12.345');
+    const kept = await createHistoryStore({ file: app.config.history.file }).list(ASHA);
+    assert.equal(kept[0].debit, '12.345');
+    assert.equal(kept[0].agentId, ASHA);
   } finally {
     await app.close();
   }
 });
 
-test('a damaged or unknown data file stops the server instead of being overwritten', async () => {
+test('a damaged or unknown agents file stops the server instead of being overwritten', async () => {
   const app = await strict();
   try {
     const file = path.join(app.dataDir, 'bad.json');
     await writeFile(file, '{ not json');
-    assert.throws(() => createDataStore({ file }), /not valid JSON/);
+    assert.throws(() => createAgentStore({ file }), /not valid JSON/);
     await writeFile(file, JSON.stringify({ version: 99, agents: {}, entries: [] }));
-    assert.throws(() => createDataStore({ file }), /not a Ledgerly data file/);
+    assert.throws(() => createAgentStore({ file }), /not one this version/);
     assert.equal(
       await readFile(file, 'utf8'),
       JSON.stringify({ version: 99, agents: {}, entries: [] }),

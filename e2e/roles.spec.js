@@ -51,7 +51,7 @@ async function startNewInvoice(page) {
 }
 
 // On the upload screen: reads the sample picture with the demo reader, types the two amounts and
-// saves the invoice; ends on the final amount.
+// works out the final amount, which saves the invoice; ends on the final amount.
 async function saveInvoice(page, { debit, credit }) {
   await page.getByTestId('file-input').setInputFiles(PNG);
   await expect(page.getByText('Picture uploaded.')).toBeVisible();
@@ -61,11 +61,13 @@ async function saveInvoice(page, { debit, credit }) {
   await page.getByLabel(/^Credit/).fill(credit);
   await page.getByRole('button', { name: 'Calculate final amount' }).click();
   await expect(page.getByRole('heading', { name: 'Final amount' })).toBeVisible();
-  await page.getByRole('button', { name: 'Save to my list' }).click();
-  await expect(page.getByTestId('saved-note')).toContainText('Saved to your list.');
+  // The invoice is saved to the agent's history by itself once its final amount shows.
+  await expect(page.getByTestId('history-status')).toContainText('Saved to your history');
 }
 
 const net = (page) => page.getByTestId('totals-net');
+// The agent's own saved invoices on the History page.
+const mine = (page) => page.getByRole('list', { name: 'Saved invoices' }).getByRole('link');
 
 test('superadmin adds an agent, the agent saves invoices, and the superadmin sees the totals', async ({
   page,
@@ -98,15 +100,15 @@ test('superadmin adds an agent, the agent saves invoices, and the superadmin see
   await shot(page, 'roles-02-saved');
   await startNewInvoice(page);
   await saveInvoice(page, { debit: '', credit: '70000.25' });
-  await page.getByRole('link', { name: 'My list', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'My list' })).toBeVisible();
+  await page.getByRole('link', { name: 'History', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'History', exact: true })).toBeVisible();
   await expect(page.getByTestId('totals-debit')).toHaveText('₹50,000.00');
   await expect(page.getByTestId('totals-credit')).toHaveText('₹80,000.25');
   await expect(net(page)).toContainText('Net Credit');
   await expect(net(page)).toContainText('₹30,000.25');
-  await expect(page.getByTestId('entry')).toHaveCount(2);
-  await expect(page.getByTestId('entry').first()).toContainText('Net Credit ₹70,000.25');
-  await shot(page, 'roles-03-my-list');
+  await expect(mine(page)).toHaveCount(2);
+  await expect(mine(page).first()).toContainText('₹70,000.25');
+  await shot(page, 'roles-03-agent-history');
   await signOut(page);
 
   // The superadmin sees the agent's figures, the overall total and the agent's list.
@@ -169,33 +171,35 @@ test('each role stays in its own pages', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'My list', exact: true })).toHaveCount(0);
 });
 
-test('an agent can delete a saved invoice and the total follows', async ({ page }) => {
+test('deleting a saved invoice updates the agent’s total', async ({ page }) => {
   const phone = uniquePhone();
   await registerAgent(phone, 'Ravi');
   await signInAgent(page, phone, 'Ravi');
   await saveInvoice(page, { debit: '1250.50', credit: '400' });
   await startNewInvoice(page);
   await saveInvoice(page, { debit: '12.345', credit: '' });
-  await page.getByRole('link', { name: 'My list', exact: true }).click();
+  await page.getByRole('link', { name: 'History', exact: true }).click();
   await expect(page.getByTestId('totals-debit')).toHaveText('₹1,262.845'); // every decimal is kept
-  await page.getByTestId('entry').first().getByRole('button', { name: 'Delete' }).click();
-  await page.getByRole('button', { name: 'Keep it' }).click();
-  await expect(page.getByTestId('entry')).toHaveCount(2);
-  await page.getByTestId('entry').first().getByRole('button', { name: 'Delete' }).click();
-  await page.getByRole('button', { name: 'Yes, delete' }).click();
-  await expect(page.getByTestId('entry')).toHaveCount(1);
+  await expect(mine(page)).toHaveCount(2);
+
+  await mine(page).first().click(); // the 12.345 one
+  await page.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: 'Yes, delete it' }).click();
+  await expect(page.getByRole('heading', { name: 'History', exact: true })).toBeVisible();
+  await expect(mine(page)).toHaveCount(1);
   await expect(page.getByTestId('totals-debit')).toHaveText('₹1,250.50');
-  // A reload shows the same list: it is kept on the server, not in the browser.
+  // A reload shows the same: it is kept on the server, not in the browser.
   await page.reload();
-  await expect(page.getByTestId('entry')).toHaveCount(1);
+  await expect(mine(page)).toHaveCount(1);
+  await expect(page.getByTestId('totals-debit')).toHaveText('₹1,250.50');
 });
 
-test('an empty list tells the agent what to do', async ({ page }) => {
+test('a new agent’s history starts empty, with a zero total', async ({ page }) => {
   const phone = uniquePhone();
   await registerAgent(phone, 'Neha');
   await signInAgent(page, phone, 'Neha');
-  await page.getByRole('link', { name: 'My list', exact: true }).click();
-  await expect(page.getByText('You have not saved any invoices yet.')).toBeVisible();
+  await page.getByRole('link', { name: 'History', exact: true }).click();
+  await expect(page.getByTestId('history-empty')).toContainText('Nothing saved yet');
   await expect(net(page)).toContainText('Nothing yet');
 });
 
@@ -211,6 +215,11 @@ test('the new screens fit the screen, are touch friendly and pass the accessibil
   await expectNoSideScroll(page);
   await expectTouchFriendly(page);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  // The dark theme too.
+  await page.emulateMedia({ colorScheme: 'dark' });
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await shot(page, 'roles-08-admin-dark');
+  await page.emulateMedia({ colorScheme: 'light' });
   await page
     .getByTestId('agent')
     .filter({ hasText: phone })
@@ -225,8 +234,8 @@ test('the new screens fit the screen, are touch friendly and pass the accessibil
   await saveInvoice(page, { debit: '12,34,567.891', credit: '500' });
   await expectNoSideScroll(page);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-  await page.getByRole('link', { name: 'My list', exact: true }).click();
-  await expect(page.getByTestId('entry')).toHaveCount(1);
+  await page.getByRole('link', { name: 'History', exact: true }).click();
+  await expect(mine(page)).toHaveCount(1);
   await expectNoSideScroll(page);
   await expectTouchFriendly(page);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);

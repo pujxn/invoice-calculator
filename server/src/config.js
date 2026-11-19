@@ -93,13 +93,13 @@ export function loadConfig(env = process.env) {
       demoSuperadmin: useDemoSuperadmin,
       invalid: listed.invalid,
     },
-    data: {
-      // The file agents and their saved invoices are kept in (a relative path is relative to where
-      // the server starts). "memory" keeps nothing on disk.
+    agents: {
+      // The file the agents a superadmin adds are kept in (a relative path is relative to where
+      // the server starts). "memory" keeps them only until the server stops.
       file:
-        env.DATA_FILE === 'memory'
+        env.AGENTS_FILE === 'memory'
           ? null
-          : env.DATA_FILE || path.resolve(import.meta.dirname, '../data/ledgerly.json'),
+          : env.AGENTS_FILE || path.resolve(import.meta.dirname, '../data/agents.json'),
     },
     sms: {
       provider: smsProvider,
@@ -115,6 +115,14 @@ export function loadConfig(env = process.env) {
       maxBytes: Math.floor(positiveNumber(env.UPLOAD_MAX_MB, 10) * 1024 * 1024),
       ttlMs: positiveNumber(env.UPLOAD_TTL_HOURS, 24) * 60 * 60 * 1000,
       maxPerUser: positiveInt(env.UPLOAD_MAX_PER_USER, 50),
+    },
+    history: {
+      // Where saved invoice history is kept (one JSON file). A relative path is relative to where
+      // the server starts. Set it to "memory" to keep history only until the server stops.
+      file:
+        env.HISTORY_FILE === 'memory'
+          ? null
+          : env.HISTORY_FILE || path.resolve(import.meta.dirname, '../data/history.json'),
     },
     vision: {
       // How invoices are read when the user has not chosen: "claude" (AI, needs a key), "ocr"
@@ -172,8 +180,11 @@ export function configWarnings(config) {
       'SUPERADMIN_PHONES is not set: nobody can sign in as superadmin, so no agents can be added.',
     );
   }
-  if (!config.data.file) {
-    warnings.push('DATA_FILE=memory: agents and saved invoices are lost when the server stops.');
+  if (!config.agents.file) {
+    warnings.push('AGENTS_FILE=memory: the agents are lost when the server stops.');
+  }
+  if (!config.history.file) {
+    warnings.push('HISTORY_FILE=memory: saved invoices are lost when the server stops.');
   }
   return warnings;
 }

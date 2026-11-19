@@ -71,11 +71,13 @@ export default defineConfig({
         AUTH_SECRET: 'e2e-secret',
         SUPERADMIN_PHONES: SUPERADMINS.join(','),
         // A throwaway file for the agents and lists the tests add.
-        DATA_FILE: path.join(tmpdir(), `invoice-calculator-e2e-data-${process.pid}.json`),
+        AGENTS_FILE: path.join(tmpdir(), `invoice-calculator-e2e-agents-${process.pid}.json`),
         // Lets native-api.spec.js call the API from the web page's own origin, as the apps do.
         CORS_ORIGINS: `http://localhost:${WEB_PORT}`,
         // Pictures uploaded by the tests go to a throwaway folder, not server/uploads.
         UPLOAD_DIR: path.join(tmpdir(), 'invoice-calculator-e2e-uploads'),
+        // Saved history is kept in memory, so every run starts with an empty history.
+        HISTORY_FILE: 'memory',
         // The three device projects share one IP, so lift the per-IP caps (per-number limits stay on).
         AUTH_IP_REQUEST_LIMIT: '1000',
         AUTH_IP_VERIFY_LIMIT: '1000',
@@ -99,8 +101,9 @@ export default defineConfig({
         AUTH_SECRET: 'e2e-secret',
         SUPERADMIN_PHONES: SUPERADMINS.join(','),
         // A throwaway file for the agents and lists the tests add.
-        DATA_FILE: path.join(tmpdir(), `invoice-calculator-e2e-data-ocr-${process.pid}.json`),
+        AGENTS_FILE: path.join(tmpdir(), `invoice-calculator-e2e-agents-ocr-${process.pid}.json`),
         UPLOAD_DIR: path.join(tmpdir(), 'invoice-calculator-e2e-uploads-ocr'),
+        HISTORY_FILE: 'memory',
         AUTH_IP_REQUEST_LIMIT: '1000',
         AUTH_IP_VERIFY_LIMIT: '1000',
       },

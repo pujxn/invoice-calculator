@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import SignedInHeader from '../components/SignedInHeader.jsx';
@@ -13,6 +14,20 @@ export default function AgentDetailPage() {
   const { token } = useAuth();
   const { phone } = useParams();
   const { data, error, loading } = useLoad(() => getAgent(token, phone));
+  // Later pages, added under the first one when "Show more" is pressed.
+  const [more, setMore] = useState({ entries: [], error: '', busy: false });
+  const entries = data ? [...data.entries, ...more.entries] : [];
+  const hasMore = data && entries.length < data.total;
+
+  async function showMore() {
+    setMore((m) => ({ ...m, busy: true, error: '' }));
+    try {
+      const page = await getAgent(token, phone, { offset: entries.length });
+      setMore((m) => ({ entries: [...m.entries, ...page.entries], error: '', busy: false }));
+    } catch (err) {
+      setMore((m) => ({ ...m, error: err.message, busy: false }));
+    }
+  }
   const name = data?.agent.name;
   useDocumentTitle(name ? `${name}’s list` : 'Agent');
   const headingRef = useFocusOnMount();
@@ -40,10 +55,22 @@ export default function AgentDetailPage() {
               {!data.agent.active && ' · Removed: cannot sign in, list kept'}
             </p>
             <Totals summary={data.agent} title={`${data.agent.name}’s total`} />
-            {data.entries.length === 0 ? (
+            {entries.length === 0 ? (
               <p className="empty">This agent has not saved any invoices yet.</p>
             ) : (
-              <EntryList entries={data.entries} />
+              <EntryList entries={entries} />
+            )}
+            {more.error && (
+              <p className="status bad" role="alert">
+                {more.error}
+              </p>
+            )}
+            {hasMore && (
+              <div className="actions">
+                <button type="button" className="secondary" disabled={more.busy} onClick={showMore}>
+                  {more.busy ? 'Loading…' : `Show more (${data.total - entries.length} left)`}
+                </button>
+              </div>
             )}
           </>
         )}

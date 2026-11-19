@@ -50,14 +50,14 @@ beforeEach(() => {
 });
 
 describe('roles in the web app', () => {
-  it('an agent sees New invoice and My list, with their name, and no Agents link', async () => {
+  it('an agent sees New invoice and History, with their name, and no Agents link', async () => {
     storeSession();
     stubApi({ 'GET /auth/me': [200, { ...ME, role: 'agent' }] });
     renderApp('/');
     expect(await screen.findByRole('heading', { name: 'Welcome, Asha Rao' })).toBeInTheDocument();
     const nav = screen.getByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('link', { name: 'New invoice' })).toHaveAttribute('href', '/');
-    expect(within(nav).getByRole('link', { name: 'My list' })).toHaveAttribute('href', '/list');
+    expect(within(nav).getByRole('link', { name: 'History' })).toHaveAttribute('href', '/history');
     expect(within(nav).queryByRole('link', { name: 'Agents' })).toBeNull();
   });
 
@@ -83,7 +83,7 @@ describe('roles in the web app', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Agents' })).toBeInTheDocument();
     expect(where()).toBe('/admin');
     const nav = screen.getByRole('navigation', { name: 'Main' });
-    expect(within(nav).queryByRole('link', { name: 'My list' })).toBeNull();
+    expect(within(nav).queryByRole('link', { name: 'History' })).toBeNull();
   });
 
   it('pages for the other role send people home', async () => {
@@ -91,65 +91,6 @@ describe('roles in the web app', () => {
     stubApi({ 'GET /auth/me': [200, { ...ME, role: 'agent' }] });
     renderApp('/admin');
     await waitFor(() => expect(where()).toBe('/'));
-  });
-});
-
-describe('My list (agent)', () => {
-  async function open(entries = [entry()], sum = summary({ count: entries.length })) {
-    storeSession();
-    const api = stubApi({
-      'GET /auth/me': [200, { ...ME, role: 'agent' }],
-      'GET /entries': [200, { entries, summary: sum }],
-      'DELETE /entries/ent_1': [
-        200,
-        {
-          entry: entries[0],
-          summary: summary({
-            count: 0,
-            debit: '0.00',
-            credit: '0.00',
-            net: '0.00',
-            type: 'balanced',
-          }),
-        },
-      ],
-    });
-    renderApp('/list');
-    await screen.findByRole('heading', { name: 'My list' });
-    return api;
-  }
-
-  it('shows exact totals in rupees with lakh grouping, and each saved invoice', async () => {
-    await open();
-    expect(await screen.findByTestId('totals-debit')).toHaveTextContent('₹12,50,800.50');
-    expect(screen.getByTestId('totals-credit')).toHaveTextContent('₹2,000.25');
-    expect(screen.getByTestId('totals-net')).toHaveTextContent('Net Debit₹12,48,800.25');
-    const row = screen.getByTestId('entry');
-    expect(row).toHaveTextContent('Net Debit ₹850.50');
-    expect(row).toHaveTextContent('Debit ₹1,250.50 · Credit ₹400.00');
-    expect(row).toHaveTextContent('Local OCR');
-  });
-
-  it('says so when nothing is saved yet', async () => {
-    await open(
-      [],
-      summary({ count: 0, debit: '0.00', credit: '0.00', net: '0.00', type: 'balanced' }),
-    );
-    expect(await screen.findByText(/not saved any invoices yet/)).toBeInTheDocument();
-    expect(screen.getByTestId('totals-net')).toHaveTextContent('Nothing yet');
-  });
-
-  it('asks before deleting, and updates the list and totals after', async () => {
-    const api = await open();
-    await user.click(await screen.findByRole('button', { name: 'Delete' }));
-    expect(api.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
-    await user.click(screen.getByRole('button', { name: 'Keep it' }));
-    expect(screen.queryByRole('button', { name: 'Yes, delete' })).toBeNull();
-
-    await user.click(screen.getByRole('button', { name: 'Delete' }));
-    await user.click(screen.getByRole('button', { name: 'Yes, delete' }));
-    await waitFor(() => expect(screen.queryByTestId('entry')).toBeNull());
-    expect(screen.getByTestId('totals-count')).toHaveTextContent('0');
   });
 });
 
@@ -248,12 +189,40 @@ describe('Agents page (superadmin)', () => {
     expect(await screen.findByText(/Asha Rao was removed/)).toBeInTheDocument();
   });
 
-  it('opens one agent’s list, read only', async () => {
-    boot({
-      'GET /agents/%2B919876500002': [
+  it('shows more of an agent’s list a page at a time, with totals for all of it', async () => {
+    const api = boot({
+      'GET /agents/%2B919876500002?limit=50&offset=0': [
+        200,
+        { agent: agent(), entries: [entry()], total: 3, limit: 50, offset: 0 },
+      ],
+      'GET /agents/%2B919876500002?limit=50&offset=1': [
         200,
         {
           agent: agent(),
+          entries: [entry({ id: 'ent_2' }), entry({ id: 'ent_3' })],
+          total: 3,
+          limit: 50,
+          offset: 1,
+        },
+      ],
+    });
+    renderApp('/admin/agents/%2B919876500002');
+    await screen.findByRole('heading', { name: 'Asha Rao' });
+    expect(screen.getAllByTestId('entry')).toHaveLength(1);
+    expect(screen.getByTestId('totals-count')).toHaveTextContent('2'); // the agent's count, not the page's
+    await user.click(screen.getByRole('button', { name: 'Show more (2 left)' }));
+    await waitFor(() => expect(screen.getAllByTestId('entry')).toHaveLength(3));
+    expect(screen.queryByRole('button', { name: /Show more/ })).toBeNull();
+    expect(api.mock.calls.length).toBeGreaterThan(2);
+  });
+
+  it('opens one agent’s list, read only', async () => {
+    boot({
+      'GET /agents/%2B919876500002?limit=50&offset=0': [
+        200,
+        {
+          agent: agent(),
+          total: 2,
           entries: [
             entry(),
             entry({ id: 'ent_2', type: 'credit', net: '12.345', debit: '0.00', credit: '12.345' }),
@@ -268,81 +237,5 @@ describe('Agents page (superadmin)', () => {
     expect(rows[1]).toHaveTextContent('Net Credit ₹12.345'); // every decimal is shown
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
     expect(screen.getByRole('link', { name: '← All agents' })).toHaveAttribute('href', '/admin');
-  });
-});
-
-describe('Save to my list (result screen)', () => {
-  const KEY = 'invoice-calculator.extracted';
-  function openResult(extra = {}) {
-    const result = {
-      provider: 'claude',
-      debit: '1250.50',
-      credit: '400.00',
-      warnings: [],
-      notes: '',
-    };
-    sessionStorage.setItem(
-      KEY,
-      JSON.stringify({
-        phone: ME.phone,
-        stage: 'result',
-        result,
-        values: { debit: '1250.50', credit: '400.00' },
-        ...extra,
-      }),
-    );
-    storeSession({ phone: ME.phone });
-    return stubApi({
-      'GET /auth/me': [200, { ...ME, role: 'agent' }],
-      'POST /entries': (body) => [
-        201,
-        { entry: entry({ debit: body.debit, credit: body.credit }), summary: summary() },
-      ],
-    });
-  }
-
-  it('saves the amounts shown with the reader used, then shows a link to the list', async () => {
-    const api = openResult();
-    renderApp('/');
-    await user.click(await screen.findByRole('button', { name: 'Save to my list' }));
-    expect(await screen.findByTestId('saved-note')).toHaveTextContent('Saved to your list.');
-    const post = api.mock.calls.find(([, init]) => init?.method === 'POST');
-    expect(JSON.parse(post[1].body)).toEqual({
-      debit: '1250.50',
-      credit: '400.00',
-      method: 'claude',
-    });
-    expect(post[1].headers.Authorization).toBe('Bearer tok-123');
-    expect(screen.getByRole('button', { name: 'Saved' })).toBeDisabled();
-    expect(screen.getByRole('link', { name: 'View my list' })).toHaveAttribute('href', '/list');
-  });
-
-  it('changing an amount after saving allows saving the changed invoice', async () => {
-    openResult();
-    renderApp('/');
-    await user.click(await screen.findByRole('button', { name: 'Save to my list' }));
-    await screen.findByTestId('saved-note');
-    const box = screen.getByLabelText(/^Credit/);
-    await user.clear(box);
-    await user.type(box, '500');
-    expect(screen.queryByTestId('saved-note')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Save to my list' })).toBeEnabled();
-  });
-
-  it('remembers that it was saved across a reload, so it is not saved twice by accident', async () => {
-    openResult({ saved: '1250.50|400.00' });
-    renderApp('/');
-    expect(await screen.findByRole('button', { name: 'Saved' })).toBeDisabled();
-  });
-
-  it('a blank amount is saved as none, and a server refusal is shown', async () => {
-    const api = openResult({ values: { debit: '10', credit: '' } });
-    renderApp('/');
-    await screen.findByRole('button', { name: 'Save to my list' });
-    api.mockClear();
-    stubApi({ 'POST /entries': [400, { error: 'Debit: not a number.' }] });
-    await user.click(screen.getByRole('button', { name: 'Save to my list' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Debit: not a number.');
-    expect(screen.getByRole('button', { name: 'Save to my list' })).toBeEnabled();
   });
 });

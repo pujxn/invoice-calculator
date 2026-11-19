@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import ExtractedAmounts from './ExtractedAmounts.jsx';
 import InvoiceUpload from './InvoiceUpload.jsx';
 import ResultScreen from './ResultScreen.jsx';
+import useSaveToHistory from '../history/useSaveToHistory.js';
 import { READING_KEY } from '../storageKeys.js';
 
 // Upload screen, then the amounts that were read, then the final amount. The reading is remembered for this browser tab
@@ -34,7 +35,7 @@ function save(value) {
 const startValues = (result) => ({ debit: result.debit ?? '', credit: result.credit ?? '' });
 
 export default function InvoiceFlow() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [state, setState] = useState(() => load(user.phone)); // { phone, result, values, stage } | null
@@ -48,6 +49,18 @@ export default function InvoiceFlow() {
   useEffect(() => {
     save(state);
   }, [state]);
+
+  // Every invoice that reaches the final amount is saved to the history, and corrections made
+  // here update that record. The id is kept with the reading so a reload does not save it twice.
+  const saving = useSaveToHistory({
+    active: state?.stage === 'result',
+    token,
+    result: state?.result ?? {},
+    values: state?.values ?? { debit: '', credit: '' },
+    historyId: state?.historyId ?? null,
+    onSaved: (historyId) =>
+      setState((s) => (s && s.historyId !== historyId ? { ...s, historyId } : s)),
+  });
 
   useEffect(() => {
     if (lastKey.current === location.key) return; // not a navigation, just another render
@@ -98,8 +111,8 @@ export default function InvoiceFlow() {
         onReset={reset}
         onBack={showReview}
         onStartOver={startOver}
-        saved={state.saved ?? null}
-        onSaved={(key) => setState((s) => ({ ...s, saved: key }))}
+        saveStatus={saving.status}
+        onRetrySave={saving.retry}
       />
     );
   }
