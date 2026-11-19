@@ -98,6 +98,8 @@ export default function InvoiceFlow() {
         onReset={reset}
         onBack={showReview}
         onStartOver={startOver}
+        saved={state.saved ?? null}
+        onSaved={(key) => setState((s) => ({ ...s, saved: key }))}
       />
     );
   }

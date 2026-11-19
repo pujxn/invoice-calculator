@@ -10,3 +10,4 @@ server/uploads/
 test-screenshots/
 e2e/.screenshots/
 client/dist-native/
+server/data/

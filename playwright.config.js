@@ -1,6 +1,7 @@
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { defineConfig } from '@playwright/test';
+import { SUPERADMINS } from './e2e/superadmins.js';
 
 // UI tests run against a throwaway API (:4100, console SMS) and the Vite dev server (:5273),
 // so they do not clash with `npm run dev`. The API log is written to e2e/.server.log
@@ -68,6 +69,9 @@ export default defineConfig({
         // Tests never call the real AI, even if a key is set in server/.env or the shell.
         VISION_PROVIDER: 'mock',
         AUTH_SECRET: 'e2e-secret',
+        SUPERADMIN_PHONES: SUPERADMINS.join(','),
+        // A throwaway file for the agents and lists the tests add.
+        DATA_FILE: path.join(tmpdir(), `invoice-calculator-e2e-data-${process.pid}.json`),
         // Lets native-api.spec.js call the API from the web page's own origin, as the apps do.
         CORS_ORIGINS: `http://localhost:${WEB_PORT}`,
         // Pictures uploaded by the tests go to a throwaway folder, not server/uploads.
@@ -93,6 +97,9 @@ export default defineConfig({
         VISION_PROVIDER: 'ocr',
         ANTHROPIC_API_KEY: '', // never call the real AI, and show it as "not set up"
         AUTH_SECRET: 'e2e-secret',
+        SUPERADMIN_PHONES: SUPERADMINS.join(','),
+        // A throwaway file for the agents and lists the tests add.
+        DATA_FILE: path.join(tmpdir(), `invoice-calculator-e2e-data-ocr-${process.pid}.json`),
         UPLOAD_DIR: path.join(tmpdir(), 'invoice-calculator-e2e-uploads-ocr'),
         AUTH_IP_REQUEST_LIMIT: '1000',
         AUTH_IP_VERIFY_LIMIT: '1000',

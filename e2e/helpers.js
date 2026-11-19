@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
+import { SUPERADMINS } from './superadmins.js';
 
 const SERVER_LOG = fileURLToPath(new URL('./.server.log', import.meta.url));
 // The local-OCR specs run against their own API (see playwright.config.js) with its own log.
@@ -26,6 +27,62 @@ export function uniquePhone() {
   }
 }
 
+// The API each project's pages talk to (see playwright.config.js).
+const API_PORTS = { default: 4100, ocr: 4101 };
+const apiBase = () =>
+  `http://localhost:${test.info().project.name.startsWith('ocr') ? API_PORTS.ocr : API_PORTS.default}`;
+
+async function apiCall(method, path, { token, body } = {}) {
+  const res = await fetch(apiBase() + path, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json().catch(() => null) };
+}
+
+// Superadmin numbers are handed out once each per test process, starting at a random one so a
+// restarted test process does not meet the previous one's resend wait.
+const usedSuperadmins = new Set();
+const superadminStart = Math.floor(Math.random() * SUPERADMINS.length);
+export function freshSuperadmin() {
+  for (let i = 0; i < SUPERADMINS.length; i++) {
+    const phone = SUPERADMINS[(superadminStart + i) % SUPERADMINS.length];
+    if (!usedSuperadmins.has(phone)) {
+      usedSuperadmins.add(phone);
+      return phone;
+    }
+  }
+  throw new Error('Out of superadmin numbers for the UI tests; add more in e2e/superadmins.js.');
+}
+
+// A superadmin session token (kept per API, signed in through the API, not the page).
+const adminTokens = new Map();
+async function adminToken() {
+  const key = apiBase();
+  if (adminTokens.has(key)) return adminTokens.get(key);
+  const phone = freshSuperadmin();
+  const asked = await apiCall('POST', '/api/auth/request-otp', { body: { phone } });
+  expect(asked.status, JSON.stringify(asked.body)).toBe(200);
+  const code = await latestCode(phone);
+  const verified = await apiCall('POST', '/api/auth/verify-otp', { body: { phone, code } });
+  expect(verified.status, JSON.stringify(verified.body)).toBe(200);
+  adminTokens.set(key, verified.body.token);
+  return verified.body.token;
+}
+
+// Adds a number as an agent (as a superadmin would), so it can sign in. Already added is fine.
+export async function registerAgent(phone, name = 'Test Agent') {
+  const res = await apiCall('POST', '/api/agents', {
+    token: await adminToken(),
+    body: { phone, name },
+  });
+  expect([200, 201, 409], JSON.stringify(res.body)).toContain(res.status);
+}
+
 // Reads the latest code the console SMS provider printed for this number.
 export async function latestCode(phone) {
   let code;
@@ -48,7 +105,10 @@ export async function shot(page, name) {
   await page.screenshot({ path: `${SCREENSHOT_DIR}${device}/${name}.png`, fullPage: true });
 }
 
-export async function requestCodeFor(page, phone) {
+// Only added agents and superadmins can sign in, so the number is first added as an agent, unless
+// `register: false` (to test what an unregistered number sees) or it is a superadmin's.
+export async function requestCodeFor(page, phone, { register = true } = {}) {
+  if (register && !SUPERADMINS.includes(phone)) await registerAgent(phone);
   await page.getByLabel('Mobile number').fill(phone);
   await page.getByRole('button', { name: 'Send code' }).click();
   await expect(page.getByLabel('6-digit code')).toBeVisible();

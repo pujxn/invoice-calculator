@@ -5,6 +5,10 @@ import { AuthProvider } from '../src/auth/AuthContext.jsx';
 import RequireAuth from '../src/auth/RequireAuth.jsx';
 import LoginPage from '../src/pages/LoginPage.jsx';
 import HomePage from '../src/pages/HomePage.jsx';
+import RequireRole from '../src/roles/RequireRole.jsx';
+import MyListPage from '../src/roles/MyListPage.jsx';
+import AdminPage from '../src/roles/AdminPage.jsx';
+import AgentDetailPage from '../src/roles/AgentDetailPage.jsx';
 
 export const STORAGE_KEY = 'invoice-calculator.session';
 
@@ -53,6 +57,13 @@ export function renderApp(route = '/') {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<RequireAuth />}>
             <Route path="/" element={<HomePage />} />
+            <Route element={<RequireRole role="agent" />}>
+              <Route path="/list" element={<MyListPage />} />
+            </Route>
+            <Route element={<RequireRole role="superadmin" />}>
+              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin/agents/:phone" element={<AgentDetailPage />} />
+            </Route>
           </Route>
         </Routes>
       </AuthProvider>
