@@ -66,7 +66,7 @@ Do this 10 minutes ahead, on the computer you will present from.
 - [ ] The four sample pictures are somewhere easy to find in the file picker.
 - [ ] Phone view ready: either your real phone on the same Wi-Fi (README "Try it on your phone"; needs the second command with `--host`) or Chrome device mode (F12, then Ctrl/Cmd+Shift+M, pick iPhone 14).
 - [ ] Silence notifications. Close tabs you do not want on screen.
-- [ ] Know your number: you need a phone number in international format, for example `+44 7700 900123`. Any valid-looking number works in mock SMS mode.
+- [ ] Know your numbers. Only the superadmin and agents the superadmin has added can sign in. The local demo superadmin is `+91 99999 00000`. You need a second number in international format to add as an agent, for example `+91 98765 43210` (it can be any valid-looking number: codes only print in the terminal). Before the demo, sign in as the superadmin, add that agent, and sign out, so the demo can start from the Sign in page.
 
 ## The storyline
 
@@ -79,9 +79,11 @@ Show the sample picture `demo-1-net-debit.png` on screen so people see what an a
 ### 2. Sign in with a text-message code (about 1 minute). **Live**
 
 1. Open http://localhost:5173. **Expect:** the Ledgerly logo, "Read the invoice. See the balance." and a **Sign in** box with **Mobile number**.
-2. Type a number with the country code, for example `+44 7700 900123`, and press **Send code**. **Expect:** "We sent a code to +44 7700 900123" and a **6-digit code** box. The button says "Resend code in 30s".
-3. Switch to the terminal. **Say:** "In production this arrives as a text. In this demo it prints here." Point at the line `[sms:console] to +447700900123: Your Ledgerly code is 106950.`
-4. Type the 6 digits and press **Sign in**. **Expect:** a **Welcome** page, "Signed in as +447700900123." and **Upload your invoice**.
+2. Type the agent's number, for example `+91 98765 43210`, and press **Send code**. **Expect:** "We sent a code to +91 98765 43210" and a **6-digit code** box. The button says "Resend code in 30s".
+3. Switch to the terminal. **Say:** "In production this arrives as a text. In this demo it prints here." Point at the line `[sms:console] to +919876543210: Your Ledgerly code is 106950.`
+4. Type the 6 digits and press **Sign in**. **Expect:** **Welcome, Asha Rao** (the name the superadmin gave), "Signed in as +919876543210." and **Upload your invoice**, with **New invoice** and **History** in the header.
+
+Optional 15 seconds, "who is allowed in": sign out and try a number nobody added. **Expect:** "This number is not registered with Ledgerly. Ask your administrator to add it." and no code is sent. **Say:** "Only people the administrator adds can sign in."
 
 Optional 10 seconds if asked about security: type a wrong code ("Wrong code. 4 tries left."), or press Send code twice quickly ("Please wait 30 seconds"). Codes expire in 5 minutes and sessions last 12 hours.
 
@@ -116,18 +118,24 @@ Optional 10 seconds if asked about security: type a wrong code ("Wrong code. 4 t
 
 Optional, if time: press **Start a new invoice** and run `demo-2-net-credit.png` (Net Credit 825.75) or `demo-4-tricky-blurry.jpg` (the rough photo).
 
-### 7. On a phone (about 45 seconds). **Live**
+### 7. The administrator's view (about 1.5 minutes). **Live**
+
+1. Press **History** in the header. **Expect:** **Your total** (Debit total, Credit total, the net of all this agent's invoices) and each invoice saved so far, newest first. **Say:** "Every invoice the agent finishes is kept in their own list, and the total adds them all up exactly."
+2. Press **Sign out**, then sign in as the superadmin, `+91 99999 00000` (the code is in the terminal). **Expect:** the **Agents** page with the **Overall total**, then each agent's Debit, Credit, net and number of invoices.
+3. Press **View list** on the agent. **Expect:** their totals and every invoice, read only. **Say:** "The administrator sees every agent's list and total, and can add or remove agents. Only people added here can sign in."
+4. Optional: type a new name and number under **Add an agent** and press **Add agent**. Press **Remove** then **Yes, remove** on that agent: the row moves to **Removed agents**, and their invoices still count in the overall total.
+
+### 8. On a phone (about 45 seconds). **Live**
 
 1. Open the app on the phone (or device mode). Sign in the same way; the code is still in the computer's terminal.
 2. **Expect:** the same flow, laid out for one hand: big buttons, the camera option **Take photo**, and the same result screen. **Say:** "Same app on web and phone. A real iOS and Android app is the next packaging step."
 3. Dark mode: switch the phone or computer to dark mode and the colours change on their own.
 
-### 8. What is next (about 45 seconds). **Roadmap, none of this is built**
+### 9. What is next (about 45 seconds). **Roadmap, none of this is built**
 
 **Say:** "What you have seen is the core loop. Next:"
 
-- **Agents and a superadmin.** Agent accounts, a superadmin who sees across agents, and roles. (Not designed in detail yet; this is the next phase.)
-- **Saving and history.** Today nothing is kept after you finish: pictures are deleted after reading and the result is not stored. A history per agent comes with the accounts work.
+- **More for the administrator.** Date filters and export of each agent's list, and the meaning of the crossed-out and ticked amounts on the whiteboard (to be confirmed).
 - **iOS and Android apps.** The web app is built mobile-first and is meant to be wrapped as a store app. It is not wrapped yet.
 - **Real text messages.** Twilio sending is built but needs a Twilio account to switch on.
 

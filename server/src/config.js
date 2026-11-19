@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { normalizePhone } from './auth/phone.js';
 
 // Central place for environment configuration. Providers (SMS, vision) read
 // their own settings from here so nothing else touches process.env directly.
@@ -31,11 +32,34 @@ function originList(value) {
     .filter(Boolean);
 }
 
+// A comma-separated list of mobile numbers, each normalised to E.164. Entries that are not valid
+// numbers are returned in `invalid` so start-up can say so instead of silently ignoring them.
+function phoneList(value) {
+  const phones = [];
+  const invalid = [];
+  for (const item of String(value || '').split(',')) {
+    if (!item.trim()) continue;
+    const phone = normalizePhone(item);
+    if (phone) phones.push(phone);
+    else invalid.push(item.trim());
+  }
+  return { phones: [...new Set(phones)], invalid };
+}
+
+// The number a local demo signs in as when SUPERADMIN_PHONES is not set. Used only with the
+// console SMS provider (codes in the server log), never with real texts or in production.
+export const DEMO_SUPERADMIN = '+919999900000';
+
 export function loadConfig(env = process.env) {
   const anthropicKey = env.ANTHROPIC_API_KEY || '';
+  const smsProvider = env.SMS_PROVIDER || 'console';
+  const production = env.NODE_ENV === 'production';
+  const listed = phoneList(env.SUPERADMIN_PHONES);
+  const useDemoSuperadmin =
+    !listed.phones.length && !listed.invalid.length && !production && smsProvider === 'console';
   return {
     port: Number(env.PORT) || 4000,
-    production: env.NODE_ENV === 'production',
+    production,
     // How many proxies sit in front of the server (a load balancer, nginx). Needed so the per-IP
     // limits see the visitor's address and not the proxy's. Leave unset when there is none.
     trustProxy: positiveInt(env.TRUST_PROXY, 0),
@@ -62,8 +86,23 @@ export function loadConfig(env = process.env) {
         verifiesPerIpPer15Min: positiveInt(env.AUTH_IP_VERIFY_LIMIT, 40),
       },
     },
+    roles: {
+      // Numbers that sign in as superadmin: they add and remove agents and see every agent's list.
+      // Everyone else needs to be added as an agent first.
+      superadmins: useDemoSuperadmin ? [DEMO_SUPERADMIN] : listed.phones,
+      demoSuperadmin: useDemoSuperadmin,
+      invalid: listed.invalid,
+    },
+    agents: {
+      // The file the agents a superadmin adds are kept in (a relative path is relative to where
+      // the server starts). "memory" keeps them only until the server stops.
+      file:
+        env.AGENTS_FILE === 'memory'
+          ? null
+          : env.AGENTS_FILE || path.resolve(import.meta.dirname, '../data/agents.json'),
+    },
     sms: {
-      provider: env.SMS_PROVIDER || 'console',
+      provider: smsProvider,
       twilio: {
         accountSid: env.TWILIO_ACCOUNT_SID || '',
         authToken: env.TWILIO_AUTH_TOKEN || '',
@@ -76,6 +115,14 @@ export function loadConfig(env = process.env) {
       maxBytes: Math.floor(positiveNumber(env.UPLOAD_MAX_MB, 10) * 1024 * 1024),
       ttlMs: positiveNumber(env.UPLOAD_TTL_HOURS, 24) * 60 * 60 * 1000,
       maxPerUser: positiveInt(env.UPLOAD_MAX_PER_USER, 50),
+    },
+    history: {
+      // Where saved invoice history is kept (one JSON file). A relative path is relative to where
+      // the server starts. Set it to "memory" to keep history only until the server stops.
+      file:
+        env.HISTORY_FILE === 'memory'
+          ? null
+          : env.HISTORY_FILE || path.resolve(import.meta.dirname, '../data/history.json'),
     },
     vision: {
       // How invoices are read when the user has not chosen: "claude" (AI, needs a key), "ocr"
@@ -103,8 +150,13 @@ export function loadConfig(env = process.env) {
 
 // Things that are fine on a laptop but wrong on a real server. Shown once at start-up.
 export function configWarnings(config) {
-  if (!config.production) return [];
   const warnings = [];
+  if (config.roles.invalid.length) {
+    warnings.push(
+      `SUPERADMIN_PHONES has numbers that are not valid (${config.roles.invalid.join(', ')}); use international format such as +919876543210.`,
+    );
+  }
+  if (!config.production) return warnings;
   if (config.sms.provider === 'console') {
     warnings.push(
       'SMS_PROVIDER=console prints every sign-in code to the log, so anyone who can read it can sign in. Use SMS_PROVIDER=twilio.',
@@ -122,6 +174,17 @@ export function configWarnings(config) {
   }
   if (!config.auth.secret) {
     warnings.push('AUTH_SECRET is not set: codes sent before a restart stop working.');
+  }
+  if (!config.roles.superadmins.length) {
+    warnings.push(
+      'SUPERADMIN_PHONES is not set: nobody can sign in as superadmin, so no agents can be added.',
+    );
+  }
+  if (!config.agents.file) {
+    warnings.push('AGENTS_FILE=memory: the agents are lost when the server stops.');
+  }
+  if (!config.history.file) {
+    warnings.push('HISTORY_FILE=memory: saved invoices are lost when the server stops.');
   }
   return warnings;
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { calculateNet, describeResult, formatAmount } from '@ledgerly/money';
 import useFocusOnMount from '../useFocusOnMount.js';
 import AmountFields from './AmountFields.jsx';
@@ -6,7 +7,16 @@ import AmountFields from './AmountFields.jsx';
 // Step 5: the final amount. It is worked out here in the browser from the two boxes on every
 // keystroke, with the same exact-decimal code the server uses, so the result updates as the
 // amounts are corrected and keeps working with no network.
-export default function ResultScreen({ result, values, onChange, onReset, onBack, onStartOver }) {
+export default function ResultScreen({
+  result,
+  values,
+  onChange,
+  onReset,
+  onBack,
+  onStartOver,
+  saveStatus = 'idle', // 'idle' | 'saving' | 'saved' | 'failed': is this invoice in the history?
+  onRetrySave,
+}) {
   const headingRef = useFocusOnMount();
   const [copy, setCopy] = useState(''); // '', 'copied' or 'failed'
   const outcome = calculateNet(values);
@@ -97,6 +107,23 @@ export default function ResultScreen({ result, values, onChange, onReset, onBack
         {copy === 'copied' && 'Copied to the clipboard.'}
         {copy === 'failed' &&
           'Your browser would not let us copy. Select the amount and copy it by hand.'}
+      </p>
+
+      <p className="hint save-status" aria-live="polite" data-testid="history-status">
+        {saveStatus === 'saving' && 'Saving to history…'}
+        {saveStatus === 'saved' && (
+          <>
+            Saved to your history. <Link to="/history">View history</Link>
+          </>
+        )}
+        {saveStatus === 'failed' && (
+          <>
+            Could not save this invoice to your history.{' '}
+            <button type="button" className="link" onClick={onRetrySave}>
+              Try again
+            </button>
+          </>
+        )}
       </p>
 
       <div className="actions">

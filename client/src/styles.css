@@ -138,7 +138,8 @@ label {
 }
 
 /* 16px text stops iOS Safari zooming the page when an input is focused. */
-input {
+input,
+select {
   width: 100%;
   min-height: var(--tap);
   padding: 0.5rem 0.75rem;
@@ -591,4 +592,428 @@ progress {
 
 fieldset.method:disabled {
   opacity: 0.6;
+}
+
+/* A link that looks like a button (History, Back to history, New invoice). */
+a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0.5rem 1.25rem;
+  font-weight: 600;
+  color: var(--on-primary);
+  text-align: center;
+  text-decoration: none;
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  touch-action: manipulation;
+}
+
+a.button.secondary {
+  color: var(--primary);
+  background: transparent;
+}
+
+a.button:hover {
+  border-color: var(--primary-hover);
+}
+
+.actions a.button {
+  width: 100%;
+}
+
+@media (min-width: 30rem) {
+  .actions a.button {
+    width: auto;
+  }
+}
+
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* --- History --- */
+select {
+  font: inherit;
+  color: var(--text);
+}
+
+.history-filters .date-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.history-filters .date-row > div {
+  min-width: 0;
+}
+
+.history-filters .date-row input {
+  min-width: 0;
+}
+
+.clear-filters {
+  margin-top: 1rem;
+}
+
+.history-count {
+  min-height: 1.25rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.history-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-item {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem 1rem;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 0.5rem solid var(--primary);
+  border-radius: var(--radius);
+}
+
+.history-item.credit {
+  border-left-color: var(--good-text);
+}
+
+.history-item.balanced {
+  border-left-color: var(--border);
+}
+
+.history-item:hover {
+  border-color: var(--primary);
+}
+
+.history-when,
+.history-sides {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.history-label {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.history-item.credit .history-label {
+  color: var(--good-text);
+}
+
+.history-item.balanced .history-label {
+  color: var(--text-muted);
+}
+
+.history-amount {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.details {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+}
+
+.details dt {
+  margin-top: 0.75rem;
+  font-weight: 600;
+}
+
+.details dd {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.save-status {
+  min-height: 1.25rem;
+  margin: 0.5rem 0 0;
+}
+
+.save-status a {
+  color: var(--primary);
+}
+
+/* --- Agents and superadmin (roles) --- */
+
+/* Admin pages have tables of figures, so they use more of a wide screen. */
+.shell.wide {
+  max-width: 56rem;
+}
+
+.topbar.wide {
+  max-width: 56rem;
+}
+
+/* Main navigation: a row of big tabs under the logo. */
+.topbar-nav {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.mainnav {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.mainnav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 1rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -3px; /* sits on the header rule */
+}
+
+.mainnav a:hover {
+  color: var(--primary);
+}
+
+.mainnav a[aria-current='page'] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* A link that looks like a secondary button. */
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0.5rem 1.25rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+}
+
+.button-link:hover {
+  color: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.empty {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.tone-debit,
+.entry.debit .entry-label,
+.totals.debit .totals-label {
+  color: var(--primary);
+}
+
+.tone-credit,
+.entry.credit .entry-label,
+.totals.credit .totals-label {
+  color: var(--good-text);
+}
+
+/* Debit, Credit and net totals for one agent or everyone. */
+.totals {
+  margin: 1rem 0;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 0.5rem solid var(--primary);
+  border-radius: var(--radius);
+}
+
+.totals.credit {
+  border-left-color: var(--good-text);
+}
+
+.totals.balanced {
+  border-left-color: var(--border);
+}
+
+.totals h2,
+.totals h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.totals-net {
+  display: flex;
+  flex-direction: column;
+  margin: 0.25rem 0 0;
+}
+
+.totals-label {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.totals-amount {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.totals-parts,
+.agent-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.75rem 1rem;
+  margin: 0.75rem 0 0;
+}
+
+.totals-parts dt,
+.agent-figures dt {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.totals-parts dd,
+.agent-figures dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word;
+}
+
+/* Saved invoices */
+.entries,
+.agents {
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.entry,
+.agent {
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.entry p,
+.agent p {
+  margin: 0;
+}
+
+.entry-when {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.entry-net {
+  margin-top: 0.25rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.entry-label {
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.entry-parts {
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.agent.removed {
+  opacity: 0.85;
+  border-style: dashed;
+}
+
+.agent-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.agent-phone {
+  font-variant-numeric: tabular-nums;
+}
+
+.add-agent {
+  display: grid;
+  gap: 0 1rem;
+  align-items: end;
+}
+
+.add-agent .field {
+  min-width: 0;
+}
+
+.add-agent button {
+  margin-top: 1rem;
+}
+
+@media (min-width: 48rem) {
+  .add-agent {
+    grid-template-columns: 1fr 1fr auto;
+  }
+  .agent {
+    display: grid;
+    grid-template-columns: 12rem 1fr;
+    grid-template-areas: 'head figures' 'actions actions';
+    gap: 0.5rem 1.5rem;
+    align-items: start;
+  }
+  .agent .agent-head {
+    grid-area: head;
+  }
+  .agent .agent-figures {
+    grid-area: figures;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 0;
+  }
+  .agent .entry-actions {
+    grid-area: actions;
+    margin-top: 0;
+  }
+  .entries {
+    grid-template-columns: 1fr 1fr;
+  }
 }

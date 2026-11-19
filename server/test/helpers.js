@@ -3,9 +3,20 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
+import { normalizePhone } from '../src/auth/phone.js';
 
 // Starts the app on a random port with a recording fake SMS provider and a fake clock.
-export async function startTestApp({ env = {}, sms, vision, visionMethods, prepare } = {}) {
+// Sign-in is only for superadmins and added agents. Most tests are about something else, so by
+// default any number they ask for a code for is first added as an agent. `autoRegister: false`
+// turns that off, to test the real rule.
+export async function startTestApp({
+  env = {},
+  sms,
+  vision,
+  visionMethods,
+  prepare,
+  autoRegister = true,
+} = {}) {
   const clock = { t: 1_700_000_000_000 };
   const sent = [];
   const fakeSms = sms || {
@@ -15,7 +26,14 @@ export async function startTestApp({ env = {}, sms, vision, visionMethods, prepa
     },
   };
   const uploadDir = await mkdtemp(path.join(tmpdir(), 'invoice-uploads-'));
-  const config = loadConfig({ AUTH_SECRET: 'test-secret', UPLOAD_DIR: uploadDir, ...env });
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'ledgerly-data-'));
+  const config = loadConfig({
+    AUTH_SECRET: 'test-secret',
+    UPLOAD_DIR: uploadDir,
+    AGENTS_FILE: path.join(dataDir, 'agents.json'),
+    HISTORY_FILE: path.join(dataDir, 'history.json'),
+    ...env,
+  });
   const app = createApp(config, {
     sms: fakeSms,
     now: () => clock.t,
@@ -26,7 +44,16 @@ export async function startTestApp({ env = {}, sms, vision, visionMethods, prepa
   const server = app.listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
 
+  function register(phone) {
+    if (!autoRegister || !phone || app.locals.store.getAgent(phone)) return;
+    if (config.roles.superadmins.includes(phone)) return;
+    app.locals.store.saveAgent({ phone, name: 'Agent' });
+  }
+
   async function call(method, path, { body, token, headers } = {}) {
+    if (/^\/api\/auth\/(request|verify)-otp$/.test(path) && body && typeof body === 'object') {
+      register(normalizePhone(body.phone));
+    }
     const res = await fetch(base + path, {
       method,
       headers: {
@@ -39,8 +66,10 @@ export async function startTestApp({ env = {}, sms, vision, visionMethods, prepa
     return { status: res.status, headers: res.headers, body: await res.json().catch(() => null) };
   }
 
-  // Signs a phone number in and returns its session token.
+  // Signs a phone number in and returns its session token. A number that is not yet a superadmin
+  // or an agent is first added as an agent (named "Agent"), so most tests need no set-up.
   async function signIn(phone = '+447700900123') {
+    register(phone);
     await call('POST', '/api/auth/request-otp', { body: { phone } });
     const code = sent.filter((m) => m.to === phone).at(-1).code;
     const res = await call('POST', '/api/auth/verify-otp', { body: { phone, code } });
@@ -72,8 +101,17 @@ export async function startTestApp({ env = {}, sms, vision, visionMethods, prepa
     };
   }
 
+  // The default demo superadmin (or the first SUPERADMIN_PHONES number) signs in.
+  const signInSuperadmin = () => signIn(config.roles.superadmins[0]);
+
   return {
+    app,
+    config,
+    store: app.locals.store,
+    history: app.locals.history,
     uploadDir,
+    dataDir,
+    signInSuperadmin,
     signIn,
     upload,
     fetchRaw,
@@ -88,6 +126,7 @@ export async function startTestApp({ env = {}, sms, vision, visionMethods, prepa
       server.closeAllConnections?.();
       await app.locals.close?.();
       await rm(uploadDir, { recursive: true, force: true });
+      await rm(dataDir, { recursive: true, force: true });
     },
   };
 }
