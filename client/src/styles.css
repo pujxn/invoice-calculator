@@ -902,7 +902,7 @@ select {
   margin: 0;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* Saved invoices */
@@ -996,16 +996,22 @@ select {
   }
   .agent {
     display: grid;
-    grid-template-columns: 12rem 1fr auto;
-    gap: 1rem;
-    align-items: center;
+    grid-template-columns: 12rem 1fr;
+    grid-template-areas: 'head figures' 'actions actions';
+    gap: 0.5rem 1.5rem;
+    align-items: start;
   }
-  .agent .agent-figures,
-  .agent .entry-actions {
-    margin-top: 0;
+  .agent .agent-head {
+    grid-area: head;
   }
   .agent .agent-figures {
-    grid-template-columns: repeat(4, 1fr);
+    grid-area: figures;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 0;
+  }
+  .agent .entry-actions {
+    grid-area: actions;
+    margin-top: 0;
   }
   .entries {
     grid-template-columns: 1fr 1fr;
