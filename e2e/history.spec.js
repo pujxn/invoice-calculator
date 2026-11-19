@@ -119,6 +119,32 @@ test('an invoice typed by hand is saved too, without a picture', async ({ page }
   await shot(page, 'history-05-entry-typed');
 });
 
+test('two invoices in a row are two records, and the first is not overwritten by the second', async ({
+  page,
+}) => {
+  await signIn(page);
+  for (const [d, c] of [
+    ['100', '40'],
+    ['7', '25'],
+  ]) {
+    await page.getByTestId('file-input').setInputFiles(PNG);
+    await expect(page.getByText('Picture uploaded.')).toBeVisible();
+    await button(page, 'Type the amounts instead').click();
+    await debit(page).fill(d);
+    await credit(page).fill(c);
+    await button(page, 'Calculate final amount').click();
+    await expect(page.getByTestId('history-status')).toContainText('Saved to your history');
+    await button(page, 'Start a new invoice').click();
+    await expect(heading(page, 'Upload your invoice')).toBeVisible();
+  }
+  await page.getByRole('link', { name: 'History', exact: true }).click();
+  await expect(items(page)).toHaveCount(2);
+  await expect(items(page).nth(0)).toContainText('Net Credit');
+  await expect(items(page).nth(0)).toContainText('₹18.00');
+  await expect(items(page).nth(1)).toContainText('Net Debit');
+  await expect(items(page).nth(1)).toContainText('₹60.00');
+});
+
 test('search and filters narrow the list, and Clear brings everything back', async ({ page }) => {
   await signIn(page);
   await seed(page, SEED);
