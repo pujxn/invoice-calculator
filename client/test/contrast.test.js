@@ -39,6 +39,10 @@ describe.each([
     ['primary', 'bg', 4.5],
     ['good-text', 'good-bg', 4.5],
     ['bad-text', 'bad-bg', 4.5],
+    ['check-text', 'check-bg', 4.5], // "Low confidence" flag
+    ['check-text', 'bg', 4.5], // its line under the box
+    ['good-text', 'bg', 4.5], // "High confidence" line under the box
+    ['check-edge', 'surface', 3], // outline of a box to double-check
     ['on-primary', 'primary', 4.5],
     ['border', 'surface', 3], // input outline, WCAG 1.4.11
     ['focus', 'bg', 3],
@@ -70,5 +74,12 @@ describe.each([
     expect(hue(t.rose)).toBeGreaterThanOrEqual(325);
     expect(hue(t.rose)).toBeLessThanOrEqual(350);
     expect(hue(t.bg)).toBeGreaterThanOrEqual(325); // pink-tinted background
+  });
+
+  it('flags amounts to double-check in pink, never yellow or orange', () => {
+    for (const token of ['check-text', 'check-bg', 'check-edge']) {
+      expect(hue(t[token]), token).toBeGreaterThanOrEqual(315);
+      expect(hue(t[token]), token).toBeLessThanOrEqual(350);
+    }
   });
 });

@@ -89,6 +89,8 @@ test('a good picture returns exact amounts, items and warnings, then the picture
         credit: '400.00',
         currency: 'INR',
         confidence: 'high',
+        // One level from the reader for the whole picture: both amounts are flagged with it.
+        amountConfidence: { debit: 'high', credit: 'high' },
         notes: 'Clear photo.',
         warnings: [],
       });

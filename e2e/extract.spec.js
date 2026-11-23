@@ -62,7 +62,9 @@ test('read the amounts from an uploaded picture, then check them', async ({ page
   await expect(debit(page)).toHaveValue(reading.debit);
   await expect(credit(page)).toHaveValue(reading.credit);
   await expect(page.getByText(/Demo values, not read from your picture/)).toBeVisible();
-  await expect(page.getByText(/Confidence:/)).toContainText('High');
+  // Demo values say "high" for the whole picture, so each amount carries a High flag.
+  await expect(page.getByTestId('debit-flag')).toHaveText('High confidence');
+  await expect(page.getByTestId('credit-flag')).toHaveText('High confidence');
   expect('lineItems' in reading).toBe(false);
   await expect(page.getByRole('table', { name: 'Lines found on the invoice' })).toHaveCount(0);
   await expectNoSideScroll(page);
@@ -232,7 +234,9 @@ test('amounts the AI was unsure about are flagged and left blank', async ({ page
   await expect(page.getByText('partly covered by a stamp')).toBeVisible();
   await expect(debit(page)).toHaveValue('');
   await expect(credit(page)).toHaveValue('400.00');
-  await expect(page.getByText(/Confidence:/)).toContainText('Low');
+  // The empty box has no flag; the amount that was read is flagged for a second look.
+  await expect(page.getByTestId('debit-flag')).toHaveCount(0);
+  await expect(page.getByTestId('credit-flag')).toHaveText('Low confidence');
   await expectNoSideScroll(page);
   await shot(page, 'extract-06-low-confidence');
 });
