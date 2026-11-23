@@ -153,14 +153,17 @@ test('the real client is configured with a timeout and needs a key', () => {
     () => createVisionProvider(loadConfig({ VISION_PROVIDER: 'gpt' }).vision),
     /Unknown VISION_PROVIDER/,
   );
-  const real = createVisionProvider(loadConfig({ ANTHROPIC_API_KEY: 'sk-test' }).vision);
+  const real = createVisionProvider(
+    loadConfig({ ANTHROPIC_API_KEY: 'sk-test', VISION_PROVIDER: 'claude' }).vision,
+  );
   assert.equal(real.name, 'claude');
   assert.equal(real.model, 'claude-opus-5-5');
 });
 
 test('vision settings come from the environment', () => {
   assert.equal(loadConfig({}).vision.provider, 'ocr'); // free local OCR when there is no key
-  assert.equal(loadConfig({ ANTHROPIC_API_KEY: 'k' }).vision.provider, 'claude');
+  // free OCR stays the default with a key; AI is chosen per picture or with VISION_PROVIDER
+  assert.equal(loadConfig({ ANTHROPIC_API_KEY: 'k' }).vision.provider, 'ocr');
   assert.equal(
     loadConfig({ ANTHROPIC_API_KEY: 'k', VISION_PROVIDER: 'mock' }).vision.provider,
     'mock',

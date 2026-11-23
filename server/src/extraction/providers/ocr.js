@@ -2,43 +2,100 @@ import { createRequire } from 'node:module';
 import sharp from 'sharp';
 import { createWorker, PSM } from 'tesseract.js';
 import { ExtractionError } from '../errors.js';
-import { decide, evidence, isSettled } from './ocrDecide.js';
+import { amountBoxes, decide, evidence, isSettled } from './ocrDecide.js';
+import { binarize, cleanedPage, encodePng, findPaper, greyPixels } from './ocrImage.js';
 
 // Free, offline reading of the invoice with Tesseract (tesseract.js: Tesseract compiled to
 // WebAssembly, so there is nothing to install on the machine and no network call is made).
 // The English language data ships inside the npm package @tesseract.js-data/eng, so the first
 // reading needs no download either.
 //
-// The picture is cleaned up in up to three different ways and read once for each. The readings
-// are compared (see ocrDecide.js); a number is only reported when separate readings agree on it.
+// How a picture is read:
+//   1. find the page in the photo and cut away the desk around it; straighten a tilted page;
+//   2. read the whole page up to five times, each time cleaned up differently (see PASSES), and
+//      stop early once two readings agree on both amounts;
+//   3. take a close-up of each amount found and read it three more ways, digits only;
+//   4. compare everything (ocrDecide.js): a number is only filled in when separate readings agree
+//      on it, and it is flagged "high" only when every reading agrees.
 
-const PASSES = [
+export const PASSES = [
   {
     name: 'clean',
     psm: PSM.AUTO,
-    prepare: (s) => s.greyscale().normalize().sharpen({ sigma: 1.2 }),
+    prepare: (png) => sharp(png).greyscale().normalize().sharpen({ sigma: 1.2 }).png().toBuffer(),
+    width: 2000,
+  },
+  {
+    // Even light, ruled lines rubbed out: for photos, shadows and lined paper.
+    name: 'flat',
+    psm: PSM.SPARSE_TEXT,
+    prepare: async (png) =>
+      sharp(await encodePng(await cleanedPage(png)))
+        .normalize()
+        .sharpen({ sigma: 1.5 })
+        .png()
+        .toBuffer(),
+    width: 2000,
+  },
+  {
+    // The same, as pure black and white: for faint pen and soft focus.
+    name: 'binary',
+    psm: PSM.SPARSE_TEXT,
+    prepare: async (png) => {
+      const page = await cleanedPage(png);
+      const sharpened = await greyPixels(
+        await sharp(await encodePng(page))
+          .sharpen({ sigma: 1.5 })
+          .png()
+          .toBuffer(),
+      );
+      return encodePng(binarize(sharpened));
+    },
     width: 2000,
   },
   {
     // Local contrast: copes with uneven light and shadows on a photographed page.
     name: 'contrast',
     psm: PSM.SPARSE_TEXT,
-    prepare: (s) =>
-      s
+    prepare: (png) =>
+      sharp(png)
         .greyscale()
         .clahe({ width: 64, height: 64, maxSlope: 3 })
         .normalize()
-        .sharpen({ sigma: 1.5 }),
+        .sharpen({ sigma: 1.5 })
+        .png()
+        .toBuffer(),
     width: 2400,
   },
   {
     // Bigger and harder contrast: for soft or small text.
     name: 'strong',
     psm: PSM.SPARSE_TEXT,
-    prepare: (s) => s.greyscale().normalize().linear(1.5, -70).sharpen({ sigma: 2 }),
+    prepare: (png) =>
+      sharp(png).greyscale().normalize().linear(1.5, -70).sharpen({ sigma: 2 }).png().toBuffer(),
     width: 2800,
   },
 ];
+
+// Close-ups of one amount: the plain crop, evened out (ruled lines rubbed out), and black and white. Each gets a white
+// border afterwards (Tesseract misses text that touches the edge).
+const border = (png) =>
+  sharp(png)
+    .extend({ top: 24, bottom: 24, left: 24, right: 24, background: '#ffffff' })
+    .png()
+    .toBuffer();
+const evenedOut = async (png) =>
+  sharp(await encodePng(await cleanedPage(png)))
+    .normalize()
+    .png()
+    .toBuffer();
+const CLOSE_UPS = [
+  async (png) => border(await sharp(png).greyscale().normalize().png().toBuffer()),
+  async (png) => border(await evenedOut(png)),
+  async (png) => border(await encodePng(binarize(await greyPixels(await evenedOut(png))))),
+];
+// Close-ups are scaled so the digits are about this tall (Tesseract reads 30 to 40 px best).
+const CLOSE_UP_TEXT_PX = 44;
 
 const fail = (code, message, status, cause, extra = {}) =>
   new ExtractionError(code, message, { status, cause, ...extra });
@@ -103,16 +160,50 @@ export async function estimateSkew(jpeg) {
   return Math.abs(best.angle) >= 0.4 && best.score > baseline * 1.05 ? best.angle : 0;
 }
 
+// The page, ready for reading: the desk around a photographed page cut away, the right way up
+// and straightened. Returned as a PNG at the picture's own size.
+export async function preparePage(jpeg) {
+  let png = await sharp(jpeg).rotate().png().toBuffer();
+  // Straighten first (measured on the whole picture), so the page is square to the edges and
+  // can then be cut out tightly.
+  const skew = await estimateSkew(png).catch(() => 0);
+  if (skew) png = await sharp(png).rotate(skew, { background: '#ffffff' }).png().toBuffer();
+  const paper = await findPaper(png).catch(() => null);
+  if (paper) png = await sharp(png).extract(paper).png().toBuffer();
+  const { width, height } = await sharp(png).metadata();
+  return { png, width, height };
+}
+
 // Resizes to a fixed width (small pictures are enlarged: OCR wants letters about 30 px tall).
-async function prepareForPass(jpeg, pass, skew = 0) {
-  const meta = await sharp(jpeg).metadata();
-  const scale = Math.min(4, pass.width / Math.max(meta.width, meta.height));
-  const resize = { width: Math.round(meta.width * scale), height: Math.round(meta.height * scale) };
-  let source = sharp(jpeg)
-    .rotate()
-    .resize({ ...resize, kernel: 'lanczos3' });
-  if (skew) source = sharp(await source.png().toBuffer()).rotate(skew, { background: '#ffffff' });
-  return pass.prepare(source).png({ compressionLevel: 1 }).toBuffer();
+async function prepareForPass(page, pass) {
+  const scale = Math.min(4, pass.width / Math.max(page.width, page.height));
+  const resized = await sharp(page.png)
+    .resize({
+      width: Math.round(page.width * scale),
+      height: Math.round(page.height * scale),
+      kernel: 'lanczos3',
+    })
+    .png()
+    .toBuffer();
+  return { png: await pass.prepare(resized), scale };
+}
+
+// A close-up of one amount: its box with some room around it, enlarged so the digits are a good
+// size.
+async function closeUpOf(page, box) {
+  const h = box.y1 - box.y0;
+  // Some room on both sides (OCR sometimes misses an end digit), but not into the word in front.
+  const left = Math.max(0, Math.floor(box.x0 - 1.5 * h), Math.ceil(box.minX ?? 0));
+  const top = Math.max(0, Math.floor(box.y0 - 0.5 * h));
+  const right = Math.min(page.width, Math.ceil(box.x1 + 1.5 * h));
+  const bottom = Math.min(page.height, Math.ceil(box.y1 + 0.5 * h));
+  if (right - left < 4 || bottom - top < 4) return null;
+  const scale = Math.min(6, Math.max(0.5, CLOSE_UP_TEXT_PX / Math.max(1, h)));
+  return sharp(page.png)
+    .extract({ left, top, width: right - left, height: bottom - top })
+    .resize({ width: Math.max(8, Math.round((right - left) * scale)), kernel: 'lanczos3' })
+    .png()
+    .toBuffer();
 }
 
 // Words (with boxes) out of an OCR result, whatever nesting the engine used.
@@ -224,7 +315,12 @@ export function createOcrEngine({
 }
 
 // `engine` can be swapped in tests.
-export function createOcrProvider({ timeoutMs, engine, passes = PASSES } = {}) {
+export function createOcrProvider({
+  timeoutMs,
+  engine,
+  passes = PASSES,
+  closeUpVariants = CLOSE_UPS,
+} = {}) {
   engine ??= createOcrEngine({ timeoutMs });
   return {
     name: 'ocr',
@@ -232,28 +328,33 @@ export function createOcrProvider({ timeoutMs, engine, passes = PASSES } = {}) {
     close: () => engine.stop(),
     async extract({ image, signal }) {
       let readings = [];
+      let closeUps = {};
       await engine.run(
         async (worker) => {
+          const page = (psm, whitelist = '') =>
+            worker.setParameters({
+              tessedit_pageseg_mode: psm,
+              tessedit_char_whitelist: whitelist,
+              preserve_interword_spaces: '1',
+              user_defined_dpi: '300',
+            });
+
           // Reads one orientation of the picture with the given passes, stopping early once
           // two readings agree on both amounts.
-          const read = async (jpeg, which) => {
-            const skew = await estimateSkew(jpeg).catch(() => 0);
+          const read = async (prepared, which) => {
             const done = [];
             for (const pass of which) {
-              const png = await prepareForPass(jpeg, pass, skew);
-              await worker.setParameters({
-                tessedit_pageseg_mode: pass.psm,
-                preserve_interword_spaces: '1',
-                user_defined_dpi: '300',
-              });
+              const { png, scale } = await prepareForPass(prepared, pass);
+              await page(pass.psm);
               const { data } = await worker.recognize(png, {}, { blocks: true });
-              done.push(wordsOf(data));
+              done.push({ words: wordsOf(data), scale });
               if (isSettled(done)) break;
             }
             return done;
           };
 
-          readings = await read(image.data, passes);
+          let prepared = await preparePage(image.data);
+          readings = await read(prepared, passes);
           // No amount found: the picture may be upside down or on its side (phones
           // usually record rotation, but screenshots and scans do not). Try the other
           // orientations with one quick pass each, and read fully in the first that works.
@@ -261,16 +362,34 @@ export function createOcrProvider({ timeoutMs, engine, passes = PASSES } = {}) {
           if (!first.readable || (first.debit === null && first.credit === null)) {
             let best = { turned: null, score: evidence(readings) };
             for (const turn of [180, 90, 270]) {
-              const turned = await sharp(image.data).rotate(turn).jpeg({ quality: 92 }).toBuffer();
+              const turned = await preparePage(
+                await sharp(image.data).rotate(turn).jpeg({ quality: 92 }).toBuffer(),
+              );
               const score = evidence(await read(turned, passes.slice(0, 1)));
               if (score > best.score) best = { turned, score };
             }
-            if (best.turned) readings = await read(best.turned, passes);
+            if (best.turned) {
+              prepared = best.turned;
+              readings = await read(prepared, passes);
+            }
+          }
+
+          // Close-ups of each amount, digits only.
+          const boxes = amountBoxes(readings);
+          for (const [field, box] of Object.entries(boxes)) {
+            const crop = await closeUpOf(prepared, box);
+            if (!crop) continue;
+            await page(PSM.SINGLE_LINE, '0123456789.,/-');
+            closeUps[field] = [];
+            for (const make of closeUpVariants) {
+              const { data } = await worker.recognize(await make(crop));
+              closeUps[field].push({ text: data.text, conf: data.confidence });
+            }
           }
         },
         { signal },
       );
-      return decide(readings);
+      return decide(readings, closeUps);
     },
   };
 }

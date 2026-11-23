@@ -4,8 +4,6 @@ import useFocusOnMount from '../useFocusOnMount.js';
 import AmountFields from './AmountFields.jsx';
 import { methodName } from './ReadingMethod.jsx';
 
-const CONFIDENCE = { high: 'High', medium: 'Medium', low: 'Low' };
-
 // Shows what was read from the picture: the Debit and Credit boxes (editable), anything to
 // double check. The values live in the parent so they
 // survive a reload; this component only draws them.
@@ -49,8 +47,7 @@ export default function ExtractedAmounts({
       {!manual && (
         <p className={`confidence ${result.confidence}`}>
           Read with: <strong data-testid="read-with">{methodName(result.provider)}</strong> ·
-          Confidence: <strong>{CONFIDENCE[result.confidence]}</strong> · Amounts in rupees (
-          <strong>₹</strong>)
+          Amounts in rupees (<strong>₹</strong>) · Each amount shows how sure the reading is.
         </p>
       )}
 

@@ -11,8 +11,12 @@ test('loadConfig defaults to console SMS and free OCR vision with no env', () =>
   assert.equal(config.vision.model, 'claude-opus-5-5');
 });
 
-test('loadConfig picks claude vision when an API key is set', () => {
-  assert.equal(loadConfig({ ANTHROPIC_API_KEY: 'k' }).vision.provider, 'claude');
+test('loadConfig keeps free OCR as the default reader even when an API key is set', () => {
+  assert.equal(loadConfig({ ANTHROPIC_API_KEY: 'k' }).vision.provider, 'ocr');
+  assert.equal(
+    loadConfig({ ANTHROPIC_API_KEY: 'k', VISION_PROVIDER: 'claude' }).vision.provider,
+    'claude',
+  );
   assert.equal(
     loadConfig({ ANTHROPIC_API_KEY: 'k', VISION_PROVIDER: 'mock' }).vision.provider,
     'mock',

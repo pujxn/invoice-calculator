@@ -26,6 +26,8 @@ function distance(a, b) {
 }
 
 const LABELS = { debit: 'debit', credit: 'credit' };
+// Real words that look like a label but are not one.
+const REAL_WORDS = new Set(['debt', 'debts', 'credits', 'debits', 'credo']);
 // Letters that OCR commonly swaps inside a word, folded together before comparing.
 const fold = (s) =>
   s
@@ -42,10 +44,17 @@ export function labelOf(text) {
   const m = /^([A-Za-z0-9|!$]{4,8})\s*[:=\-–—.;]*(.*)$/u.exec(t);
   if (!m) return null;
   const word = fold(m[1]);
+  if (REAL_WORDS.has(word)) return null;
   for (const [field, label] of Object.entries(LABELS)) {
-    if (word === label || (word.length === label.length && distance(word, label) <= 1)) {
-      return { field, rest: m[2] };
-    }
+    const close =
+      word === label ||
+      (word.length === label.length && distance(word, label) <= 1) ||
+      // Handwriting often loses or doubles a letter at the end ("Credd", "Debi", "Cred").
+      (word.length >= 4 &&
+        word.length <= label.length &&
+        word.slice(0, 4) === label.slice(0, 4) &&
+        distance(word, label) <= 2);
+    if (close) return { field, rest: m[2] };
   }
   return null;
 }
@@ -154,7 +163,20 @@ function repairSeparators(t) {
 
 // ---------------------------------------------------------------- one OCR pass
 
-const candidateFrom = (found, word, row) => {
+// The amount's box, and how far left a close-up of it may reach before it takes in the word
+// in front (a label, or "Rs."), which a digits-only re-read would turn into junk digits.
+const boxOf = (w, line) => {
+  const before = line.filter((o) => o !== w && o.x1 <= w.x0 + 1).map((o) => o.x1);
+  return {
+    x0: w.x0,
+    y0: w.y0,
+    x1: w.x1,
+    y1: w.y1,
+    minX: before.length ? Math.max(...before) : null,
+  };
+};
+
+const candidateFrom = (found, word, row, where, line = row.words) => {
   const parsed = parseAmount(found.text);
   return {
     text: found.text,
@@ -164,8 +186,47 @@ const candidateFrom = (found, word, row) => {
     symbol: found.symbol,
     conf: word.conf,
     cy: row.cy,
+    box: boxOf(word, line),
+    where, // 'row': beside its label; 'below': under it (handwritten notes, two columns)
   };
 };
+
+// Words that are part of one amount but were split by the engine ("73," "177"). Only joined
+// when the gap is small and a separator sits at the join, so "500  1000" stays two numbers.
+const FRAGMENT = /^[\d.,OoQDlI|SB]+$/u;
+export function joinFragments(words) {
+  const out = [];
+  for (const w of words) {
+    const prev = out[out.length - 1];
+    const joins =
+      prev &&
+      FRAGMENT.test(prev.text) &&
+      FRAGMENT.test(w.text) &&
+      /\d/.test(prev.text) &&
+      /\d/.test(w.text) &&
+      w.x0 - prev.x1 < 0.6 * Math.max(prev.h, w.h) &&
+      (/[.,]$/.test(prev.text) || /^[.,]/.test(w.text));
+    if (!joins) {
+      out.push(w);
+      continue;
+    }
+    const merged = {
+      ...prev,
+      text: prev.text + w.text,
+      conf: Math.min(prev.conf, w.conf),
+      x1: Math.max(prev.x1, w.x1),
+      y0: Math.min(prev.y0, w.y0),
+      y1: Math.max(prev.y1, w.y1),
+    };
+    merged.cx = (merged.x0 + merged.x1) / 2;
+    merged.h = Math.max(prev.h, w.h);
+    out[out.length - 1] = merged;
+  }
+  return out;
+}
+
+// Short words allowed between a label and its amount ("Debit amount: 500", "Credit (Rs) 500").
+const FILLER = /^(?:amount|amt\.?|total|\(?rs\.?\)?|\(?inr\)?|\(₹\)|in|rupees):?$/iu;
 
 // Looks along a row after a label for its amount. A lone currency mark between them is skipped.
 function amountAfter(row, index, rest) {
@@ -175,9 +236,14 @@ function amountAfter(row, index, rest) {
   for (let j = index + 1; j < row.words.length; j++) {
     parts.push({ text: row.words[j].text, word: row.words[j] });
   }
+  let fillers = 0;
   for (const part of parts) {
     if (SYMBOL_ONLY.test(part.text) || /^[:=\-–—]+$/.test(part.text)) {
       if (!/^[:=\-–—.]+$/.test(part.text)) symbol = true;
+      continue;
+    }
+    if (FILLER.test(part.text) && fillers < 2) {
+      fillers += 1;
       continue;
     }
     const found = amountFrom(part.text);
@@ -187,27 +253,69 @@ function amountAfter(row, index, rest) {
   return null;
 }
 
-// Finds every Debit/Credit label that has an amount beside it, and notes labels with none
-// (a column heading, or an amount OCR could not read).
+// Looks under a label for its amount: the label on one line and the amount on the next (common
+// in handwriting), or "Debit  Credit" headings with the amounts in a row beneath. The amount must
+// sit under this label rather than under another one, and the search stops at the next label.
+function amountBelow(rows, r, label) {
+  const row = rows[r];
+  const others = row.words.filter((w) => w !== label && labelOf(w.text));
+  const reach = 3.5 * Math.max(row.h, label.h);
+  for (let k = r + 1; k < rows.length; k++) {
+    const below = rows[k];
+    if (below.cy - row.cy > reach) break;
+    let best = null;
+    for (const w of below.words) {
+      const found = amountFrom(w.text);
+      if (!found) continue;
+      // Lines up with the label: same left edge, same right edge, or centred under it.
+      const slack = Math.max(label.h, w.h);
+      const dist = Math.min(
+        Math.abs(w.x0 - label.x0),
+        Math.abs(w.x1 - label.x1),
+        Math.abs(w.cx - label.cx),
+      );
+      if (dist > slack) continue;
+      const near = (o) =>
+        Math.min(Math.abs(w.x0 - o.x0), Math.abs(w.x1 - o.x1), Math.abs(w.cx - o.cx));
+      if (others.some((o) => near(o) < dist)) continue; // under another label
+      if (!best || dist < best.dist) best = { found, word: w, dist, row: below };
+    }
+    if (best) return best;
+    if (below.words.some((w) => labelOf(w.text))) break; // the next label's line
+  }
+  return null;
+}
+
+// Finds every Debit/Credit label that has an amount beside or under it, and notes labels with
+// none (an amount OCR could not read).
 function findLabels(rows) {
   const seen = { debit: false, credit: false };
   const totals = { debit: [], credit: [] };
-  for (const row of rows) {
+  rows.forEach((row, r) => {
     row.words.forEach((word, i) => {
       const label = labelOf(word.text);
       if (!label) return;
-      const hit = amountAfter(row, i, label.rest);
-      if (hit) totals[label.field].push(candidateFrom(hit.found, hit.word, row));
-      if (hit || !label.rest) seen[label.field] = true;
+      const bare = /^[:=\-–—.;]*$/u.test(label.rest);
+      const hit = amountAfter(row, i, bare ? '' : label.rest);
+      if (hit) totals[label.field].push(candidateFrom(hit.found, hit.word, row, 'row'));
+      else if (bare) {
+        const under = amountBelow(rows, r, word);
+        if (under)
+          totals[label.field].push(
+            candidateFrom(under.found, under.word, rows[r], 'below', under.row.words),
+          );
+      }
+      if (hit || bare) seen[label.field] = true;
     });
-  }
+  });
   return { seen, totals };
 }
 
-// Reads one OCR result. `totals[field]` lists every amount that appeared beside that label and
-// `labels[field]` says whether the label was seen at all.
+// Reads one OCR result. `totals[field]` lists every amount that appeared beside (or under) that
+// label and `labels[field]` says whether the label was seen at all.
 export function analysePass(rawWords) {
   const rows = toRows(toWords(rawWords));
+  for (const row of rows) row.words = joinFragments(row.words);
   const { seen, totals } = findLabels(rows);
   return { labels: seen, totals };
 }
@@ -222,15 +330,31 @@ export function analysePass(rawWords) {
 //  { status: 'conflict' }                       two different amounts beside the same label
 export function judgeField(pass, field) {
   if (!pass.labels[field]) return { status: 'absent' };
-  const all = pass.totals[field];
+  // An amount beside its label beats one found under it (that may be a table column).
+  const found = pass.totals[field];
+  const beside = found.filter((c) => c.where !== 'below');
+  const all = beside.length > 0 ? beside : found;
   if (all.length === 0) return { status: 'empty' };
 
   const readable = all.filter((c) => c.value !== null);
   if (readable.length === 0) {
-    return { status: 'unclear', text: all[0].text, message: all[0].message, reason: all[0].reason };
+    const first = all[0];
+    return {
+      status: 'unclear',
+      text: first.text,
+      message: first.message,
+      reason: first.reason,
+      box: first.box,
+    };
   }
   const values = [...new Set(readable.map((c) => c.value))];
   if (values.length > 1) return { status: 'conflict' };
   const best = readable[0];
-  return { status: 'unchecked', value: best.value, conf: best.conf, symbol: best.symbol };
+  return {
+    status: 'unchecked',
+    value: best.value,
+    conf: Math.min(...readable.map((c) => c.conf)),
+    symbol: best.symbol,
+    box: best.box,
+  };
 }

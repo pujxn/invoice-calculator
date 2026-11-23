@@ -10,14 +10,14 @@ Agents today read an invoice by eye, work out Debit minus Credit by hand, and wr
 
 On the upload screen there is a **Read with** switch with two choices. You can flip it live, between two uploads, to show the difference.
 
-|                          | **Local OCR** (default, no setup)                                                    | **AI (Claude)**                                                    |
-| ------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| Needs                    | Nothing. It is built in and works offline                                            | An `ANTHROPIC_API_KEY` with billing (see the README), then restart |
-| Terminal says            | `vision: ocr`                                                                        | `vision: claude` (or `ocr` if you kept OCR as the default)         |
-| What "Read amounts" does | Really reads the picture on this computer, free. About 1 to 7 seconds                | Really reads the picture with Claude. A few seconds                |
-| Cost                     | Free, and the picture never leaves the computer                                      | Roughly 2 to 6 US cents per reading (estimate)                     |
-| Good at                  | Clean photos and screenshots of printed invoices; shows its working                  | Messy, blurry, handwritten or unusual layouts                      |
-| Say to the room          | "This one is free and private. It reads printed invoices and tells you when unsure." | "This one is the AI. Better on messy photos, costs a little."      |
+|                          | **Local OCR** (default, no setup)                                                     | **AI (Claude)**                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Needs                    | Nothing. It is built in and works offline                                             | An `ANTHROPIC_API_KEY` with billing (see the README), then restart |
+| Terminal says            | `vision: ocr` (the default, with or without a key)                                    | `vision: claude` only if you set `VISION_PROVIDER=claude`          |
+| What "Read amounts" does | Really reads the picture on this computer, free. About 1 to 7 seconds                 | Really reads the picture with Claude. A few seconds                |
+| Cost                     | Free, and the picture never leaves the computer                                       | Roughly 2 to 6 US cents per reading (estimate)                     |
+| Good at                  | Printed invoices, also blurry or tilted photos of them; flags each amount High or Low | Messy, handwritten or unusual layouts                              |
+| Say to the room          | "This one is free and private. It reads printed invoices and tells you when unsure."  | "This one is the AI. Better on messy photos, costs a little."      |
 
 Without an API key the **AI (Claude)** choice is greyed out and says why ("not set up on this server"). That is expected: you can still run the whole demo with Local OCR. If you do have a key, both choices are live and the switch remembers your last choice for this browser tab.
 
@@ -25,7 +25,7 @@ The sign-in code is never sent as a real text: it appears in the terminal (**Liv
 
 **Demo values (mock) mode** is the old placeholder mode: `VISION_PROVIDER=mock` in `server/.env`. Pictures are not read at all, the boxes show made-up numbers, and the switch is hidden. The screen says "Demo values, not read from your picture." Only use it if OCR misbehaves on the day; say so plainly and type the real figures in step 5.
 
-**Be honest about OCR.** It does not understand the invoice; it reads the letters and numbers next to **Debit** and **Credit**, and nothing else (Ledgerly has no line items and invoices carry plain numbers, no currency sign). It cannot prove an amount, so it only ever says **Medium** and tells you to check each amount against the picture. It fills a box only when two readings agree, and otherwise leaves it empty with **Please check**. If a reading is wrong on the day, correct the box by hand (step 5) or flip to the **AI (Claude)** choice.
+**Be honest about OCR.** It does not understand the invoice; it reads the letters and numbers next to **Debit** and **Credit**, and nothing else (Ledgerly has no line items and invoices carry plain numbers, no currency sign). Each amount it fills in has a flag: a green **High confidence** when every reading of the picture (whole-page readings and digits-only close-ups) agreed, or a pink **Low confidence** when the amount won but not every reading agreed: those are the ones to double-check. It fills a box only when at least two readings agree, and otherwise leaves it empty with **Please check**. In our tests every High amount was right; Low amounts on handwriting were sometimes wrong, which is exactly why they are pink. If a reading is wrong on the day, correct the box by hand (step 5) or flip to the **AI (Claude)** choice.
 
 ## Sample invoices (in `docs/demo/`)
 
@@ -40,16 +40,18 @@ Made-up inputs, not screenshots. Regenerate with `node docs/demo/make-demo-invoi
 
 Ledgerly works in Indian rupees only, so every result shows the ₹ sign with lakh grouping (`₹85,050.00`), in both modes and when you use **Type the amounts instead**. The sample invoices are plain numbers (no currency sign), in rupees.
 
-**What has and has not been checked.** Local OCR was run for real, offline, on the four pictures and on degraded copies of them (blurred, heavily compressed, half size, tilted 4 and 6 degrees, dark and low contrast, turned 90 and 180 degrees): all 31 readings gave exactly the right Debit and Credit, with Medium confidence. Only the deliberately noisy copy of each picture was unreadable, and OCR said so instead of guessing. The AI choice (real Claude) was not run, because no API key was available: do one rehearsal with your key first.
+**What has and has not been checked.** Local OCR was run for real, offline, on the four pictures and on degraded copies of them (blurred, heavily compressed, half size, tilted 4 and 6 degrees, dark and low contrast, turned 90 and 180 degrees): all readings gave exactly the right Debit and Credit. Only the deliberately noisy copy of each picture was unreadable, and OCR said so instead of guessing. The AI choice (real Claude) was not run, because no API key was available: do one rehearsal with your key first.
 
-| File                       | Local OCR reads (Debit / Credit) | Confidence |
-| -------------------------- | -------------------------------- | ---------- |
-| `demo-1-net-debit.png`     | 125050.00 / 40000.00             | Medium     |
-| `demo-2-net-credit.png`    | 30000.00 / 112575.00             | Medium     |
-| `demo-3-balanced.png`      | 64000.00 / 64000.00              | Medium     |
-| `demo-4-tricky-blurry.jpg` | 248025.00 / 91500.00             | Medium     |
+| File                       | Local OCR reads (Debit / Credit) | Flags       |
+| -------------------------- | -------------------------------- | ----------- |
+| `demo-1-net-debit.png`     | 125050.00 / 40000.00             | High / High |
+| `demo-2-net-credit.png`    | 30000.00 / 112575.00             | High / High |
+| `demo-3-balanced.png`      | 64000.00 / 64000.00              | High / High |
+| `demo-4-tricky-blurry.jpg` | 248025.00 / 91500.00             | High / Low  |
 
-These are made-up, computer-drawn invoices with clear printed text, so they are the friendly case. A real photo of a crumpled paper, handwriting, or a different layout may fail or come back at Medium; that is why the screen always asks you to check. The blurry one is a deliberately rough "phone photo" (soft focus, tilted, uneven light); OCR needs about 7 seconds for it because it tries three clean-ups of the picture.
+To show a pink **Low confidence** flag, read `server/test/fixtures/ocr/handwritten-ruled-photo.jpg` (a handwriting-style note on ruled paper, photographed): it reads Debit `5190.00` and Credit `296208.00`, with at least one of them flagged Low. Accuracy on 96 printed and handwriting-style test invoices is in [OCR-ACCURACY.md](OCR-ACCURACY.md).
+
+These are made-up, computer-drawn invoices with clear printed text, so they are the friendly case. A real photo of a crumpled paper, handwriting, or a different layout may fail or come back flagged Low; that is why the screen always asks you to check. The blurry one is a deliberately rough "phone photo" (soft focus, tilted, uneven light); OCR cuts the page out of the desk and straightens it before reading.
 
 ## Before the demo (checklist)
 
@@ -94,8 +96,8 @@ Optional 10 seconds if asked about security: type a wrong code ("Wrong code. 4 t
 ### 4. The amounts are read (about 1.5 minutes). **Live**
 
 1. With **Local OCR** selected, press **Read amounts**. **Expect:** a spinner and "Reading your invoice with local OCR..." then, after a few seconds, **Amounts we found**: "Read from your picture with local OCR (free, no AI)", **Read with: Local OCR**.
-2. **Expect:** Debit `125050.00` and Credit `40000.00` filled in, "Amounts in rupees (₹)", **Confidence: Medium** and a note to check each amount against the picture. **Say:** "It only fills in a number when two readings agree, and it tells you to check. It never claims to be certain, and there are no line items: just the Debit and the Credit."
-3. **Show the switch (optional, strong in a demo).** Press **Upload a different invoice**, choose `demo-4-tricky-blurry.jpg` and read it with **Local OCR**: it takes about 7 seconds and should give `248025.00` / `91500.00`. Then, if you have a key, upload it again, flip **Read with** to **AI (Claude)** and read: **Read with: AI (Claude)** appears on the result. **Say:** "Same picture, two readers. The result says which one was used." If you have no key, point at the greyed-out **AI (Claude)** and read out why.
+2. **Expect:** Debit `125050.00` and Credit `40000.00` filled in, "Amounts in rupees (₹)", a green **High confidence** flag beside each amount, and a note to check each amount against the picture. **Say:** "It reads the picture several ways. Green means every reading agreed; pink means look at this one. There are no line items: just the Debit and the Credit."
+3. **Show the switch (optional, strong in a demo).** Press **Upload a different invoice**, choose `demo-4-tricky-blurry.jpg` and read it with **Local OCR**: it takes a few seconds and should give `248025.00` / `91500.00`. Then, if you have a key, upload it again, flip **Read with** to **AI (Claude)** and read: **Read with: AI (Claude)** appears on the result. **Say:** "Same picture, two readers. The result says which one was used." If you have no key, point at the greyed-out **AI (Claude)** and read out why.
 4. **Demo values mode only:** the notice "Demo values, not read from your picture" and unrelated numbers such as `1484.91` and `147.63`. **Say:** "These are placeholders; an agent would check them." Go straight to step 5.
 
 ### 5. Check and correct (about 1 minute). **Live**
@@ -137,7 +139,7 @@ Then stop and take questions.
 
 | Problem                                                                  | What to do                                                                                                                                                                                                         |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Local OCR leaves a box empty and shows **Please check**                  | Working as designed: two readings did not agree on the number, so it was left empty. Type the figure yourself, or press **Upload a different invoice** and try again with a clearer photo. Good point about trust. |
+| Local OCR leaves a box empty and shows **Please check**                  | Working as designed: the readings did not agree on the number, so it was left empty. Type the figure yourself, or press **Upload a different invoice** and try again with a clearer photo. Good point about trust. |
 | Local OCR says "We could not find an invoice in this picture"            | It found no Debit or Credit label. Try a straighter, brighter photo, or press **Type the amounts instead**.                                                                                                        |
 | The first Local OCR reading is slow                                      | The engine starts on first use (a few seconds). Warm it up before the demo (see the checklist). If it says it took too long, press **Read amounts** again.                                                         |
 | **AI (Claude)** is greyed out                                            | No API key on the server. Use Local OCR, or add the key to `server/.env`, restart `npm run dev` and sign in again.                                                                                                 |

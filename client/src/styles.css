@@ -30,6 +30,11 @@
   --good-text: #145c33; /* credit green */
   --bad-bg: #fde4e4;
   --bad-text: #8a1c1c;
+  /* Confidence flags on each amount read from a picture: green when sure, pink to double-check
+     (never yellow). */
+  --check-bg: #fce4ef;
+  --check-text: #8c1048;
+  --check-edge: #d81b72;
 
   font-family: var(--font-sans);
   color: var(--text);
@@ -53,6 +58,9 @@
     --good-text: #9be8b4;
     --bad-bg: #4a1f1f;
     --bad-text: #ffc9c9;
+    --check-bg: #4a1430;
+    --check-text: #ffc2dc;
+    --check-edge: #ff6fa8;
   }
 }
 
@@ -421,6 +429,47 @@ progress {
 .amounts input[aria-invalid='true'] {
   border-color: var(--bad-text);
   border-width: 2px;
+}
+
+/* Confidence flag beside each amount's label, and its line under the box. Text says it in words;
+   the colour is only a second cue. */
+.flag {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  vertical-align: 0.1rem;
+}
+
+.flag.high {
+  background: var(--good-bg);
+  color: var(--good-text);
+}
+
+.flag.low {
+  background: var(--check-bg);
+  color: var(--check-text);
+}
+
+.amounts input.flagged-low {
+  border-color: var(--check-edge);
+  border-width: 2px;
+}
+
+.flag-hint {
+  margin: 0.375rem 0 0;
+  font-size: var(--text-sm);
+}
+
+.flag-hint.high {
+  color: var(--good-text);
+}
+
+.flag-hint.low {
+  color: var(--check-text);
+  font-weight: 600;
 }
 
 .field-error {

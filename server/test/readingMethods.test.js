@@ -157,8 +157,9 @@ test('config: without a key AI is listed as unavailable; with one it is offered'
   assert.match(none.methods[1].reason, /ANTHROPIC_API_KEY/);
   assert.equal(none.methods[1].provider, undefined);
 
+  // Free OCR is the default even when AI is set up; AI is offered beside it.
   const keyed = createVisionMethods(loadConfig({ ANTHROPIC_API_KEY: 'sk-test' }).vision);
-  assert.equal(keyed.default, 'claude');
+  assert.equal(keyed.default, 'ocr');
   assert.deepEqual(
     keyed.methods.map((m) => [m.id, m.available]),
     [
@@ -166,10 +167,10 @@ test('config: without a key AI is listed as unavailable; with one it is offered'
       ['claude', true],
     ],
   );
-  const keyedOcr = createVisionMethods(
-    loadConfig({ ANTHROPIC_API_KEY: 'sk-test', VISION_PROVIDER: 'ocr' }).vision,
+  const keyedAi = createVisionMethods(
+    loadConfig({ ANTHROPIC_API_KEY: 'sk-test', VISION_PROVIDER: 'claude' }).vision,
   );
-  assert.equal(keyedOcr.default, 'ocr');
+  assert.equal(keyedAi.default, 'claude');
 
   // Demo values (the automated tests' mode) stand alone: nothing to switch between.
   const mockOnly = createVisionMethods(loadConfig({ VISION_PROVIDER: 'mock' }).vision);

@@ -26,13 +26,15 @@ async function read(file) {
   return extractor.extract({ data: await readFile(file), mimeType: mimeOf(file) });
 }
 
-// Only the printed Debit and Credit amounts are read, as plain numbers (no currency sign). OCR
-// cannot prove an amount, so it never reports "high" and always asks the user to check.
+// Only the printed Debit and Credit amounts are read, as plain numbers (no currency sign). Each
+// amount carries its own flag: "high" only when every reading agreed. The notes always ask the
+// user to check against the picture.
 const ASK = /check each amount against your picture/;
 
-test('demo invoice 1 (net debit): both amounts, at medium confidence with a check note', async () => {
+test('demo invoice 1 (net debit): both amounts, each flagged high, with a check note', async () => {
   const r = await read(demo('demo-1-net-debit.png'));
-  assert.deepEqual([r.debit, r.credit, r.confidence], ['125050.00', '40000.00', 'medium']);
+  assert.deepEqual([r.debit, r.credit, r.confidence], ['125050.00', '40000.00', 'high']);
+  assert.deepEqual(r.amountConfidence, { debit: 'high', credit: 'high' });
   assert.equal('lineItems' in r, false);
   assert.deepEqual(r.warnings, []);
   assert.equal(r.currency, 'INR');
@@ -42,22 +44,38 @@ test('demo invoice 1 (net debit): both amounts, at medium confidence with a chec
 
 test('demo invoice 2 (net credit, lakh grouping 1,12,575.00)', async () => {
   const r = await read(demo('demo-2-net-credit.png'));
-  assert.deepEqual([r.debit, r.credit, r.confidence], ['30000.00', '112575.00', 'medium']);
+  assert.deepEqual([r.debit, r.credit, r.confidence], ['30000.00', '112575.00', 'high']);
 });
 
 test('demo invoice 3 (balanced): the same amount on both sides', async () => {
   const r = await read(demo('demo-3-balanced.png'));
-  assert.deepEqual([r.debit, r.credit, r.confidence], ['64000.00', '64000.00', 'medium']);
+  assert.deepEqual([r.debit, r.credit, r.confidence], ['64000.00', '64000.00', 'high']);
 });
 
 test('demo invoice 4 (tilted, blurry photo on a dark desk)', async () => {
   const r = await read(demo('demo-4-tricky-blurry.jpg'));
-  assert.deepEqual([r.debit, r.credit, r.confidence], ['248025.00', '91500.00', 'medium']);
+  assert.deepEqual([r.debit, r.credit], ['248025.00', '91500.00']);
+  // The Credit on this soft photo is read right but not by every reading, so it is flagged low.
+  assert.deepEqual(r.amountConfidence, { debit: 'high', credit: 'low' });
 });
 
-test('a plain note with no table: both amounts, at medium confidence', async () => {
+test('a phone photo with each amount under its label: cut out of the desk, read High', async () => {
+  const r = await read(fixture('printed-stacked-photo.jpg'));
+  assert.deepEqual([r.debit, r.credit], ['9899.00', '155976.00']);
+  assert.deepEqual(r.amountConfidence, { debit: 'high', credit: 'high' });
+});
+
+test('a handwriting-style photo on ruled paper is read, flagged Low for a second look', async () => {
+  const r = await read(fixture('handwritten-ruled-photo.jpg'));
+  assert.deepEqual([r.debit, r.credit], ['5190.00', '296208.00']);
+  assert.deepEqual(r.amountConfidence, { debit: 'low', credit: 'low' });
+  assert.equal(r.confidence, 'medium');
+  assert.match(r.notes, /Double-check the Debit amount/);
+});
+
+test('a plain note with no table: both amounts', async () => {
   const r = await read(fixture('plain-text.png'));
-  assert.deepEqual([r.debit, r.credit, r.confidence], ['12500.50', '3200.00', 'medium']);
+  assert.deepEqual([r.debit, r.credit], ['12500.50', '3200.00']);
   assert.match(r.notes, ASK);
 });
 
@@ -70,7 +88,7 @@ test('only a Debit amount: Credit stays empty and the notes say it was not found
   const r = await read(fixture('debit-only.png'));
   assert.equal(r.debit, '1650.50');
   assert.equal(r.credit, null);
-  assert.equal(r.confidence, 'medium');
+  assert.equal(r.amountConfidence.credit, null);
   assert.match(r.notes, /No Credit label/);
 });
 
@@ -87,7 +105,6 @@ test('a picture turned upside down or on its side is turned back before reading'
     const data = await sharp(upright).rotate(turn).png().toBuffer();
     const r = await extractor.extract({ data, mimeType: 'image/png' });
     assert.deepEqual([r.debit, r.credit], ['30000.00', '112575.00'], `${turn}`);
-    assert.equal(r.confidence, 'medium');
   }
 });
 
@@ -253,7 +270,8 @@ test('the provider stops once two readings agree on both amounts', async () => {
   }));
   const fake = fakeWorkers({
     job: async () => ({
-      data: { blocks: [{ paragraphs: [{ lines: [{ words }] }] }] },
+      // whole-page readings use the words; close-ups (one line, digits only) use the text
+      data: { text: '100.00\n', blocks: [{ paragraphs: [{ lines: [{ words }] }] }] },
     }),
   });
   const p = createOcrProvider({ engine: engineWith(fake) });
@@ -265,9 +283,12 @@ test('the provider stops once two readings agree on both amounts', async () => {
   const out = await p.extract({ image });
   assert.deepEqual(
     [out.readable, out.debit, out.credit, out.confidence],
-    [true, '100.00', '100.00', 'medium'],
+    [true, '100.00', '100.00', 'high'],
   );
-  assert.equal(fake.log.recognized, 2, 'two readings agreed, so the third was skipped');
+  // two whole-page readings agreed, so the other passes were skipped; then three close-ups of
+  // each amount, which all agreed too
+  assert.equal(fake.log.recognized, 2 + 3 + 3);
+  assert.deepEqual(out.amountConfidence, { debit: 'high', credit: 'high' });
   await p.close();
 });
 

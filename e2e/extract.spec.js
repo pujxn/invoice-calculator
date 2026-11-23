@@ -232,7 +232,9 @@ test('amounts the AI was unsure about are flagged and left blank', async ({ page
   await expect(page.getByText('partly covered by a stamp')).toBeVisible();
   await expect(debit(page)).toHaveValue('');
   await expect(credit(page)).toHaveValue('400.00');
-  await expect(page.getByText(/Confidence:/)).toContainText('Low');
+  // The empty box has no flag; the amount that was read is flagged for a second look.
+  await expect(page.getByTestId('debit-flag')).toHaveCount(0);
+  await expect(page.getByTestId('credit-flag')).toHaveText('Low confidence');
   await expectNoSideScroll(page);
   await shot(page, 'extract-06-low-confidence');
 });
