@@ -49,13 +49,16 @@ export function formatAmount(amount, { exact = false } = {}) {
 // When the exact result has more than 2 decimals, `amount` is rounded to 2 for the big figure,
 // `rounded` is true, and `note` says so and gives the `exact` figure; the working and the copied
 // text show every decimal, so the sum on screen adds up.
-export function describeResult(result) {
+// With { total: true } (a combined total over many invoices) the working says "Total debit … − Total
+// credit …".
+export function describeResult(result, { total = false } = {}) {
   const exactMoney = (value) => formatAmount(value, { exact: true });
   const label = LABELS[result.type];
   const rounded = hasExtraDecimals(result.net);
   const amount = formatAmount(result.net);
   const exact = exactMoney(result.net);
-  const sum = `Debit ${exactMoney(result.debit)} − Credit ${exactMoney(result.credit)}`;
+  const names = total ? ['Total debit', 'Total credit'] : ['Debit', 'Credit'];
+  const sum = `${names[0]} ${exactMoney(result.debit)} − ${names[1]} ${exactMoney(result.credit)}`;
   const sign = result.type === 'credit' ? '−' : '';
   const base = result.type === 'balanced' ? 'Balanced' : label;
   return {

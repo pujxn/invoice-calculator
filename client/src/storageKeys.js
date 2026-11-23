@@ -5,6 +5,8 @@
 export const SESSION_KEY = 'invoice-calculator.session';
 export const PICTURE_KEY = 'invoice-calculator.current-invoice';
 export const READING_KEY = 'invoice-calculator.extracted';
+// The invoices in a batch (several pictures read at once) and what was read from each.
+export const BATCH_KEY = 'invoice-calculator.batch';
 // How the person chose to read pictures ("ocr" or "claude"): a preference, kept for this tab.
 export const METHOD_KEY = 'invoice-calculator.reading-method';
 
@@ -13,6 +15,7 @@ export function forgetInvoiceData() {
   try {
     sessionStorage.removeItem(PICTURE_KEY);
     sessionStorage.removeItem(READING_KEY);
+    sessionStorage.removeItem(BATCH_KEY);
   } catch {
     // storage blocked: nothing was kept
   }

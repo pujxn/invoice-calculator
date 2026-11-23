@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
+import BatchScreen from './BatchScreen.jsx';
 import ExtractedAmounts from './ExtractedAmounts.jsx';
 import InvoiceUpload from './InvoiceUpload.jsx';
 import ResultScreen from './ResultScreen.jsx';
 import useSaveToHistory from '../history/useSaveToHistory.js';
+import useBatch from './useBatch.js';
 import { READING_KEY } from '../storageKeys.js';
 
 // Upload screen, then the amounts that were read, then the final amount. The reading is remembered for this browser tab
@@ -35,10 +37,14 @@ function save(value) {
 const startValues = (result) => ({ debit: result.debit ?? '', credit: result.credit ?? '' });
 
 export default function InvoiceFlow() {
-  const { user, token } = useAuth();
+  const { user, token, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [state, setState] = useState(() => load(user.phone)); // { phone, result, values, stage } | null
+  // Many invoices at once: the batch lives here so it keeps running while the person looks at
+  // the one-invoice screens. A batch left in this tab is shown again after a reload.
+  const batch = useBatch({ token, phone: user.phone, onSignedOut: logout });
+  const [batchOpen, setBatchOpen] = useState(() => !load(user.phone) && batch.items.length > 0);
   // The final amount screen gets its own browser history entry, so the browser's Back button (and
   // Android's back key) goes back to the amounts instead of leaving the app, and Forward returns.
   const onResultEntry = location.state?.stage === 'result';
@@ -72,10 +78,16 @@ export default function InvoiceFlow() {
     });
   }, [location.key, onResultEntry]);
 
+  if (batchOpen) return <BatchScreen batch={batch} onBack={() => setBatchOpen(false)} />;
+
   if (!state) {
     return (
       <InvoiceUpload
         focusHeading={cameBack}
+        onBatch={(files) => {
+          batch.add(files);
+          setBatchOpen(true);
+        }}
         onExtracted={(result) => {
           setCameBack(false);
           setState({ phone: user.phone, result, values: startValues(result), stage: 'review' });

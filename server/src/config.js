@@ -145,6 +145,9 @@ export function loadConfig(env = process.env) {
       fallbacks: env.ANTHROPIC_FALLBACKS || '',
       // Reads one user may start per hour; each real read costs money.
       extractionsPerUserPerHour: positiveInt(env.EXTRACT_PER_USER_PER_HOUR, 30),
+      // Free readings (local OCR, demo values) cost nothing, so a whole batch of invoices can be
+      // read; this only stops one user from flooding the server.
+      freeReadingsPerUserPerHour: positiveInt(env.FREE_READINGS_PER_USER_PER_HOUR, 600),
     },
   };
 }

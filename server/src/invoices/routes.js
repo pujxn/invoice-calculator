@@ -6,6 +6,8 @@ import { ExtractionError } from '../extraction/errors.js';
 import { describeError } from '../log.js';
 
 const MB = 1024 * 1024;
+// Ways of reading that cost nothing; they use the roomy free limit instead of the AI one.
+const FREE_METHODS = new Set(['ocr', 'mock']);
 
 // Upload, fetch and delete invoice pictures. Every route needs a signed-in user and only ever
 // touches that user's own files: another user's id behaves exactly like an id that does not exist.
@@ -16,6 +18,7 @@ export function createInvoiceRouter({
   extractors,
   readingMethods,
   extractLimiter,
+  freeExtractLimiter = extractLimiter,
   secrets = [],
 }) {
   const router = Router();
@@ -133,7 +136,9 @@ export function createInvoiceRouter({
     if (reading.has(key)) {
       return res.status(409).json({ error: 'This picture is already being read.' });
     }
-    const limit = extractLimiter.hit(owner(req));
+    const limit = (FREE_METHODS.has(methodId) ? freeExtractLimiter : extractLimiter).hit(
+      owner(req),
+    );
     if (!limit.allowed) {
       res.set('Retry-After', String(limit.retryAfterSeconds));
       return res.status(429).json({

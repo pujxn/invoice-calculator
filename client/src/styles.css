@@ -1066,3 +1066,187 @@ select {
     grid-template-columns: 1fr 1fr;
   }
 }
+/* --- Several invoices at once (batch) --- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Where pictures can be dropped. It is dashed so it reads as a target; it turns solid pink while a
+   picture is dragged over it. The same highlight is used on the upload screen. */
+.dropzone,
+.upload.over {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.dropzone {
+  margin-top: 1rem;
+  padding: 1rem;
+  text-align: center;
+  background: var(--surface);
+}
+
+.dropzone p {
+  margin: 0;
+}
+
+.dropzone .actions {
+  justify-content: center;
+}
+
+.dropzone.over,
+.upload.over {
+  border-style: solid;
+  border-color: var(--primary);
+  background: var(--surface);
+}
+
+.upload.over {
+  padding: 0.5rem;
+}
+
+.batch-progress progress {
+  accent-color: var(--primary);
+}
+
+.batch-progress .hint {
+  margin: 0.25rem 0 0;
+}
+
+.batch h3 {
+  margin: 1.5rem 0 0;
+  font-size: 1.1rem;
+}
+
+.batch-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.batch-row {
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 0.35rem solid var(--border);
+  border-radius: var(--radius);
+}
+
+.batch-row.done {
+  border-left-color: var(--good-text);
+}
+
+.batch-row.failed {
+  border-left-color: var(--bad-text);
+}
+
+.batch-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+
+.batch-head .filename {
+  margin: 0;
+  min-width: 0;
+}
+
+.badge {
+  flex: 0 0 auto;
+  padding: 0.125rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+}
+
+.badge.done {
+  background: var(--good-bg);
+  color: var(--good-text);
+  border-color: var(--good-text);
+}
+
+.badge.failed {
+  background: var(--bad-bg);
+  color: var(--bad-text);
+  border-color: var(--bad-text);
+}
+
+.badge .spinner {
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-right: 0.35rem;
+}
+
+.batch-amounts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 0.75rem;
+}
+
+.batch-amounts label {
+  margin-top: 0.75rem;
+}
+
+.batch-amounts .field-error {
+  grid-column: auto;
+}
+
+.batch-net,
+.batch-by {
+  margin: 0.5rem 0 0;
+}
+
+.batch-net {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.batch-check {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 0.35rem solid var(--primary);
+  background: var(--bg);
+  font-size: var(--text-sm);
+}
+
+.batch-error {
+  margin: 0.5rem 0 0;
+}
+
+.batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.batch-actions button {
+  flex: 0 1 auto;
+}
+
+.batch-total h3 {
+  margin-top: 1.5rem;
+}
+
+.batch-total .actions {
+  margin-top: 0.75rem;
+}
+
+.batch-amounts .field + .field {
+  margin-top: 0; /* the two boxes sit side by side, so line up their tops */
+}

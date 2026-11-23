@@ -88,6 +88,13 @@ export function createApp(config, deps = {}) {
     windowMs: 60 * 60 * 1000,
     now,
   });
+  // Free readings (local OCR, demo values) get a much higher limit, so a batch of dozens of
+  // invoices can be read. Only readings that cost money (AI) use the small one above.
+  const freeExtractLimiter = createRateLimiter({
+    limit: config.vision.freeReadingsPerUserPerHour,
+    windowMs: 60 * 60 * 1000,
+    now,
+  });
 
   const app = express();
   app.disable('x-powered-by');
@@ -132,6 +139,7 @@ export function createApp(config, deps = {}) {
       extractors,
       readingMethods,
       extractLimiter,
+      freeExtractLimiter,
       secrets,
     }),
   );
@@ -163,6 +171,7 @@ export function createApp(config, deps = {}) {
       ipRequestLimiter.sweep();
       ipVerifyLimiter.sweep();
       extractLimiter.sweep();
+      freeExtractLimiter.sweep();
     }, 60 * 1000);
     timer.unref();
     // Delete invoice pictures older than UPLOAD_TTL_HOURS.
