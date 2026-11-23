@@ -4,6 +4,7 @@ import {
   expectNoSideScroll,
   expectTouchFriendly,
   latestCode,
+  registerAgent,
   requestCodeFor,
   shot,
   signIn,
@@ -171,6 +172,7 @@ test('works with the keyboard alone and keeps focus where a screen reader needs 
   page,
 }) => {
   const phone = uniquePhone();
+  await registerAgent(phone);
   await page.goto('/login');
   // The phone box has focus on arrival; Enter submits each step.
   await expect(page.getByLabel('Mobile number')).toBeFocused();
