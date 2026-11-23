@@ -42,10 +42,25 @@ const optionalString = (value, name, max) => {
   return value;
 };
 
+const FLAGS = ['high', 'low', null];
+
+// The free OCR reader also says how sure it is of each amount (the AI gives one level for both,
+// so this is optional): { debit: 'high' | 'low' | null, credit: ... }.
+function amountConfidenceOf(value) {
+  if (value === undefined) return undefined;
+  if (!isObject(value)) throw bad('amountConfidence must be an object');
+  checkKeys(value, ['debit', 'credit'], 'amountConfidence.');
+  for (const f of ['debit', 'credit']) {
+    if (!FLAGS.includes(value[f])) throw bad(`amountConfidence.${f} is not high, low or null`);
+  }
+  return { debit: value.debit, credit: value.credit };
+}
+
 // Returns a clean copy of the model's answer or throws ExtractionError('bad_model_output').
 export function validateModelOutput(raw) {
   if (!isObject(raw)) throw bad('not an object');
-  checkKeys(raw, Object.keys(OUTPUT_JSON_SCHEMA.properties), '');
+  const { amountConfidence, ...rest } = raw;
+  checkKeys(rest, Object.keys(OUTPUT_JSON_SCHEMA.properties), '');
 
   if (typeof raw.readable !== 'boolean') throw bad('readable must be true or false');
   const debit = optionalString(raw.debit, 'debit', 40);
@@ -60,5 +75,8 @@ export function validateModelOutput(raw) {
     credit,
     confidence: raw.confidence,
     notes: raw.notes.trim(),
+    ...(amountConfidence !== undefined && {
+      amountConfidence: amountConfidenceOf(amountConfidence),
+    }),
   };
 }

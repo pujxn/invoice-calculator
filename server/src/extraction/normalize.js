@@ -20,6 +20,17 @@ export function normalizeExtraction(model) {
   const debit = amount('debit', model.debit);
   const credit = amount('credit', model.credit);
 
+  // How sure we are of each amount, so the screen can flag the ones to double-check. A reader
+  // that gives one level for the whole picture (the AI, demo values) counts "high" as high and
+  // anything less as low. An empty box has no flag.
+  const given = model.amountConfidence;
+  const flag = (field, value) => {
+    if (value === null) return null;
+    if (given) return given[field] === 'high' ? 'high' : 'low';
+    return model.confidence === 'high' ? 'high' : 'low';
+  };
+  const amountConfidence = { debit: flag('debit', debit), credit: flag('credit', credit) };
+
   if (debit === null && credit === null && warnings.length === 0) {
     warnings.push({
       field: 'general',
@@ -33,6 +44,7 @@ export function normalizeExtraction(model) {
     credit,
     currency: 'INR', // Ledgerly works in Indian rupees only
     confidence,
+    amountConfidence,
     notes: model.notes,
     warnings,
   };

@@ -180,3 +180,42 @@ test('the mock provider is deterministic, valid and has no line items', async ()
   assert.match(r.credit, /^\d+\.\d{2}$/);
   assert.match(a.notes, /mock mode/i);
 });
+
+test('per-amount confidence: OCR gives its own, other readers count "high" as high and less as low', async () => {
+  const { validateModelOutput } = await import('../src/extraction/schema.js');
+  const { normalizeExtraction } = await import('../src/extraction/normalize.js');
+  const base = { readable: true, debit: '10.00', credit: '5.00', notes: '' };
+
+  const ocr = normalizeExtraction(
+    validateModelOutput({
+      ...base,
+      confidence: 'medium',
+      amountConfidence: { debit: 'high', credit: 'low' },
+    }),
+  );
+  assert.deepEqual(ocr.amountConfidence, { debit: 'high', credit: 'low' });
+
+  const ai = (confidence) =>
+    normalizeExtraction(validateModelOutput({ ...base, confidence })).amountConfidence;
+  assert.deepEqual(ai('high'), { debit: 'high', credit: 'high' });
+  assert.deepEqual(ai('medium'), { debit: 'low', credit: 'low' });
+
+  // An empty box, or an amount that could not be used, has no flag.
+  const partial = normalizeExtraction(
+    validateModelOutput({ ...base, debit: null, credit: '1,234', confidence: 'high' }),
+  );
+  assert.deepEqual(partial.amountConfidence, { debit: null, credit: null });
+
+  for (const bad of [
+    'high',
+    { debit: 'high' },
+    { debit: 'medium', credit: 'low' },
+    { debit: 'high', credit: 'low', extra: 'x' },
+  ]) {
+    assert.throws(
+      () => validateModelOutput({ ...base, confidence: 'high', amountConfidence: bad }),
+      (err) => err.code === 'bad_model_output',
+      JSON.stringify(bad),
+    );
+  }
+});

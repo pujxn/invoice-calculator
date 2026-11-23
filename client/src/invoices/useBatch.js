@@ -119,6 +119,9 @@ export default function useBatch({ token, phone, onSignedOut }) {
           debit: result.debit ?? '',
           credit: result.credit ?? '',
           read: {
+            debit: result.debit ?? null,
+            credit: result.credit ?? null,
+            amountConfidence: result.amountConfidence ?? null,
             provider: result.provider,
             confidence: result.confidence,
             warnings: result.warnings ?? [],

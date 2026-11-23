@@ -211,3 +211,148 @@ test('lakh and western digit grouping are both read as written', () => {
     ['64000.00', '64000.00', 'medium'],
   );
 });
+
+// ---- amounts under their labels, split numbers, handwritten labels ---------------------------
+
+test('an amount written under its label is found (common in handwriting)', () => {
+  const words = [
+    word('Debit', 40, 100, 100),
+    word('86,94,744', 40, 160, 200),
+    word('Credit', 40, 240, 110),
+    word('6,45,768', 40, 300, 180),
+  ];
+  const out = decide([words, words]);
+  assert.deepEqual([out.debit, out.credit], ['8694744.00', '645768.00']);
+});
+
+test('"Debit  Credit" headings with the amounts in a row beneath go to the right label', () => {
+  const words = [
+    word('Debit', 40, 100, 100),
+    word('Credit', 400, 100, 110),
+    word('40141', 40, 160, 110),
+    word('30408', 400, 160, 110),
+  ];
+  const out = decide([words, words]);
+  assert.deepEqual([out.debit, out.credit], ['40141.00', '30408.00']);
+});
+
+test('an amount beside its label wins over a table column under a heading', () => {
+  // invoice() has "Debit" and "Credit" column headings with line amounts below them.
+  const out = decide([invoice(), invoice()]);
+  assert.deepEqual([out.debit, out.credit], ['125050.00', '40000.00']);
+});
+
+test('the search under a label stops at the next label', () => {
+  const words = [
+    word('Debit', 40, 100, 100),
+    word('Credit', 40, 160, 110),
+    word('500.00', 40, 220, 120),
+  ];
+  const out = decide([words, words]);
+  assert.equal(out.debit, null);
+  assert.equal(out.credit, '500.00');
+});
+
+test('a number split by the engine at a comma is joined again; separate numbers are not', () => {
+  const split = [
+    word('Debit:', 40, 100, 120),
+    word('73,', 400, 100, 60),
+    word('177', 465, 100, 70),
+  ];
+  assert.equal(decide([split, split]).debit, '73177.00');
+  const apart = [
+    word('Debit:', 40, 100, 120),
+    word('500', 400, 100, 60),
+    word('1000', 470, 100, 80),
+  ];
+  assert.equal(decide([apart, apart]).debit, '500.00');
+});
+
+test('short words between a label and its amount are skipped ("Debit amount: 500")', () => {
+  const words = [
+    word('Debit', 40, 100, 100),
+    word('amount:', 150, 100, 140),
+    word('500', 400, 100, 60),
+  ];
+  assert.equal(decide([words, words]).debit, '500.00');
+});
+
+test('handwritten labels that lose a letter still count, real words do not', () => {
+  for (const ok of ['Cred:', 'Credd', 'Debi']) assert.ok(labelOf(ok), ok);
+  for (const no of ['Debt', 'Debts', 'Credits', 'Crest', 'Deb'])
+    assert.equal(labelOf(no), null, no);
+});
+
+// ---- confidence of each amount ----------------------------------------------------------------
+
+const page = (debit, credit = '3,200.00') => [
+  word('Debit:', 40, 100, 120),
+  word(debit, 300, 100, 220),
+  word('Credit:', 40, 160, 130),
+  word(credit, 300, 160, 220),
+];
+const closeUps = (...texts) => texts.map((text) => ({ text }));
+
+test('high only when page readings and close-ups all agree; low when anything disagrees', () => {
+  const sure = decide([page('12,500.50'), page('12,500.50')], {
+    debit: closeUps('12,500.50', '12500.50', '12,500.50'),
+    credit: closeUps('3,200.00', '3200.00'),
+  });
+  assert.deepEqual(sure.amountConfidence, { debit: 'high', credit: 'high' });
+  assert.equal(sure.confidence, 'high');
+
+  // one close-up saw something else: still filled (it is outvoted) but flagged low
+  const doubt = decide([page('12,500.50'), page('12,500.50')], {
+    debit: closeUps('12,500.50', '12,900.50', '12,500.50'),
+    credit: closeUps('3,200.00', '3200.00'),
+  });
+  assert.equal(doubt.debit, '12500.50');
+  assert.deepEqual(doubt.amountConfidence, { debit: 'low', credit: 'high' });
+  assert.equal(doubt.confidence, 'medium');
+  assert.match(doubt.notes, /Double-check the Debit amount/);
+
+  // page readings alone (no close-ups) are never high
+  assert.deepEqual(decide([page('12,500.50'), page('12,500.50')]).amountConfidence, {
+    debit: 'low',
+    credit: 'low',
+  });
+});
+
+test('one page reading plus agreeing close-ups fills the box, flagged low', () => {
+  const out = decide([page('12,500.50')], {
+    debit: closeUps('12500.50', '12500.50', '12500.50'),
+    credit: closeUps('3200.00', '3200.00'),
+  });
+  assert.equal(out.debit, '12500.50');
+  assert.deepEqual(out.amountConfidence, { debit: 'low', credit: 'low' });
+});
+
+test('close-ups can confirm an amount but never invent one', () => {
+  const out = decide([page('12,500.50'), page('12,500.50')], {
+    debit: closeUps('99999', '99999', '99999'),
+  });
+  // the close-ups outvote the page, but nothing the page did not read is ever filled in
+  assert.equal(out.debit, null);
+  assert.equal(out.amountConfidence.debit, null);
+  assert.match(out.notes, /Debit amount could not be read reliably/);
+});
+
+test('when close-ups were taken and none of them agrees, the box is left empty', () => {
+  // handwriting: two page readings dropped the same digit; the close-ups saw something else
+  const out = decide([page('2.99'), page('2.99')], {
+    debit: closeUps('899698', '', '899690'),
+    credit: closeUps('3200.00', '3200.00'),
+  });
+  assert.equal(out.debit, null);
+  assert.equal(out.amountConfidence.debit, null);
+  assert.equal(out.credit, '3200.00');
+});
+
+test('a low word confidence from the engine keeps an amount at low', () => {
+  const faint = (d) => page(d).map((w) => (w.text === d ? { ...w, confidence: 30 } : w));
+  const out = decide([faint('12,500.50'), faint('12,500.50')], {
+    debit: closeUps('12500.50', '12500.50'),
+  });
+  assert.equal(out.debit, '12500.50');
+  assert.equal(out.amountConfidence.debit, 'low');
+});

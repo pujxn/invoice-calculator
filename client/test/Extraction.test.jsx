@@ -120,9 +120,10 @@ describe('reading the amounts', () => {
     await readIt(reading({ notes: 'Slightly blurred.' }));
     expect(debit()).toHaveValue('1250.50');
     expect(credit()).toHaveValue('400.00');
-    expect(screen.getByText(/Confidence:/)).toHaveTextContent(
-      'Confidence: High · Amounts in rupees (₹)',
-    );
+    expect(screen.getByText(/Read with:/)).toHaveTextContent('Amounts in rupees (₹)');
+    // AI said "high" for the whole picture, so both amounts are flagged high.
+    expect(screen.getByTestId('debit-flag')).toHaveTextContent('High confidence');
+    expect(screen.getByTestId('credit-flag')).toHaveTextContent('High confidence');
     expect(screen.getByText('Slightly blurred.')).toBeInTheDocument();
     expect(screen.getByText(/Read from your picture by AI/)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
@@ -167,8 +168,42 @@ describe('reading the amounts', () => {
     expect(
       screen.getByText('No Debit amount found. Leave blank if the invoice has none.'),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Confidence:/)).toHaveTextContent('Low');
+    // The empty box has no flag; the amount that was read is flagged low.
+    expect(screen.queryByTestId('debit-flag')).toBeNull();
+    expect(screen.getByTestId('credit-flag')).toHaveTextContent('Low confidence');
     expect(credit()).toHaveValue('400.00');
+  });
+
+  it('flags each amount on its own: high in green, low in pink with a line to double-check', async () => {
+    await uploadAPicture();
+    await readIt(
+      reading({
+        provider: 'ocr',
+        confidence: 'medium',
+        amountConfidence: { debit: 'high', credit: 'low' },
+      }),
+    );
+    const debitFlag = screen.getByTestId('debit-flag');
+    const creditFlag = screen.getByTestId('credit-flag');
+    expect(debitFlag).toHaveTextContent('High confidence');
+    expect(debitFlag).toHaveClass('flag', 'high');
+    expect(creditFlag).toHaveTextContent('Low confidence');
+    expect(creditFlag).toHaveClass('flag', 'low');
+    expect(debit()).toHaveAccessibleDescription(/Every reading agreed on this amount/);
+    expect(credit()).toHaveAccessibleDescription(/Please double-check this amount/);
+    expect(credit()).toHaveClass('flagged-low');
+  });
+
+  it('drops the flag once the person changes the amount, and brings it back on reset', async () => {
+    await uploadAPicture();
+    await readIt(reading({ provider: 'ocr', amountConfidence: { debit: 'low', credit: 'high' } }));
+    await user().clear(debit());
+    await user().type(debit(), '1250.60');
+    expect(screen.queryByTestId('debit-flag')).toBeNull();
+    expect(debit()).not.toHaveClass('flagged-low');
+    expect(screen.getByTestId('credit-flag')).toHaveTextContent('High confidence');
+    await user().click(screen.getByRole('button', { name: 'Reset to what was found' }));
+    expect(screen.getByTestId('debit-flag')).toHaveTextContent('Low confidence');
   });
 });
 
@@ -310,7 +345,7 @@ describe('editing the amounts', () => {
   it('each box is described by its own hint', async () => {
     await uploadAPicture();
     await readIt();
-    expect(debit()).toHaveAccessibleDescription('');
+    expect(debit()).toHaveAccessibleDescription(/^\s*Every reading agreed on this amount\.$/);
     await user().type(debit(), 'x');
     expect(debit()).toHaveAccessibleDescription(/number such as/);
     expect(debit()).toHaveAttribute('inputmode', 'decimal');

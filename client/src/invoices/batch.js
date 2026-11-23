@@ -1,4 +1,5 @@
 import { calculateNet, calculateTotals } from '@ledgerly/money';
+import { amountFlag } from './amounts.js';
 import { validateFile } from './validate.js';
 
 // Batch upload: many invoice pictures at once, each read on its own, then one combined total.
@@ -149,11 +150,19 @@ export function historyStatus(items) {
   return counts;
 }
 
-// An invoice whose reading was doubtful: low confidence, or the reader had something to say.
+// How sure the reader was of one amount of an invoice ('high', 'low' or null), as on the review
+// screen: it goes once the person changes the amount.
+export const itemFlag = (item, field) =>
+  item.read
+    ? amountFlag({ ...item.read, [field]: item.read[field] ?? null }, field, item[field])
+    : null;
+
+// An invoice whose reading was doubtful: an amount flagged Low confidence, or a warning.
 export const needsCheck = (item) =>
   item.status === 'done' &&
   item.read?.provider !== 'manual' &&
-  (item.read?.confidence === 'low' || (item.read?.warnings?.length ?? 0) > 0);
+  (['debit', 'credit'].some((f) => itemFlag(item, f) === 'low') ||
+    (item.read?.warnings?.length ?? 0) > 0);
 
 // The combined total over everything that is done and has countable amounts, plus how many invoices
 // are still on their way, failed, or have an amount that needs fixing.

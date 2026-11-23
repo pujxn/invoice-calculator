@@ -14,3 +14,24 @@ export function checkAmount(text) {
   if (!parsed.ok) return { ok: false, message: parsed.message };
   return { ok: true, value: unitsToString(parsed.units) };
 }
+
+// How sure the reader was of one amount: 'high', 'low', or null (nothing to flag: typed by hand,
+// an empty box, or changed by the person, who has then checked it themselves). Older results
+// without per-amount levels fall back to the level for the whole picture.
+export function amountFlag(result, field, value) {
+  if (!result || result.provider === 'manual') return null;
+  const read = result[field];
+  if (read === null || read === undefined || value !== read) return null;
+  const given = result.amountConfidence?.[field];
+  if (given === 'high' || given === 'low') return given;
+  if (result.amountConfidence) return null;
+  return result.confidence === 'high' ? 'high' : 'low';
+}
+
+export const FLAG_TEXT = {
+  high: { badge: 'High confidence', hint: 'Every reading agreed on this amount.' },
+  low: {
+    badge: 'Low confidence',
+    hint: 'Please double-check this amount against your picture.',
+  },
+};

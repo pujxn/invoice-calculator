@@ -125,10 +125,11 @@ export function loadConfig(env = process.env) {
           : env.HISTORY_FILE || path.resolve(import.meta.dirname, '../data/history.json'),
     },
     vision: {
-      // How invoices are read when the user has not chosen: "claude" (AI, needs a key), "ocr"
-      // (free, runs on this server) or "mock" (made-up demo numbers, used by the automated tests).
-      // With no setting, a key means AI and no key means free OCR.
-      provider: env.VISION_PROVIDER || (anthropicKey ? 'claude' : 'ocr'),
+      // How invoices are read when the user has not chosen: "ocr" (free, runs on this server),
+      // "claude" (AI, needs a key) or "mock" (made-up demo numbers, used by the automated tests).
+      // Free OCR is the default, with or without a key; with a key the AI is still offered in
+      // the "Read with" switch. Set VISION_PROVIDER=claude to make the AI the default instead.
+      provider: env.VISION_PROVIDER || 'ocr',
       ocr: {
         // Give up on one local reading after this long (the first reading also starts the engine).
         timeoutMs: Math.round(positiveNumber(env.OCR_TIMEOUT_SECONDS, 45) * 1000),

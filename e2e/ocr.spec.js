@@ -10,6 +10,11 @@ const demo = (name) => fileURLToPath(new URL(`../docs/demo/${name}`, import.meta
 const NOT_INVOICE = fileURLToPath(
   new URL('../server/test/fixtures/ocr/not-an-invoice.png', import.meta.url),
 );
+// A handwriting-style note on ruled paper, photographed (made by server/bench/make-corpus.mjs).
+const HANDWRITTEN = fileURLToPath(
+  new URL('../server/test/fixtures/ocr/handwritten-ruled-photo.jpg', import.meta.url),
+);
+const HANDWRITTEN_AMOUNTS = ['5190.00', '296208.00'];
 
 const METHODS = '**/api/invoices/reading-methods';
 const EXTRACT = '**/api/invoices/*/extract';
@@ -63,14 +68,16 @@ test('read a clean invoice with Local OCR: both amounts', async ({ page }) => {
   const reading = await (await response).json();
   expect(reading.provider).toBe('ocr');
 
-  // Plain numbers, no currency sign. OCR cannot prove an amount, so it says Medium and asks the
-  // user to check.
+  // Plain numbers, no currency sign. Every reading agreed on this clean picture, so each amount
+  // is flagged High confidence; the note still asks the user to check against the picture.
   expect([reading.debit, reading.credit]).toEqual(['125050.00', '40000.00']);
+  expect(reading.amountConfidence).toEqual({ debit: 'high', credit: 'high' });
   await expect(debit(page)).toHaveValue('125050.00');
   await expect(credit(page)).toHaveValue('40000.00');
   await expect(page.getByTestId('read-with')).toHaveText('Local OCR');
   await expect(page.getByText(/local OCR \(free, no AI\)/)).toBeVisible();
-  await expect(page.getByText(/Confidence:/)).toContainText('Medium');
+  await expect(page.getByTestId('debit-flag')).toHaveText('High confidence');
+  await expect(page.getByTestId('credit-flag')).toHaveText('High confidence');
   await expect(page.getByText(/check each amount against your picture/)).toBeVisible();
   await expect(page.getByText(/left empty|could not be read/)).toHaveCount(0);
   await expect(page.getByRole('table')).toHaveCount(0);
@@ -91,6 +98,83 @@ test('a tilted, blurry phone photo is still read', async ({ page }) => {
   await expect(debit(page)).toHaveValue('248025.00');
   await expect(credit(page)).toHaveValue('91500.00');
   await shot(page, 'method-04-result-blurry-photo');
+});
+
+test('a handwritten note on ruled paper is read, and each amount says how sure it is', async ({
+  page,
+}) => {
+  await signIn(page);
+  await upload(page, HANDWRITTEN);
+  await expect(page.getByText('Picture uploaded.')).toBeVisible();
+  const response = page.waitForResponse((r) => r.url().endsWith('/extract'));
+  await readButton(page).click();
+  await expect(resultsHeading(page)).toBeVisible({ timeout: 80_000 });
+  const reading = await (await response).json();
+  // Whatever the reader filled in carries a flag; nothing it was unsure of is called high.
+  for (const field of ['debit', 'credit']) {
+    if (reading[field] === null) {
+      expect(reading.amountConfidence[field]).toBeNull();
+      await expect(page.getByTestId(`${field}-flag`)).toHaveCount(0);
+    } else {
+      expect(['high', 'low']).toContain(reading.amountConfidence[field]);
+      await expect(page.getByTestId(`${field}-flag`)).toHaveAttribute(
+        'data-flag',
+        reading.amountConfidence[field],
+      );
+    }
+  }
+  expect([reading.debit, reading.credit]).toEqual(HANDWRITTEN_AMOUNTS);
+  await expectNoSideScroll(page);
+  await shot(page, 'method-04b-result-handwritten');
+});
+
+test('amounts to double-check are flagged in pink, sure ones in green, in light and dark', async ({
+  page,
+}) => {
+  await page.route(EXTRACT, (route) =>
+    route.fulfill({
+      json: {
+        invoiceId: 'a'.repeat(32),
+        provider: 'ocr',
+        model: 'tesseract',
+        imageDeleted: true,
+        debit: '248025.00',
+        credit: '91500.00',
+        currency: 'INR',
+        confidence: 'medium',
+        amountConfidence: { debit: 'high', credit: 'low' },
+        notes:
+          'Read with free OCR on the server (no AI). OCR can misread digits, so check each amount against your picture. Double-check the Credit amount: the readings did not all agree.',
+        warnings: [],
+      },
+    }),
+  );
+  await signIn(page);
+  await upload(page, demo('demo-4-tricky-blurry.jpg'));
+  await expect(page.getByText('Picture uploaded.')).toBeVisible();
+  await readButton(page).click();
+  await expect(resultsHeading(page)).toBeVisible();
+  await expect(page.getByTestId('debit-flag')).toHaveText('High confidence');
+  await expect(page.getByTestId('credit-flag')).toHaveText('Low confidence');
+  await expect(credit(page)).toHaveAccessibleDescription(/double-check this amount/);
+  await expectNoSideScroll(page);
+  await expectTouchFriendly(page);
+  const axe = await new AxeBuilder({ page }).analyze();
+  expect(axe.violations).toEqual([]);
+  for (const scheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await shot(page, `flags-01-high-and-low-${scheme}`);
+  }
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const darkAxe = await new AxeBuilder({ page }).analyze();
+  expect(darkAxe.violations).toEqual([]);
+  await page.emulateMedia({ colorScheme: 'light' });
+
+  // Once the person corrects the amount, it is theirs: the flag goes.
+  await credit(page).fill('91600.00');
+  await expect(page.getByTestId('credit-flag')).toHaveCount(0);
+  await expect(page.getByTestId('debit-flag')).toHaveText('High confidence');
+  await shot(page, 'flags-02-corrected');
 });
 
 test('a picture that is not an invoice is refused kindly and the amounts can be typed', async ({

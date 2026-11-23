@@ -3,8 +3,16 @@ import { Link } from 'react-router-dom';
 import { describeResult, formatAmount } from '@ledgerly/money';
 import { useAuth } from '../auth/AuthContext.jsx';
 import useFocusOnMount from '../useFocusOnMount.js';
-import { checkAmount } from './amounts.js';
-import { BUSY, canRetry, historyStatus, itemNet, needsCheck, summarize } from './batch.js';
+import { FLAG_TEXT, checkAmount } from './amounts.js';
+import {
+  BUSY,
+  canRetry,
+  historyStatus,
+  itemFlag,
+  itemNet,
+  needsCheck,
+  summarize,
+} from './batch.js';
 import ReadingMethod, { methodName, useReadingMethod } from './ReadingMethod.jsx';
 import useDropZone from './useDropZone.js';
 import { ACCEPT, MAX_LABEL, TYPE_LABEL, formatSize } from './validate.js';
@@ -44,11 +52,21 @@ function Row({ item, batch, problem }) {
               const label = field === 'debit' ? 'Debit' : 'Credit';
               const check = checkAmount(item[field]);
               const labelId = `batch-${key}-${field}-label`;
+              const flag = itemFlag(item, field);
               return (
                 <div className="field" key={field}>
                   <label id={labelId} htmlFor={`batch-${key}-${field}`}>
                     {label}
                     <span className="hint"> (₹)</span>
+                    {flag && (
+                      <span
+                        className={`flag ${flag}`}
+                        data-testid={`${field}-flag`}
+                        data-flag={flag}
+                      >
+                        {FLAG_TEXT[flag].badge}
+                      </span>
+                    )}
                   </label>
                   <input
                     id={`batch-${key}-${field}`}
@@ -58,6 +76,7 @@ function Row({ item, batch, problem }) {
                     value={item[field]}
                     onChange={(e) => batch.change(key, field, e.target.value)}
                     aria-invalid={!check.ok}
+                    className={flag ? `flagged-${flag}` : undefined}
                     aria-labelledby={`${labelId} ${nameId}`}
                     aria-describedby={check.ok ? undefined : `batch-${key}-${field}-error`}
                   />
@@ -80,7 +99,7 @@ function Row({ item, batch, problem }) {
           {needsCheck(item) && (
             <p className="batch-check">
               <strong>Please check</strong> this one against the picture:{' '}
-              {item.read.warnings[0]?.message ?? 'the reading was not sure.'}
+              {item.read.warnings[0]?.message ?? 'an amount was read with low confidence.'}
             </p>
           )}
           {item.read?.provider && item.read.provider !== 'manual' && (

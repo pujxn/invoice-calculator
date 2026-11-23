@@ -224,6 +224,19 @@ describe('batch upload', () => {
     expect(screen.getByTestId('total-counted')).toHaveTextContent('1 with no usable amount');
   });
 
+  it("shows each amount's High or Low confidence flag, which goes when the amount is changed", async () => {
+    await openBatch(['a.jpg']);
+    await waitFor(() => expect(started).toHaveLength(1));
+    await answer('a.jpg', '200', '50', { amountConfidence: { debit: 'low', credit: 'high' } });
+    const a = row('a.jpg');
+    expect(within(a).getByTestId('debit-flag')).toHaveTextContent('Low confidence');
+    expect(within(a).getByTestId('credit-flag')).toHaveTextContent('High confidence');
+    expect(within(a).getByText(/Please check/)).toBeInTheDocument();
+    await user().type(within(a).getByLabelText(/^Debit/), '0');
+    expect(within(a).queryByTestId('debit-flag')).toBeNull();
+    expect(within(a).queryByText(/Please check/)).toBeNull();
+  });
+
   it('refuses a file that is not a picture, skips repeats, and shows which', async () => {
     await openBatch(['a.jpg']);
     const input = screen.getByTestId('batch-input');
