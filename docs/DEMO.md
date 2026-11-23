@@ -116,7 +116,7 @@ Optional 10 seconds if asked about security: type a wrong code ("Wrong code. 4 t
 4. Press **Copy result** and paste into any notes app. **Expect:** one line such as `Net Debit ₹85,050.00 (Debit ₹1,25,050.00 − Credit ₹40,000.00)`. **Say:** "That is the line an agent can paste straight into their system."
 5. **Say (one sentence):** "The sums are exact decimals, never floating point, so `0.30 + 0.10` is exactly `0.40`."
 
-Optional, if time: press **Start a new invoice** and run `demo-2-net-credit.png` (Net Credit 825.75) or `demo-4-tricky-blurry.jpg` (the rough photo).
+Optional, if time: press **Start a new invoice** (the button on the result screen; the **New invoice** link in the header only goes back to the amounts while an invoice is open) and run `demo-2-net-credit.png` (Net Credit ₹82,575.00) or `demo-4-tricky-blurry.jpg` (the rough photo).
 
 ### 7. The administrator's view (about 1.5 minutes). **Live**
 
@@ -128,7 +128,7 @@ Optional, if time: press **Start a new invoice** and run `demo-2-net-credit.png`
 ### 8. On a phone (about 45 seconds). **Live**
 
 1. Open the app on the phone (or device mode). Sign in the same way; the code is still in the computer's terminal.
-2. **Expect:** the same flow, laid out for one hand: big buttons, the camera option **Take photo**, and the same result screen. **Say:** "Same app on web and phone. A real iOS and Android app is the next packaging step."
+2. **Expect:** the same flow, laid out for one hand: big buttons, the camera option **Take photo**, and the same result screen. **Say:** "Same app on web and phone. The same app is also wrapped for iOS and Android (see the README); the code for that is on main, but it has not been put in the app stores."
 3. Dark mode: switch the phone or computer to dark mode and the colours change on their own.
 
 ### 9. What is next (about 45 seconds). **Roadmap, none of this is built**
@@ -136,7 +136,7 @@ Optional, if time: press **Start a new invoice** and run `demo-2-net-credit.png`
 **Say:** "What you have seen is the core loop. Next:"
 
 - **More for the administrator.** Date filters and export of each agent's list, and the meaning of the crossed-out and ticked amounts on the whiteboard (to be confirmed).
-- **iOS and Android apps.** The web app is built mobile-first and is meant to be wrapped as a store app. It is not wrapped yet.
+- **iOS and Android store apps.** The web app is already wrapped for iOS and Android (see the README), but it has not been published to the App Store or Google Play.
 - **Real text messages.** Twilio sending is built but needs a Twilio account to switch on.
 
 Then stop and take questions.

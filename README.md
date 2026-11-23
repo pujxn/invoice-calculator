@@ -15,6 +15,15 @@ Take a photo of an invoice. Ledgerly reads the **Debit** and **Credit** amounts 
 
 ## Quick start
 
+**First time only: get the code.** Install [Node.js](https://nodejs.org) (the "LTS" download, 20.12 or newer) and [Git](https://git-scm.com/downloads) (on a Mac, typing `git` in Terminal offers to install it). Open a terminal (Mac: Terminal; Windows: PowerShell) and run:
+
+```
+git clone https://github.com/pujxn/invoice-calculator.git
+cd invoice-calculator
+```
+
+Later, to get the newest version, open a terminal in that folder and run `git pull`, then `npm install`, then `npm run dev` again.
+
 You need [Node.js](https://nodejs.org) 20.12 or newer (the "LTS" download is fine; Node 22 is tested too). Check with `node -v`. Then, in a terminal in the project folder:
 
 ```
