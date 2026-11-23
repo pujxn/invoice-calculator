@@ -5,6 +5,9 @@ import { AuthProvider } from '../src/auth/AuthContext.jsx';
 import RequireAuth from '../src/auth/RequireAuth.jsx';
 import LoginPage from '../src/pages/LoginPage.jsx';
 import HomePage from '../src/pages/HomePage.jsx';
+import RequireRole from '../src/roles/RequireRole.jsx';
+import AdminPage from '../src/roles/AdminPage.jsx';
+import AgentDetailPage from '../src/roles/AgentDetailPage.jsx';
 import HistoryPage from '../src/pages/HistoryPage.jsx';
 import HistoryEntryPage from '../src/pages/HistoryEntryPage.jsx';
 
@@ -68,8 +71,14 @@ export function renderApp(route = '/') {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<RequireAuth />}>
             <Route path="/" element={<HomePage />} />
-            <Route path="/history" element={<HistoryPage />} />
-            <Route path="/history/:id" element={<HistoryEntryPage />} />
+            <Route element={<RequireRole role="agent" />}>
+              <Route path="/history" element={<HistoryPage />} />
+              <Route path="/history/:id" element={<HistoryEntryPage />} />
+            </Route>
+            <Route element={<RequireRole role="superadmin" />}>
+              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin/agents/:phone" element={<AgentDetailPage />} />
+            </Route>
           </Route>
         </Routes>
       </AuthProvider>

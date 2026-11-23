@@ -7,15 +7,36 @@ export function bearerToken(req) {
   return match ? match[1] : null;
 }
 
-// Middleware for any route that needs a signed-in user. Later steps reuse it.
-export function createRequireAuth(sessions) {
+const NOT_REGISTERED =
+  'This number is not registered with Ledgerly. Ask your administrator to add it.';
+
+// Middleware for any route that needs a signed-in user. The role comes from who the number belongs
+// to right now (see roles/index.js), so a removed agent's open session stops working at once.
+// Sets req.session = { phone, name, role, expiresAt, token }.
+export function createRequireAuth(sessions, roles) {
   return (req, res, next) => {
     const token = bearerToken(req);
     const session = sessions.get(token);
     if (!session) return res.status(401).json({ error: 'Please sign in.' });
-    req.session = { ...session, token };
+    const user = roles.lookup(session.phone);
+    if (!user) {
+      sessions.destroy(token);
+      return res.status(401).json({ error: 'Please sign in.' });
+    }
+    req.session = { ...session, token, name: user.name, role: user.role };
     next();
   };
+}
+
+// A route only one role may use: signed in (401 if not), then that role (403 if not).
+export function createRequireRole(requireAuth, role, message) {
+  return [
+    requireAuth,
+    (req, res, next) => {
+      if (req.session.role !== role) return res.status(403).json({ error: message });
+      next();
+    },
+  ];
 }
 
 function limitByIp(limiter, message) {
@@ -41,6 +62,7 @@ const handle = (fn) => async (req, res, next) => {
 export function createAuthRouter({
   otp,
   sessions,
+  roles,
   requireAuth,
   ipRequestLimiter,
   ipVerifyLimiter,
@@ -58,6 +80,9 @@ export function createAuthRouter({
           'Enter a mobile number in international format, e.g. +447700900123.',
         );
       }
+      // Only numbers a superadmin has added (and the superadmins' own) can sign in. Saying so here,
+      // before a text is sent, also keeps strangers from running up the SMS bill.
+      if (!roles.lookup(phone)) throw new AuthError(403, NOT_REGISTERED);
       res.json({ ok: true, ...(await otp.requestCode(phone)) });
     }),
   );
@@ -72,6 +97,7 @@ export function createAuthRouter({
       if (typeof code !== 'string' || !/^\d+$/.test(code.trim())) {
         throw new AuthError(400, 'Enter the numeric code from the SMS.');
       }
+      if (!roles.lookup(phone)) throw new AuthError(403, NOT_REGISTERED);
       otp.verifyCode(phone, code.trim());
       res.json(sessions.create(phone));
     }),
@@ -84,7 +110,8 @@ export function createAuthRouter({
 
   // Lets the web app check a stored token on page load.
   router.get('/me', requireAuth, (req, res) => {
-    res.json({ phone: req.session.phone, expiresAt: req.session.expiresAt });
+    const { phone, name, role, expiresAt } = req.session;
+    res.json({ phone, name, role, expiresAt });
   });
 
   return router;

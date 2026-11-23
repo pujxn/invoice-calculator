@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { formatAmount } from '@ledgerly/money';
 import { ApiError } from '../api.js';
 import { useAuth } from '../auth/AuthContext.jsx';
-import AppHeader from '../components/AppHeader.jsx';
+import SignedInHeader from '../components/SignedInHeader.jsx';
 import { formatWhen } from '../history/dates.js';
 import { deleteHistoryEntry, getHistoryEntry } from '../history/historyApi.js';
 import { whenSaved } from '../history/inflight.js';
@@ -15,7 +15,7 @@ import useDocumentTitle from '../useDocumentTitle.js';
 // is kept and the page says so.
 export default function HistoryEntryPage() {
   const { id } = useParams();
-  const { token, logout } = useAuth();
+  const { token } = useAuth();
   const navigate = useNavigate();
   useDocumentTitle('Saved invoice');
   const headingRef = useRef(null);
@@ -76,14 +76,7 @@ export default function HistoryEntryPage() {
 
   return (
     <>
-      <AppHeader>
-        <Link to="/history" className="button secondary">
-          History
-        </Link>
-        <button type="button" className="secondary" onClick={logout}>
-          Sign out
-        </button>
-      </AppHeader>
+      <SignedInHeader />
       <main className="shell">
         {!entry && !problem && (
           <p role="status" className="hint">

@@ -11,3 +11,4 @@ server/data/
 test-screenshots/
 e2e/.screenshots/
 client/dist-native/
+server/data/

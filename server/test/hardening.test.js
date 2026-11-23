@@ -193,12 +193,13 @@ test('bad JSON from a client is a 400 and is not logged as a server error', asyn
 test('production warnings: console SMS, mock AI and a missing AUTH_SECRET', () => {
   assert.deepEqual(configWarnings(loadConfig({})), [], 'a laptop has nothing to warn about');
   const warnings = configWarnings(loadConfig({ NODE_ENV: 'production', VISION_PROVIDER: 'mock' }));
-  assert.equal(warnings.length, 3);
+  assert.equal(warnings.length, 4);
   assert.match(warnings[0], /SMS_PROVIDER=console/);
   assert.match(warnings[1], /VISION_PROVIDER=mock/);
   assert.match(warnings[2], /AUTH_SECRET/);
+  assert.match(warnings[3], /SUPERADMIN_PHONES/);
   // Free OCR is a real reader, so it is not warned about.
-  assert.equal(configWarnings(loadConfig({ NODE_ENV: 'production' })).length, 2);
+  assert.equal(configWarnings(loadConfig({ NODE_ENV: 'production' })).length, 3);
   // The AI fallback does nothing without a key.
   assert.match(
     configWarnings(loadConfig({ NODE_ENV: 'production', OCR_FALLBACK_TO_CLAUDE: '1' })).join('\n'),
@@ -209,6 +210,7 @@ test('production warnings: console SMS, mock AI and a missing AUTH_SECRET', () =
     SMS_PROVIDER: 'twilio',
     ANTHROPIC_API_KEY: 'sk-ant-x',
     AUTH_SECRET: 'long-random-value',
+    SUPERADMIN_PHONES: '+919876543210',
   });
   assert.deepEqual(configWarnings(ready), []);
 });

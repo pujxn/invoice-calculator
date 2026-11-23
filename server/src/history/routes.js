@@ -54,8 +54,9 @@ export function createHistoryRouter({ store, requireAuth }) {
         return res.status(400).json({ error: 'imageRef and method must be text.' });
       }
       // agentId is deliberately not read from the request: nobody can attach a record to an
-      // agent by asking. The agent screens will set it on the server.
+      // agent by asking. Only agents reach this route, so it is the signed-in agent's own number.
       const { entry, created } = await store.save(owner(req), {
+        agentId: owner(req),
         debit: body.debit,
         credit: body.credit,
         imageRef: body.imageRef ?? null,

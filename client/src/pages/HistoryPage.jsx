@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatAmount, LABELS } from '@ledgerly/money';
 import { useAuth } from '../auth/AuthContext.jsx';
-import AppHeader from '../components/AppHeader.jsx';
+import SignedInHeader from '../components/SignedInHeader.jsx';
 import { dayEnd, dayStart, formatWhen } from '../history/dates.js';
 import { listHistory } from '../history/historyApi.js';
+import Totals from '../roles/Totals.jsx';
+import { getMyTotals } from '../roles/rolesApi.js';
 import { whenSaved } from '../history/inflight.js';
 import { TYPE_OPTIONS } from '../history/labels.js';
 import useDocumentTitle from '../useDocumentTitle.js';
@@ -15,7 +17,7 @@ const NO_FILTERS = { q: '', type: '', from: '', to: '' };
 // Every invoice that was read and worked out, newest first, with a search box and filters for the
 // kind of result and the dates. Opening one shows its details (HistoryEntryPage).
 export default function HistoryPage() {
-  const { token, logout } = useAuth();
+  const { token } = useAuth();
   useDocumentTitle('History');
   const [filters, setFilters] = useState(NO_FILTERS);
   const [applied, setApplied] = useState(NO_FILTERS); // `filters` after the typing pause
@@ -24,6 +26,18 @@ export default function HistoryPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const request = useRef(0); // only the newest request may change the screen
+  // The agent's total over every saved invoice (the list below is paged and filtered, so it
+  // cannot add them up). If it cannot be loaded the list still works without it.
+  const [totals, setTotals] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    getMyTotals(token)
+      .then((t) => !cancelled && setTotals(t))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   // Text boxes wait a moment after the last key; the type and dates apply at once.
   useEffect(() => {
@@ -78,16 +92,10 @@ export default function HistoryPage() {
 
   return (
     <>
-      <AppHeader>
-        <Link to="/" className="button secondary">
-          New invoice
-        </Link>
-        <button type="button" className="secondary" onClick={logout}>
-          Sign out
-        </button>
-      </AppHeader>
+      <SignedInHeader />
       <main className="shell">
         <h1>History</h1>
+        {totals && <Totals summary={totals} title="Your total, all saved invoices" />}
 
         <form className="history-filters" role="search" onSubmit={(e) => e.preventDefault()}>
           <label htmlFor="history-q">Search</label>

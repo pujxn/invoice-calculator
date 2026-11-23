@@ -49,7 +49,7 @@ test('save, then list, open, change and delete an invoice', () =>
     );
     assert.equal(made.body.imageRef, PIC);
     assert.equal(made.body.method, 'ocr');
-    assert.equal(made.body.agentId, null);
+    assert.equal(made.body.agentId, ME, 'the signed-in agent, set by the server');
     assert.ok(!('owner' in made.body), 'the phone number is not sent back');
     assert.equal(made.body.createdAt, new Date(app.clock.t).toISOString());
 
@@ -86,7 +86,7 @@ test('the totals come from the server, never from the caller', () =>
     });
     assert.equal(res.status, 201);
     assert.deepEqual([res.body.net, res.body.type], ['70.00', 'debit']);
-    assert.equal(res.body.agentId, null, 'an agent cannot be attached by asking');
+    assert.equal(res.body.agentId, ME, 'an agent cannot be attached by asking');
     assert.notEqual(res.body.id, 'c'.repeat(32));
     assert.equal((await list(app, await app.signIn(OTHER))).body.total, 0);
   }));
