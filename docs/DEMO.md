@@ -66,7 +66,7 @@ Do this 10 minutes ahead, on the computer you will present from.
 - [ ] Put the terminal where you can show it: the sign-in code appears there. Make the font large.
 - [ ] Do one full dry run with `demo-1-net-debit.png`, then **sign out** so you start the demo from the Sign in page. (Restarting `npm run dev` also signs you out.)
 - [ ] The four sample pictures are somewhere easy to find in the file picker.
-- [ ] Phone view ready: either your real phone on the same Wi-Fi (README "Try it on your phone"; needs the second command with `--host`) or Chrome device mode (F12, then Ctrl/Cmd+Shift+M, pick iPhone 14).
+- [ ] Phone view ready: your real phone on the same Wi-Fi (or hotspot). Start the app with `npm run dev:phone` instead of `npm run dev`, open the address it prints (or scan its QR code) on the phone, and check the Sign in page appears. Full steps: README "Phone demo". The four sample pictures must already be in the phone's photo library. Fallback: Chrome device mode (F12, then Ctrl/Cmd+Shift+M, pick iPhone 14).
 - [ ] Silence notifications. Close tabs you do not want on screen.
 - [ ] Know your numbers. Only the superadmin and agents the superadmin has added can sign in. The local demo superadmin is `+91 99999 00000`. You need a second number in international format to add as an agent, for example `+91 98765 43210` (it can be any valid-looking number: codes only print in the terminal). Before the demo, sign in as the superadmin, add that agent, and sign out, so the demo can start from the Sign in page.
 
@@ -127,11 +127,16 @@ Optional, if time: press **Start a new invoice** (the button on the result scree
 3. Press **View list** on the agent. **Expect:** their totals and every invoice, read only. **Say:** "The administrator sees every agent's list and total, and can add or remove agents. Only people added here can sign in."
 4. Optional: type a new name and number under **Add an agent** and press **Add agent**. Press **Remove** then **Yes, remove** on that agent: the row moves to **Removed agents**, and their invoices still count in the overall total.
 
-### 8. On a phone (about 45 seconds). **Live**
+### 8. On a phone (about 2 to 4 minutes). **Live**
 
-1. Open the app on the phone (or device mode). Sign in the same way; the code is still in the computer's terminal.
-2. **Expect:** the same flow, laid out for one hand: big buttons, the camera option **Take photo**, and the same result screen. **Say:** "Same app on web and phone. The same app is also wrapped for iOS and Android (see the README); the code for that is on main, but it has not been put in the app stores."
-3. Dark mode: switch the phone or computer to dark mode and the colours change on their own.
+Set up first with the README "Phone demo" steps (`npm run dev:phone`, same Wi-Fi, open the printed address or scan the QR code). Optional: add it to the phone's home screen so it looks like an app.
+
+1. Sign in on the phone the same way; the code is still in the computer's terminal. Say: "The code would normally arrive as a text message. For the demo it prints here."
+2. **Take photo.** On **Upload your invoice** tap **Take photo** and photograph a printed invoice. Tap **Read amounts**. **Expect:** Debit and Credit with **High confidence** (green) or **Low confidence** (pink) flags. **Say:** "Pink means it was not sure, so a person checks it. It never guesses quietly." Tap **Calculate final amount** for the Net Debit, Net Credit or Balanced result.
+3. **Many at once.** **Start a new invoice**, tap **Choose file**, choose **Photo Library** and tick the three samples `demo-1`, `demo-2` and `demo-3`. **Expect:** each one goes Waiting, Reading, Done, then **Combined total: Net Debit ₹2,475.00**. **Say:** "A pile of invoices becomes one total."
+4. **History.** Tap **History**: every finished invoice is saved, with **Your total** above.
+5. Dark mode: switch the phone to dark mode and the colours change on their own.
+6. **Say:** "Same app on web and phone. It is also wrapped for iOS and Android, but it has not been put in the app stores." (The wrapped app is not used for the demo: the browser version looks the same and needs no developer tools.)
 
 ### 9. What is next (about 45 seconds). **Roadmap, none of this is built**
 
@@ -157,7 +162,7 @@ Then stop and take questions.
 | "The AI service is busy"                                                 | Wait the stated time, or flip to **Local OCR**.                                                                                                                                                                    |
 | Code is not in the terminal                                              | Scroll the terminal or check you are looking at the window running `npm run dev`. Press **Resend code** after 30 seconds (the new code is a new line).                                                             |
 | Back on the Sign in page unexpectedly                                    | The server restarted. Sign in again.                                                                                                                                                                               |
-| Phone cannot open the page                                               | Wi-Fi mismatch or firewall. Fall back to Chrome device mode on the computer, which looks the same.                                                                                                                 |
+| Phone cannot open the page                                               | Wi-Fi mismatch, guest Wi-Fi or firewall. Use the table in the README "Phone demo" (try the phone's hotspot). Last resort: Chrome device mode on the computer, which looks the same.                                |
 | Everything is broken                                                     | Say "let me show you the screens", and open the sample picture `demo-1-net-debit.png` plus your screenshots if you have them. Nothing in the story needs the internet apart from the AI choice.                    |
 
 ## Reset between runs
