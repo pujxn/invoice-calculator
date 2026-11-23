@@ -6,6 +6,8 @@ import { createRateLimiter } from './auth/rateLimiter.js';
 import { createUploadStore } from './invoices/store.js';
 import { createInvoiceRouter } from './invoices/routes.js';
 import { createCalculateRouter } from './calculate/routes.js';
+import { createHistoryStore } from './history/store.js';
+import { createHistoryRouter } from './history/routes.js';
 import { createExtractor, createVisionMethods } from './extraction/index.js';
 import { createAuthRouter, createRequireAuth } from './auth/routes.js';
 import { describeError, secretsFrom } from './log.js';
@@ -36,6 +38,8 @@ export function createApp(config, deps = {}) {
     ttlMs: config.uploads.ttlMs,
     maxPerUser: config.uploads.maxPerUser,
   });
+
+  const history = createHistoryStore({ file: config.history.file, now });
 
   // `deps.vision` (one provider) or `deps.visionMethods` (several) and `deps.prepare` let tests inject
   // fake vision providers and a fake image step.
@@ -102,6 +106,8 @@ export function createApp(config, deps = {}) {
 
   app.use('/api/invoices/calculate', createCalculateRouter({ requireAuth }));
 
+  app.use('/api/history', createHistoryRouter({ store: history, requireAuth }));
+
   app.use(
     '/api/invoices',
     createInvoiceRouter({
@@ -149,6 +155,7 @@ export function createApp(config, deps = {}) {
     uploadTimer.unref();
   }
 
+  app.locals.history = history; // for later routers (agents and superadmin)
   app.locals.requireAuth = requireAuth; // for later routers (extract, calculate)
   // Stops the local OCR engine (a background thread) so a test or shutdown can exit cleanly.
   app.locals.close = () => Promise.all(vision.methods.map((m) => m.provider?.close?.()));

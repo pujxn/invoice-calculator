@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import AppHeader from '../components/AppHeader.jsx';
 import InvoiceFlow from '../invoices/InvoiceFlow.jsx';
@@ -11,6 +12,9 @@ export default function HomePage() {
   return (
     <>
       <AppHeader>
+        <Link to="/history" className="button secondary">
+          History
+        </Link>
         <button type="button" className="secondary" onClick={logout}>
           Sign out
         </button>

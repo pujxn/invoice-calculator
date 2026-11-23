@@ -77,6 +77,14 @@ export function loadConfig(env = process.env) {
       ttlMs: positiveNumber(env.UPLOAD_TTL_HOURS, 24) * 60 * 60 * 1000,
       maxPerUser: positiveInt(env.UPLOAD_MAX_PER_USER, 50),
     },
+    history: {
+      // Where saved invoice history is kept (one JSON file). A relative path is relative to where
+      // the server starts. Set it to "memory" to keep history only until the server stops.
+      file:
+        env.HISTORY_FILE === 'memory'
+          ? null
+          : env.HISTORY_FILE || path.resolve(import.meta.dirname, '../data/history.json'),
+    },
     vision: {
       // How invoices are read when the user has not chosen: "claude" (AI, needs a key), "ocr"
       // (free, runs on this server) or "mock" (made-up demo numbers, used by the automated tests).
