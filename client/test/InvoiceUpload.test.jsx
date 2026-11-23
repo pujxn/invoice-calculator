@@ -11,6 +11,7 @@ vi.mock('../src/invoices/invoiceApi.js', () => ({
   deleteInvoice: vi.fn(),
   fetchInvoiceImage: vi.fn(),
   getReadingMethods: vi.fn(),
+  extractInvoice: vi.fn(),
 }));
 
 const ID = 'a'.repeat(32);
@@ -64,7 +65,8 @@ describe('the upload screen', () => {
     expect(camera).toHaveAttribute('accept', 'image/*');
     expect(camera).not.toHaveAttribute('multiple');
     expect(fileInput().getAttribute('accept')).toMatch(/image\/jpeg.*image\/heic/);
-    expect(fileInput()).not.toHaveAttribute('multiple');
+    // Several pictures can be chosen: they go to the batch screen (one picture stays here).
+    expect(fileInput()).toHaveAttribute('multiple');
     expect(screen.getByText(/JPEG, PNG, WebP or HEIC, up to 10 MB/)).toBeInTheDocument();
   });
 
@@ -234,13 +236,22 @@ describe('the upload screen', () => {
     expect(await screen.findByText('Picture uploaded.')).toBeInTheDocument();
   });
 
-  it('only sends one picture even if several are chosen', async () => {
+  it('sends several chosen pictures to the batch screen instead of picking one', async () => {
     await openUploadPage();
-    invoiceApi.uploadInvoice.mockResolvedValue(meta());
+    invoiceApi.uploadInvoice.mockImplementation(async (file) => meta(file.name.padEnd(32, 'x')));
+    invoiceApi.extractInvoice.mockResolvedValue({
+      provider: 'ocr',
+      confidence: 'high',
+      debit: '10.00',
+      credit: null,
+      warnings: [],
+    });
     fireEvent.change(fileInput(), { target: { files: [photo('one.jpg'), photo('two.jpg')] } });
-    await screen.findByText('Picture uploaded.');
-    expect(invoiceApi.uploadInvoice).toHaveBeenCalledTimes(1);
-    expect(invoiceApi.uploadInvoice.mock.calls[0][0].name).toBe('one.jpg');
+    expect(
+      await screen.findByRole('heading', { name: 'Several invoices at once' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Picture uploaded.')).toBeNull();
+    await waitFor(() => expect(invoiceApi.uploadInvoice).toHaveBeenCalledTimes(2));
   });
 });
 

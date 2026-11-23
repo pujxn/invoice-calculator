@@ -12,6 +12,7 @@ import { PICTURE_KEY } from '../storageKeys.js';
 import { isNative } from '../platform/platform.js';
 import { CaptureError, UnavailableError, choosePhoto, takePhoto } from '../platform/camera.js';
 import ReadingMethod, { useReadingMethod } from './ReadingMethod.jsx';
+import useDropZone from './useDropZone.js';
 import { ACCEPT, MAX_LABEL, TYPE_LABEL, formatSize, validateFile } from './validate.js';
 
 // Remembers the current picture for this browser tab, so a reload shows it again.
@@ -57,7 +58,9 @@ function Preview({ url, name }) {
 }
 
 // `onExtracted(result)` is called with the server's reading once the amounts have been read.
-export default function InvoiceUpload({ onExtracted, focusHeading = false }) {
+// `onBatch(files)` is called when several pictures are chosen or dropped at once (or with no files
+// for "Several invoices at once"), to carry on in the batch screen. Without it, one picture only.
+export default function InvoiceUpload({ onExtracted, onBatch, focusHeading = false }) {
   const { token, logout } = useAuth();
   const { choices, method, choose: chooseMethod } = useReadingMethod(token);
   const [current, setCurrent] = useState(null); // { id, name, size, mimeType, previewUrl }
@@ -197,11 +200,19 @@ export default function InvoiceUpload({ onExtracted, focusHeading = false }) {
   const takePicture = () => pickNative(takePhoto, cameraInput);
   const choosePicture = () => pickNative(choosePhoto, fileInput);
 
-  function onPick(e) {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // lets the same file be chosen again after an error or removal
-    if (file) choose(file);
+  // One picture carries on here; several go to the batch screen.
+  function take(files) {
+    if (files.length > 1 && onBatch) onBatch(files);
+    else if (files[0]) choose(files[0]);
   }
+  function onPick(e) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ''; // lets the same file be chosen again after an error or removal
+    take(files);
+  }
+  const { over, dropProps } = useDropZone((files) => {
+    if (!uploading && !reading) take(files);
+  });
 
   async function remove() {
     setError('');
@@ -284,6 +295,7 @@ export default function InvoiceUpload({ onExtracted, focusHeading = false }) {
         ref={fileInput}
         type="file"
         accept={ACCEPT}
+        multiple={Boolean(onBatch)}
         hidden
         data-testid="file-input"
         onChange={onPick}
@@ -301,13 +313,18 @@ export default function InvoiceUpload({ onExtracted, focusHeading = false }) {
   );
 
   return (
-    <section className="upload" aria-labelledby="upload-title">
+    <section
+      className={`upload${over ? ' over' : ''}`}
+      aria-labelledby="upload-title"
+      {...dropProps}
+    >
       <h2 id="upload-title" ref={headingRef} tabIndex={-1}>
         Upload your invoice
       </h2>
       <p className="hint">
         Take a clear photo of the whole invoice, or choose one you already have. {TYPE_LABEL}, up to{' '}
         {MAX_LABEL}.
+        {onBatch && ' Have many? Choose or drop several at once and get one combined total.'}
       </p>
       {picker}
 
@@ -400,6 +417,11 @@ export default function InvoiceUpload({ onExtracted, focusHeading = false }) {
           <button type="button" onClick={choosePicture}>
             {isNative() ? 'Choose from photos' : 'Choose file'}
           </button>
+          {onBatch && (
+            <button type="button" className="secondary" onClick={() => onBatch([])}>
+              Several invoices at once
+            </button>
+          )}
         </div>
       )}
     </section>

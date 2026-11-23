@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateNet } from '../src/index.js';
+import { calculateNet, calculateTotals, describeResult } from '../src/index.js';
 
 const net = (debit, credit, options) => {
   const r = calculateNet({ debit, credit }, options);
@@ -179,5 +179,81 @@ describe('calculateNet: exact maths and rounding', () => {
     assert.equal(net('0.005', '0').netRounded, '0.01');
     assert.equal(net('12.345', '0.345').net, '12.00');
     assert.equal(net('12.345', '0.345').rounded, false);
+  });
+});
+
+describe('calculateTotals: many invoices, one combined total', () => {
+  it('adds every Debit and every Credit, then takes the difference', () => {
+    const r = calculateTotals([
+      { debit: '1,250.00', credit: '400.00' },
+      { debit: '300', credit: '975.50' },
+      { debit: '720', credit: '' },
+    ]);
+    assert.ok(r.ok);
+    assert.equal(r.debit, '2270.00');
+    assert.equal(r.credit, '1375.50');
+    assert.equal(r.type, 'debit');
+    assert.equal(r.net, '894.50');
+    assert.equal(r.counted, 3);
+    assert.deepEqual(r.skipped, []);
+  });
+
+  it('is a Net Credit or Balanced when the Credits are bigger or equal', () => {
+    assert.equal(calculateTotals([{ debit: '10', credit: '30' }]).type, 'credit');
+    const same = calculateTotals([
+      { debit: '10', credit: '' },
+      { debit: '', credit: '10' },
+    ]);
+    assert.equal(same.type, 'balanced');
+    assert.equal(same.net, '0.00');
+  });
+
+  it('keeps every decimal: three invoices of 0.1 make exactly 0.3', () => {
+    const r = calculateTotals([{ debit: '0.1' }, { debit: '0.1' }, { debit: '0.1' }]);
+    assert.equal(r.debit, '0.30');
+    const odd = calculateTotals([{ debit: '12.345' }, { debit: '0.001' }]);
+    assert.equal(odd.debit, '12.346');
+    assert.equal(odd.rounded, true);
+  });
+
+  it('leaves out an invoice that cannot be counted and still totals the rest', () => {
+    const r = calculateTotals([
+      { debit: '100', credit: '' },
+      { debit: 'abc', credit: '5' },
+      { debit: '', credit: '' },
+      { debit: null, credit: '40' },
+    ]);
+    assert.ok(r.ok);
+    assert.equal(r.counted, 2);
+    assert.equal(r.net, '60.00');
+    assert.deepEqual(
+      r.skipped.map((s) => [s.index, s.reason]),
+      [
+        [1, 'invalid'],
+        [2, 'nothing'],
+      ],
+    );
+  });
+
+  it('says so when nothing can be counted', () => {
+    for (const list of [undefined, [], [{ debit: '', credit: '' }], [{ debit: 'x' }]]) {
+      const r = calculateTotals(list);
+      assert.equal(r.ok, false);
+      assert.equal(r.counted, 0);
+    }
+  });
+
+  it('adds up past the size one amount may have', () => {
+    const big = '999999999999999.99';
+    const r = calculateTotals([{ debit: big }, { debit: big }, { debit: big }]);
+    assert.equal(r.debit, '2999999999999999.97');
+  });
+
+  it('is worded as totals in the working and the copied text', () => {
+    const words = describeResult(calculateTotals([{ debit: '1250', credit: '400' }]), {
+      total: true,
+    });
+    assert.equal(words.working, 'Total debit ₹1,250.00 − Total credit ₹400.00 = ₹850.00');
+    assert.match(words.text, /^Net Debit ₹850\.00 \(Total debit/);
   });
 });

@@ -194,3 +194,30 @@ test('a method the server refuses shows a clear message and keeps the picture', 
   await readButton(page).click();
   await expect(resultsHeading(page)).toBeVisible({ timeout: 60_000 });
 });
+
+test('a batch of three demo invoices is read by Local OCR into one combined total', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page
+    .getByTestId('file-input')
+    .setInputFiles([
+      demo('demo-1-net-debit.png'),
+      demo('demo-2-net-credit.png'),
+      demo('demo-3-balanced.png'),
+      NOT_INVOICE,
+    ]);
+  await expect(page.getByRole('heading', { name: 'Several invoices at once' })).toBeVisible();
+  await expect(page.getByText('All 4 finished.')).toBeVisible({ timeout: 75_000 });
+
+  // The three real invoices are counted; the picture with no invoice in it fails on its own.
+  await expect(page.locator('.batch-row.done')).toHaveCount(3);
+  await expect(page.locator('.batch-row.failed')).toHaveCount(1);
+  await expect(page.getByTestId('total-debit')).toHaveText('₹2,19,050.00');
+  await expect(page.getByTestId('total-credit')).toHaveText('₹2,16,575.00');
+  const total = page.getByTestId('batch-final');
+  await expect(total).toContainText('Net Debit');
+  await expect(total).toContainText('₹2,475.00');
+  await expect(page.locator('.batch-row.done').first()).toContainText('Read with Local OCR');
+  await shot(page, 'batch-08-real-ocr');
+});

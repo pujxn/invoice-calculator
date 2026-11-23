@@ -215,3 +215,43 @@ test('without a key the real server answers /reading-methods with AI unavailable
     assert.equal(refused.status, 409);
   });
 });
+
+test('free local OCR readings have a much roomier hourly limit than the AI (a whole batch can be read)', async () => {
+  const { visionMethods } = both();
+  await withApp(
+    {
+      visionMethods,
+      env: { EXTRACT_PER_USER_PER_HOUR: '2', FREE_READINGS_PER_USER_PER_HOUR: '5' },
+    },
+    async (app) => {
+      const token = await app.signIn(ME);
+      // Five free readings in a row are fine although the AI limit is only two.
+      for (let i = 0; i < 5; i += 1) {
+        const res = await read(app, token, await upload(app, token), { method: 'ocr' });
+        assert.equal(res.status, 200, `reading ${i + 1}`);
+      }
+      const blocked = await read(app, token, await upload(app, token), { method: 'ocr' });
+      assert.equal(blocked.status, 429);
+      assert.ok(Number(blocked.headers.get('retry-after')) > 0);
+      // The AI limit is separate and still small.
+      for (let i = 0; i < 2; i += 1) {
+        assert.equal(
+          (await read(app, token, await upload(app, token), { method: 'claude' })).status,
+          200,
+        );
+      }
+      assert.equal(
+        (await read(app, token, await upload(app, token), { method: 'claude' })).status,
+        429,
+      );
+    },
+  );
+});
+
+test('the free readings limit can be set and defaults to 600 an hour', () => {
+  assert.equal(loadConfig({}).vision.freeReadingsPerUserPerHour, 600);
+  assert.equal(
+    loadConfig({ FREE_READINGS_PER_USER_PER_HOUR: '42' }).vision.freeReadingsPerUserPerHour,
+    42,
+  );
+});
