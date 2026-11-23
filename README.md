@@ -11,6 +11,7 @@ Take a photo of an invoice (or drop in many at once). Ledgerly reads the **Debit
 
 - Product spec (source of truth): [SPEC.md](SPEC.md), a snapshot of the [live spec doc](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs). Change the doc first, then update this file.
 - Status: sign in, upload, AI reading, calculation, the result screen and a saved history of every invoice all work, in the browser and as an iOS and Android app (see [Run the mobile apps](#run-the-mobile-apps-ios-and-android)). See the requirement table in SPEC.md.
+- Want to show it on a phone? See [Phone demo](#phone-demo-about-10-minutes-to-set-up-no-app-store-no-xcode).
 - Want to show it to someone? See the demo script, [docs/DEMO.md](docs/DEMO.md), with sample invoice pictures in [docs/demo/](docs/demo/).
 
 ## Quick start
@@ -52,9 +53,51 @@ Ledgerly has two roles. Only the **superadmin** and **agents the superadmin has 
 
 Things worth trying: a wrong code (4 tries left, then the code locks), a PDF instead of a picture, a picture over 10 MB, a HEIC photo, any amount such as Debit `12.345` (accepted, shown as `₹12.35` with a note giving the exact `₹12.345`; up to 15 digits and 12 decimals), `0.001`, `1e3`, `Rs. 500/-`, `£5` or `abc` (refused with a message), both boxes empty, and Debit `0.30` with Credit `0.10` (exactly `0.20`). Everything is in Indian rupees (₹, lakh grouping like ₹12,34,567.50).
 
-### See it on a phone
+### Phone demo (about 10 minutes to set up, no app store, no Xcode)
 
-Your computer and phone must be on the same Wi-Fi. Run `npm run dev -w server` in one terminal and `npm run dev -w client -- --host` in another. The second prints a `Network:` address such as `http://192.168.1.20:5173`; open it on the phone. The sign-in code still appears in the computer's terminal. On a computer you can also press F12 then Ctrl+Shift+M (Cmd+Shift+M on a Mac) for a phone-sized window, and switch your system to dark mode to see the dark theme.
+The simplest reliable way to show Ledgerly on a real phone: run it on your computer and open it in the phone's browser over the same Wi-Fi. It is the same app, full screen, with the phone's own camera. Nothing is installed on the phone. Works on a Mac or Windows computer, and on an iPhone or an Android phone.
+
+**Once, on the computer.** Have the app ready as in "Quick start" (Node installed, the code downloaded, `npm install` done). Run `git pull` and `npm install` again to get the newest version.
+
+**Get some invoice pictures onto the phone.** The four samples are in the `docs/demo/` folder. Send them to the phone so they are in its photo library: AirDrop (Mac to iPhone), or email them to yourself, or WhatsApp / Google Drive / Google Photos, then save them to the phone's photos. You can also print one and photograph it, or use real handwritten or printed invoices.
+
+**On the day.**
+
+1. **Same Wi-Fi.** Connect the computer and the phone to the same Wi-Fi network. Office "guest" Wi-Fi often blocks phones from reaching computers; if the page will not open (step 5), use a hotspot instead: turn on **Personal Hotspot** (iPhone) or **Hotspot** (Android) on the phone and connect the computer to it. The phone then talks to the computer over its own hotspot.
+2. **Start it.** Open a terminal in the project folder (Mac: Terminal; Windows: PowerShell) and run:
+   ```
+   npm run dev:phone
+   ```
+   (Use this instead of `npm run dev`. On Windows, if PowerShell says "running scripts is disabled", run `npm.cmd run dev:phone`, or use Command Prompt.)
+3. **Allow it through the firewall.** The first time, Windows asks "Allow Node.js JavaScript Runtime to communicate on private networks?" Tick **Private networks** and press **Allow access**. A Mac may ask "Do you want the application node to accept incoming network connections?": press **Allow**. If you pressed Cancel by mistake, stop with `Ctrl+C` and run it again.
+4. **Read the screen.** The terminal prints a box: **On the phone, open: http://192.168.x.x:5173**, and a square QR code. (If port 5173 or 4000 is already used by another program, it picks the next free ports by itself and prints the right address, so always use the address it prints.)
+5. **Open it on the phone.** Point the phone's camera at the QR code and tap the link that appears, or type the address into Safari (iPhone) or Chrome (Android). You should see the Ledgerly sign-in page. Test this first: if it does not open, see the table below.
+6. **Sign in.** On the phone type the superadmin number `+91 99999 00000` and tap **Send code**. The code is **not** sent to the phone: look at the computer's terminal for `Your Ledgerly code is 123456`, and type those 6 digits on the phone.
+7. **Add yourself as an agent** (only once, and best done before the demo). On the **Agents** page type a name and your mobile number with the country code (for example `+91 98765 43210`), tap **Add agent**, tap **Sign out**, and sign in again with that number (the new code is in the terminal).
+
+**The phone demo script (about 4 minutes).** Signed in as the agent:
+
+1. **One invoice with the camera.** On **Upload your invoice** tap **Take photo**, allow the camera if asked, and photograph a printed invoice (flat, bright, whole page in view). Tap **Read amounts**. Show the **Debit** and **Credit** amounts and the green **High confidence** or pink **Low confidence** flag beside each. Say: "Pink means the reader was not sure, so a person checks it." Tap an amount, correct it, and the pink flag goes away.
+2. **The final amount.** Tap **Calculate final amount**: **Net Debit**, **Net Credit** or **Balanced** in large type, with the working. Tap **Start a new invoice**.
+3. **Many at once.** Tap **Choose file** (or **Several invoices at once**), choose **Photo Library**, tick `demo-1-net-debit`, `demo-2-net-credit` and `demo-3-balanced`, and confirm. Each invoice shows Waiting, Reading, then Done. When it says **All 3 finished** you see the **Combined total: Net Debit ₹2,475.00**. Change one amount and the total moves.
+4. **A tricky one.** Add `demo-4-tricky-blurry` with **Add more invoices**. Show that it is either flagged pink or left empty with **Please check**, rather than guessed. Say: "It would rather ask than be wrong."
+5. **History.** Tap **History** in the header: every invoice you finished is saved, with **Your total** above. Say: "The administrator sees each agent's list and total." (Sign in as the superadmin on the computer to show this big.)
+6. **Dark mode.** Switch the phone to dark mode in its settings and the colours follow.
+
+**Make it look like an app (optional).** On an iPhone in Safari tap the Share button, then **Add to Home Screen**, then **Add**. On Android in Chrome tap the three dots, then **Add to Home screen** (or **Install app**). A Ledgerly icon appears and opens the page without the browser's address bar (on Android over plain `http` a thin browser bar may remain). It only works while `npm run dev:phone` is running on the computer and the phone is on the same network, and the home-screen copy asks you to sign in again. Do this before the demo and open it once to check.
+
+**If the page will not open on the phone.**
+
+| What you see                                                   | What to do                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The phone says "cannot connect" or just loads forever          | Check the phone and computer show the same Wi-Fi name, and the phone is not on mobile data (turn mobile data off). Check you typed the address the terminal printed (it can change each day or on another Wi-Fi). Then try the hotspot in step 1. |
+| Works on the computer, not the phone                           | The firewall is blocking it. Windows: Start, type "Allow an app through Windows Firewall", then **Change settings**, find **Node.js JavaScript Runtime** and tick **Private**. Mac: System Settings, Network, Firewall, allow **node**.           |
+| "Could not find this computer's Wi-Fi address" in the terminal | The computer is not on a network. Connect to Wi-Fi and run `npm run dev:phone` again.                                                                                                                                                             |
+| It prints an address starting with `10.` or `172.` that is odd | A VPN is on. Turn the VPN off, stop with `Ctrl+C` and run it again.                                                                                                                                                                               |
+| Sign-in says it cannot reach the server                        | `npm run dev:phone` is not running any more (or the computer went to sleep). Run it again and reload the page.                                                                                                                                    |
+| Last resort                                                    | Show the same screens in the computer's browser at `http://localhost:5173` with Chrome's phone view (F12, then Ctrl+Shift+M; Cmd+Shift+M on a Mac).                                                                                               |
+
+**What about the real iOS or Android app?** The code for it is in the project (see "Run the mobile apps" below), but for a manager demo it is not worth it. It needs Xcode (Mac only, several GB, an Apple ID, and re-signing every 7 days for a real iPhone) or Android Studio (a large install, plus a phone in developer mode or an emulator), it looks identical to the browser version, and it has never been run on a real device yet, so it carries more risk on demo day for no visible gain. The browser route above is the recommended one.
 
 ### If something goes wrong
 
@@ -252,6 +295,7 @@ SPEC.md   Product spec, source of truth
 | Command                   | What it does                                                                                                                                                |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm run dev`             | Start API and web app together with reload                                                                                                                  |
+| `npm run dev:phone`       | Same, but a phone on the same Wi-Fi can open it: prints the address and a QR code, picks free ports (see Phone demo)                                        |
 | `npm run build`           | Production build of the web app (`client/dist`)                                                                                                             |
 | `npm start`               | Start the API only (it does not serve `client/dist`; hosting the built app is not set up yet)                                                               |
 | `npm test`                | Shared, server and web app tests (fast)                                                                                                                     |
