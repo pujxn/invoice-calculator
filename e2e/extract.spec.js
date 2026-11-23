@@ -62,7 +62,9 @@ test('read the amounts from an uploaded picture, then check them', async ({ page
   await expect(debit(page)).toHaveValue(reading.debit);
   await expect(credit(page)).toHaveValue(reading.credit);
   await expect(page.getByText(/Demo values, not read from your picture/)).toBeVisible();
-  await expect(page.getByText(/Confidence:/)).toContainText('High');
+  // Demo values say "high" for the whole picture, so each amount carries a High flag.
+  await expect(page.getByTestId('debit-flag')).toHaveText('High confidence');
+  await expect(page.getByTestId('credit-flag')).toHaveText('High confidence');
   expect('lineItems' in reading).toBe(false);
   await expect(page.getByRole('table', { name: 'Lines found on the invoice' })).toHaveCount(0);
   await expectNoSideScroll(page);
