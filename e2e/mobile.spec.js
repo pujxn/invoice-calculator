@@ -3,6 +3,7 @@ import {
   expectNoSideScroll,
   expectTouchFriendly,
   latestCode,
+  registerAgent,
   requestCodeFor,
   shot,
   uniquePhone,
@@ -65,6 +66,7 @@ test('on phones the form buttons are full width; on desktop they are not', async
 test('the whole sign-in works with finger taps', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === 'desktop', 'touch only');
   const phone = uniquePhone();
+  await registerAgent(phone);
   await page.goto('/login');
   await page.getByLabel('Mobile number').tap();
   await page.getByLabel('Mobile number').fill(phone);
@@ -79,8 +81,10 @@ test('the whole sign-in works with finger taps', async ({ page }, testInfo) => {
 });
 
 test('Enter on the phone keyboard submits the number', async ({ page }) => {
+  const phone = uniquePhone();
+  await registerAgent(phone);
   await page.goto('/login');
-  await page.getByLabel('Mobile number').fill(uniquePhone());
+  await page.getByLabel('Mobile number').fill(phone);
   await page.getByLabel('Mobile number').press('Enter');
   await expect(page.getByLabel('6-digit code')).toBeVisible();
 });

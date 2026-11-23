@@ -5,6 +5,7 @@ import BatchScreen from './BatchScreen.jsx';
 import ExtractedAmounts from './ExtractedAmounts.jsx';
 import InvoiceUpload from './InvoiceUpload.jsx';
 import ResultScreen from './ResultScreen.jsx';
+import useSaveToHistory from '../history/useSaveToHistory.js';
 import useBatch from './useBatch.js';
 import { READING_KEY } from '../storageKeys.js';
 
@@ -54,6 +55,18 @@ export default function InvoiceFlow() {
   useEffect(() => {
     save(state);
   }, [state]);
+
+  // Every invoice that reaches the final amount is saved to the history, and corrections made
+  // here update that record. The id is kept with the reading so a reload does not save it twice.
+  const saving = useSaveToHistory({
+    active: state?.stage === 'result',
+    token,
+    result: state?.result ?? {},
+    values: state?.values ?? { debit: '', credit: '' },
+    historyId: state?.historyId ?? null,
+    onSaved: (historyId) =>
+      setState((s) => (s && s.historyId !== historyId ? { ...s, historyId } : s)),
+  });
 
   useEffect(() => {
     if (lastKey.current === location.key) return; // not a navigation, just another render
@@ -110,6 +123,8 @@ export default function InvoiceFlow() {
         onReset={reset}
         onBack={showReview}
         onStartOver={startOver}
+        saveStatus={saving.status}
+        onRetrySave={saving.retry}
       />
     );
   }

@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import { ApiError } from '../src/api.js';
 import * as invoiceApi from '../src/invoices/invoiceApi.js';
+import * as historyApi from '../src/history/historyApi.js';
 import { renderApp, storeSession, stubApi } from './helpers.jsx';
 
 vi.mock('../src/invoices/invoiceApi.js', () => ({
@@ -12,6 +13,12 @@ vi.mock('../src/invoices/invoiceApi.js', () => ({
   fetchInvoiceImage: vi.fn(),
   extractInvoice: vi.fn(),
   getReadingMethods: vi.fn(),
+}));
+
+vi.mock('../src/history/historyApi.js', () => ({
+  saveHistoryEntry: vi.fn(),
+  updateHistoryEntry: vi.fn(),
+  deleteHistoryEntry: vi.fn(),
 }));
 
 const KEY = 'invoice-calculator.batch';
@@ -80,6 +87,10 @@ const total = () => screen.getByTestId('batch-final');
 beforeEach(() => {
   vi.clearAllMocks();
   invoiceApi.deleteInvoice.mockResolvedValue({ ok: true });
+  let n = 0;
+  historyApi.saveHistoryEntry.mockImplementation(async () => ({ id: `h${(n += 1)}` }));
+  historyApi.updateHistoryEntry.mockImplementation(async (id) => ({ id }));
+  historyApi.deleteHistoryEntry.mockResolvedValue({ ok: true });
   fakeServer();
 });
 
@@ -276,5 +287,73 @@ describe('batch upload', () => {
       .findByRole('heading', { name: /Sign in|Welcome back|Mobile number/i })
       .catch(() => {});
     await waitFor(() => expect(localStorage.getItem('invoice-calculator.session')).toBeNull());
+  });
+
+  describe('saving to the history', () => {
+    it('saves each finished invoice once, and a correction updates the same record', async () => {
+      await openBatch(['a.jpg', 'b.jpg']);
+      await waitFor(() => expect(started).toHaveLength(2));
+      await answer('a.jpg', '100', '30');
+      await answer('b.jpg', '5', null);
+      await waitFor(() => expect(historyApi.saveHistoryEntry).toHaveBeenCalledTimes(2));
+      expect(historyApi.saveHistoryEntry).toHaveBeenCalledWith(
+        { debit: '100', credit: '30', imageRef: 'id-a.jpg', method: 'ocr' },
+        'tok-123',
+      );
+      expect(await screen.findByText(/Saved to your history/)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'View history' })).toHaveAttribute(
+        'href',
+        '/history',
+      );
+
+      const box = within(row('a.jpg')).getByLabelText(/^Debit/);
+      await user().clear(box);
+      await user().type(box, '250');
+      await waitFor(() =>
+        expect(historyApi.updateHistoryEntry).toHaveBeenLastCalledWith(
+          'h1',
+          { debit: '250', credit: '30' },
+          'tok-123',
+        ),
+      );
+      expect(historyApi.saveHistoryEntry).toHaveBeenCalledTimes(2); // still no third record
+    });
+
+    it('does not save an invoice with no usable amount, and saves it once it has one', async () => {
+      await openBatch(['a.jpg']);
+      await waitFor(() => expect(started).toHaveLength(1));
+      await answer('a.jpg', null, null);
+      await waitFor(() => expect(screen.getByText('All 1 finished.')).toBeInTheDocument());
+      expect(historyApi.saveHistoryEntry).not.toHaveBeenCalled();
+      await user().type(within(row('a.jpg')).getByLabelText(/^Credit/), '40');
+      await waitFor(() => expect(historyApi.saveHistoryEntry).toHaveBeenCalledTimes(1));
+    });
+
+    it('says when saving failed, and Try again saves it', async () => {
+      historyApi.saveHistoryEntry.mockRejectedValueOnce(new ApiError(500, 'Boom', {}));
+      await openBatch(['a.jpg']);
+      await waitFor(() => expect(started).toHaveLength(1));
+      await answer('a.jpg', '10', null);
+      expect(
+        await screen.findByText(/Could not save 1 invoice to your history/),
+      ).toBeInTheDocument();
+      expect(historyApi.saveHistoryEntry).toHaveBeenCalledTimes(1); // no retry loop
+      await user().click(screen.getByRole('button', { name: 'Try again' }));
+      await waitFor(() => expect(historyApi.saveHistoryEntry).toHaveBeenCalledTimes(2));
+      expect(await screen.findByText(/Saved to your history/)).toBeInTheDocument();
+    });
+
+    it('Remove takes the invoice out of the history too; Clear all leaves the history alone', async () => {
+      await openBatch(['a.jpg', 'b.jpg']);
+      await waitFor(() => expect(started).toHaveLength(2));
+      await answer('a.jpg', '10', null);
+      await answer('b.jpg', '20', null);
+      await waitFor(() => expect(historyApi.saveHistoryEntry).toHaveBeenCalledTimes(2));
+      await screen.findByText(/Saved to your history/);
+      await user().click(within(row('a.jpg')).getByRole('button', { name: /^Remove/ }));
+      expect(historyApi.deleteHistoryEntry).toHaveBeenCalledWith('h1', 'tok-123');
+      await user().click(screen.getByRole('button', { name: 'Clear all' }));
+      expect(historyApi.deleteHistoryEntry).toHaveBeenCalledTimes(1);
+    });
   });
 });

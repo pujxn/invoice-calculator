@@ -33,6 +33,11 @@ export function makeItem(file) {
     debit: '',
     credit: '',
     read: null, // { provider, confidence, warnings, notes } of the reading, or null
+    imageRef: null, // the picture's id, kept for the history record after the picture is deleted
+    historyId: null, // this invoice's record in the saved history, once saved
+    savedKey: null, // the amounts last saved to the history (see amountsKey)
+    failedKey: null, // the amounts that could not be saved, so it is not retried in a loop
+    save: null, // 'saving' while a save is on its way
   };
 }
 
@@ -101,6 +106,11 @@ export function restore(saved) {
         debit: String(i.debit ?? ''),
         credit: String(i.credit ?? ''),
         read: i.read ?? null,
+        imageRef: typeof i.imageRef === 'string' ? i.imageRef : null,
+        historyId: typeof i.historyId === 'string' ? i.historyId : null,
+        savedKey: typeof i.savedKey === 'string' ? i.savedKey : null,
+        failedKey: null, // a reload tries a failed save again
+        save: null,
       };
       if (BUSY.has(item.status)) {
         item.status = 'failed';
@@ -119,6 +129,25 @@ export const canRetry = (item, haveFile) =>
 
 // The result for one invoice (null when it has no amounts that can be counted).
 export const itemNet = (item) => calculateNet({ debit: item.debit, credit: item.credit });
+
+// What identifies the amounts of an invoice, to tell whether the history already has them.
+export const amountsKey = (item) => JSON.stringify([item.debit, item.credit]);
+
+// Does this invoice belong in the history right now (done, with an amount that can be counted)?
+export const savable = (item) => item.status === 'done' && itemNet(item).ok;
+
+// How the history is doing for the whole batch: { saving, failed, saved } counts of invoices.
+export function historyStatus(items) {
+  const counts = { saving: 0, failed: 0, saved: 0 };
+  for (const item of items) {
+    if (!savable(item)) continue;
+    if (item.save === 'saving') counts.saving += 1;
+    else if (item.failedKey === amountsKey(item)) counts.failed += 1;
+    else if (item.savedKey === amountsKey(item)) counts.saved += 1;
+    else counts.saving += 1; // waiting for its turn to be saved
+  }
+  return counts;
+}
 
 // An invoice whose reading was doubtful: low confidence, or the reader had something to say.
 export const needsCheck = (item) =>

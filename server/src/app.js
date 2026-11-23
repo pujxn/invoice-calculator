@@ -6,8 +6,13 @@ import { createRateLimiter } from './auth/rateLimiter.js';
 import { createUploadStore } from './invoices/store.js';
 import { createInvoiceRouter } from './invoices/routes.js';
 import { createCalculateRouter } from './calculate/routes.js';
+import { createHistoryStore } from './history/store.js';
+import { createHistoryRouter } from './history/routes.js';
 import { createExtractor, createVisionMethods } from './extraction/index.js';
-import { createAuthRouter, createRequireAuth } from './auth/routes.js';
+import { createAuthRouter, createRequireAuth, createRequireRole } from './auth/routes.js';
+import { createAgentStore } from './agents/store.js';
+import { createRoles } from './roles/index.js';
+import { createAgentRouter, createMyTotalsRouter } from './agents/routes.js';
 import { describeError, secretsFrom } from './log.js';
 import { createCors } from './cors.js';
 
@@ -30,7 +35,21 @@ export function createApp(config, deps = {}) {
     windowMs: 15 * 60 * 1000,
     now,
   });
-  const requireAuth = createRequireAuth(sessions);
+  const store = createAgentStore({ file: config.agents.file, now });
+  const roles = createRoles({ superadmins: config.roles.superadmins, store });
+  const history = createHistoryStore({ file: config.history.file, now });
+  const requireAuth = createRequireAuth(sessions, roles);
+  const requireSuperadmin = createRequireRole(
+    requireAuth,
+    'superadmin',
+    'Only a superadmin can do that.',
+  );
+  // Agents process invoices; superadmins only manage agents and read their lists.
+  const requireAgent = createRequireRole(
+    requireAuth,
+    'agent',
+    'Only agents can process invoices. Sign in with an agent number.',
+  );
   const uploads = createUploadStore({
     dir: config.uploads.dir,
     ttlMs: config.uploads.ttlMs,
@@ -104,16 +123,18 @@ export function createApp(config, deps = {}) {
 
   app.use(
     '/api/auth',
-    createAuthRouter({ otp, sessions, requireAuth, ipRequestLimiter, ipVerifyLimiter }),
+    createAuthRouter({ otp, sessions, roles, requireAuth, ipRequestLimiter, ipVerifyLimiter }),
   );
 
-  app.use('/api/invoices/calculate', createCalculateRouter({ requireAuth }));
+  app.use('/api/invoices/calculate', createCalculateRouter({ requireAuth: requireAgent }));
+
+  app.use('/api/history', createHistoryRouter({ store: history, requireAuth: requireAgent }));
 
   app.use(
     '/api/invoices',
     createInvoiceRouter({
       store: uploads,
-      requireAuth,
+      requireAuth: requireAgent,
       maxBytes: config.uploads.maxBytes,
       extractors,
       readingMethods,
@@ -122,6 +143,9 @@ export function createApp(config, deps = {}) {
       secrets,
     }),
   );
+
+  app.use('/api/agents', createAgentRouter({ requireSuperadmin, store, roles, history }));
+  app.use('/api/my-totals', createMyTotalsRouter({ requireAgent, history }));
 
   // An unknown /api address answers in JSON like everything else, not with an HTML page.
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found.' }));
@@ -158,7 +182,9 @@ export function createApp(config, deps = {}) {
     uploadTimer.unref();
   }
 
+  app.locals.history = history; // for later routers (agents and superadmin)
   app.locals.requireAuth = requireAuth; // for later routers (extract, calculate)
+  app.locals.store = store; // the agents (tests register agents through it)
   // Stops the local OCR engine (a background thread) so a test or shutdown can exit cleanly.
   app.locals.close = () => Promise.all(vision.methods.map((m) => m.provider?.close?.()));
   return app;

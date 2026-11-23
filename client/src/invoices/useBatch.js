@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../api.js';
 import { BATCH_KEY } from '../storageKeys.js';
+import { deleteHistoryEntry, saveHistoryEntry, updateHistoryEntry } from '../history/historyApi.js';
+import { track } from '../history/inflight.js';
 import { deleteInvoice, extractInvoice, uploadInvoice } from './invoiceApi.js';
-import { BUSY, CONCURRENCY, admit, admitNote, makeItem, restore } from './batch.js';
+import {
+  BUSY,
+  CONCURRENCY,
+  admit,
+  admitNote,
+  amountsKey,
+  makeItem,
+  restore,
+  savable,
+} from './batch.js';
 
 const BUSY_RETRIES = 4; // the server says "busy, try in a moment": wait and ask again, this many times
 const MAX_AUTO_WAIT = 30; // seconds; a longer wait (an hourly limit) is shown to the person instead
@@ -104,6 +115,7 @@ export default function useBatch({ token, phone, onSignedOut }) {
           status: 'done',
           error: '',
           invoiceId: null,
+          imageRef: id,
           debit: result.debit ?? '',
           credit: result.credit ?? '',
           read: {
@@ -221,6 +233,11 @@ export default function useBatch({ token, phone, onSignedOut }) {
       running.current.delete(key);
       files.current.delete(key);
       if (item?.invoiceId) deleteInvoice(item.invoiceId, token).catch(() => {});
+      // Taking an invoice out of the batch also takes it out of the history, so the agent's
+      // totals match the list. (Clear all only empties the screen.)
+      if (item?.historyId) track(deleteHistoryEntry(item.historyId, token)).catch(() => {});
+      clearTimeout(saves.current.get(key)?.timer);
+      saves.current.delete(key);
       commit(itemsRef.current.filter((i) => i.key !== key));
       pumpRef.current();
     },
@@ -234,9 +251,87 @@ export default function useBatch({ token, phone, onSignedOut }) {
     }
     running.current.clear();
     files.current.clear();
+    for (const { timer } of saves.current.values()) clearTimeout(timer);
+    saves.current.clear();
     setNote('');
     commit([]);
   }, [commit, token]);
+
+  // Every invoice that is done and has an amount is saved to the history (so it shows in the
+  // agent's list and totals), and later corrections update that same record. Saves wait a moment
+  // after the last keystroke, and a save that has failed is not retried until asked.
+  const saves = useRef(new Map()); // key -> { timer, amounts } waiting to be sent
+  const saving = useRef(new Set()); // keys with a save on its way
+
+  const persist = useCallback(
+    async (key) => {
+      saves.current.delete(key);
+      const item = itemsRef.current.find((i) => i.key === key);
+      if (!item || !savable(item) || saving.current.has(key)) return;
+      const sent = amountsKey(item);
+      if (item.savedKey === sent) return;
+      saving.current.add(key);
+      patch(key, { save: 'saving' });
+      const amounts = { debit: item.debit, credit: item.credit };
+      try {
+        await track(
+          (async () => {
+            let entry = null;
+            if (item.historyId) {
+              try {
+                entry = await updateHistoryEntry(item.historyId, amounts, token);
+              } catch (err) {
+                // Removed from the history meanwhile: save it again instead.
+                if (!(err instanceof ApiError && err.status === 404)) throw err;
+              }
+            }
+            entry ??= await saveHistoryEntry(
+              { ...amounts, imageRef: item.imageRef, method: item.read?.provider },
+              token,
+            );
+            patch(key, { historyId: entry.id, savedKey: sent, failedKey: null, save: null });
+          })(),
+        );
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) onSignedOut?.();
+        patch(key, { failedKey: sent, save: null });
+      } finally {
+        saving.current.delete(key);
+      }
+    },
+    [patch, token, onSignedOut],
+  );
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+
+  useEffect(() => {
+    for (const item of items) {
+      if (!savable(item) || saving.current.has(item.key)) continue;
+      const wanted = amountsKey(item);
+      if (item.savedKey === wanted || item.failedKey === wanted) continue;
+      const waiting = saves.current.get(item.key);
+      if (waiting?.amounts === wanted) continue;
+      if (waiting) clearTimeout(waiting.timer);
+      const timer = setTimeout(() => persistRef.current(item.key), item.historyId ? 500 : 0);
+      saves.current.set(item.key, { timer, amounts: wanted });
+    }
+  }, [items]);
+
+  // Leaving the batch: send corrections that are still waiting for their pause.
+  useEffect(() => {
+    const waiting = saves.current;
+    return () => {
+      for (const [key, { timer }] of waiting) {
+        clearTimeout(timer);
+        persistRef.current(key);
+      }
+    };
+  }, []);
+
+  const retrySave = useCallback(
+    () => commit(itemsRef.current.map((i) => (i.failedKey ? { ...i, failedKey: null } : i))),
+    [commit],
+  );
 
   const setMethod = useCallback((id) => {
     method.current = id;
@@ -251,6 +346,7 @@ export default function useBatch({ token, phone, onSignedOut }) {
     change,
     retry,
     retryAll,
+    retrySave,
     typeByHand,
     remove,
     clear,

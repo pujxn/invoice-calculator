@@ -4,13 +4,13 @@
 > [Ledgerly: Product Spec](https://claude.ai/artifact/JZMUDH3jG5nh1CgxcAosNs).
 > This file is a snapshot of it for the repo. Change the doc first, then update this file and the changelog.
 
-Version 0.13 · 2026-11-17
+Version 0.15 · 2026-11-19
 
 ## Overview
 
 Ledgerly (the working title was Invoice Calculator) reads a photo of a standardised invoice showing a Debit amount and a Credit amount, and tells the user the final net amount and whether it is a net Debit or a net Credit. This spec is the source of truth for the product; every change to scope is recorded here first.
 
-**Users:** people who receive simple standardised invoices and need the net figure quickly, signing in with their mobile number.
+**Users:** two roles, both signing in with their mobile number. **Agents** process invoices (read, check, calculate) and each keep their own list. A **superadmin** adds and removes agents and sees every agent's list and totals, and an overall total.
 
 **Prototype goals**
 
@@ -20,34 +20,41 @@ Ledgerly (the working title was Invoice Calculator) reads a photo of a standardi
 - The user checks and corrects the amounts, then sees the final net amount.
 - Runs locally with no paid credentials (console SMS and free local OCR), and with real SMS and AI once keys are added.
 
-**Not in the prototype:** saved history, other currencies (Ledgerly works in Indian rupees only), line items (only the Debit and Credit amounts are read and calculated; invoice lines are not read or totalled), user profiles, a production database, deployment, and native mobile apps. These are tracked in the Roadmap.
+**Not in the prototype:** open sign-up (only added numbers can sign in), other currencies (Ledgerly works in Indian rupees only), line items (only the Debit and Credit amounts are read and calculated; invoice lines are not read or totalled), user profiles, a production database, deployment, and native mobile apps. These are tracked in the Roadmap.
 
 ## User flow
 
-A user goes from phone number to net result in five screens, with a chance to fix the AI's reading before the result is final.
+An agent goes from phone number to net result in five screens, with a chance to fix the AI's reading before the result is final. (A superadmin signs in the same way, steps 1 and 2, and lands on the Agents page instead; see Roles.)
 
-1. **Enter phone number.** The user types a mobile number in international format (for example +44 7700 900123) and taps Send code.
+1. **Enter phone number.** The user types a mobile number in international format (for example +44 7700 900123) and taps Send code. A number that is not a superadmin's and has not been added as an agent is told "This number is not registered with Ledgerly. Ask your administrator to add it." and no text is sent.
 2. **Enter code.** A 6-digit code arrives by SMS. The user enters it; a wrong code shows an error, and Resend is available after 30 seconds.
 3. **Upload invoice.** The user picks or takes a photo (JPEG, PNG, WebP or HEIC, up to 10 MB) and sees a preview.
 4. **Review amounts.** The user presses Read amounts; AI reads the Debit and Credit amounts and pre-fills two fields, with a confidence note and anything to double check. The user can edit either field, clear one, type the amounts by hand instead, or upload a different photo.
 5. **See result.** The user presses Calculate final amount. The app shows the net amount large, labelled Net Debit, Net Credit, or Balanced, with the working (Debit minus Credit) and a breakdown of the inputs. Debit and Credit can be changed on this screen and the result updates as they are typed. The user can copy the result, go back to the invoice (the browser's Back button does the same), start a new invoice (no new sign-in), or sign out. A reload at any step keeps the user's place and edits; signing out clears them from the browser.
+6. **History.** Every invoice that reaches the final amount is saved by itself (a note on the screen says so, with a link). The History page, opened from the header, lists saved invoices newest first. The user can search by amount or by the words debit, credit or balanced, show only Net Debit, Net Credit or Balanced, and limit the list to a range of dates. Opening an entry shows its final amount, the two amounts, when it was saved, how it was read and the picture reference, and lets the user copy the result or delete the entry.
 
 **Several invoices at once (batch).** On step 3 the user can choose or drop many pictures instead of one. Each is read on its own (a few at a time) and listed with its status and its own Debit and Credit, which stay editable; failed ones can be retried, typed by hand or removed. Under the list sits one combined total: all Debits added, all Credits added, and the net as Net Debit, Net Credit or Balanced. The total counts every invoice that is done and has an amount and says how many it left out.
 
-## From the whiteboard sketch
+## Roles: agents and superadmin
 
-The whiteboard photo in the project (IMG_0688) suggests a larger product than the flow above: an admin who manages agents, and a running list of entries per agent. This is a reading of it and needs confirming before it goes into the requirements.
+This is the whiteboard photo (IMG_0688) turned into requirements (ROLE-1 to ROLE-8 below). What the sketch showed and how it was built:
 
-- **Superadmin adds agents** by name and mobile number ("Add Agent: mobile, name"); only added numbers can sign in.
-- **Agents sign in** with mobile number and OTP, then see two options: Add (new invoice) and List.
-- **Upload screen** has Browse and Submit; the image goes to AI for image-to-text.
-- **Results list** shows each extracted amount, with a pop-up to correct a value.
-- **Per-agent figures:** each agent has a Debit and Credit pair, for example 50,000 and 10,000.
-- **Totals:** a column of amounts adds up to one total, with some lines crossed out and one ticked, which may mean excluded and approved entries.
+- **Superadmin adds agents** by name and mobile number ("Add Agent: mobile, name"); only added numbers can sign in. Built: the Agents page.
+- **Agents sign in** with mobile number and OTP, then see two options, Add (new invoice) and List. Built: the header has **New invoice** and **History** (the saved invoice history is the agent's list).
+- **Upload screen** has Browse and Submit; the image goes to AI for image-to-text. Built as the existing upload, read and review screens.
+- **Results list** shows each extracted amount, with a pop-up to correct a value. Built: History lists each saved invoice; opening one lets the agent correct it or delete it.
+- **Per-agent figures:** each agent has a Debit and Credit pair, for example 50,000 and 10,000. Built: each agent's Debit total, Credit total and net, on their History page and on the superadmin's Agents page.
+- **Totals:** a column of amounts adds up to one total, with some lines crossed out and one ticked. Built: the overall total across all agents. The crossed-out and ticked marks are still not understood and are not built (see Open questions).
+
+**How roles work.** The role comes from the phone number. Numbers listed in `SUPERADMIN_PHONES` are superadmins. Every other number must have been added by a superadmin as an agent to sign in. The role is looked up on every request, so removing an agent signs them out at once. Agents see New invoice and History; a superadmin sees only Agents (and the pages under it). An agent who opens a superadmin address, or the other way round, is sent to their own home page, and the API answers 403.
+
+**Where the data lives.** The agents (name, number, when added or removed) are in one JSON file (`AGENTS_FILE`). An agent's invoices are the saved invoice history records they own (`HISTORY_FILE`, see HIST-1 to HIST-7): the server sets each record's `agentId` to the agent's number. There is no separate store of invoices for agents. Totals are added up exactly from those records (BigInt rupee units), never rounded, and a superadmin's overall total includes agents who were removed, so money is never dropped from the total.
+
+**Removing an agent** stops them signing in and ends any open session at once. Their saved invoices stay on file and in the totals, and their row moves to Removed agents. Adding the same number again (with any name) brings the agent back with the list they had.
 
 ## Features and requirements
 
-The prototype has 17 requirements across five areas; the Status column tracks each one as it is built.
+The prototype has 32 requirements across seven areas; the Status column tracks each one as it is built.
 
 | ID | Area | Requirement | Status |
 | --- | --- | --- | --- |
@@ -80,6 +87,22 @@ The prototype has 17 requirements across five areas; the Status column tracks ea
 | BATCH-4 | Batch | One combined total: every invoice's Debit added up, every invoice's Credit added up, and Debit minus Credit shown as Net Debit, Net Credit or Balanced in the same style as RES-1 (working, breakdown, exact-amount note, copy). It updates as invoices finish or amounts are edited, and says how many invoices it counts and why others are left out. Exact decimal maths (CALC-3); the sums may exceed the size one amount may have. | Built |
 | BATCH-5 | Batch | A failure never blocks the total. An invoice that fails (unreadable picture, server problem, not a picture file) shows its reason and can be retried (the picture is not uploaded again), typed by hand, or removed; the others are still totalled. An invoice with an invalid amount, or with neither amount, is left out of the total and says so. | Built |
 | BATCH-6 | Batch | The batch is kept in the browser tab across a reload (amounts only; a picture not yet sent must be added again) and cleared on sign out. Free readings (local OCR, demo values) have a separate, much larger hourly limit (`FREE_READINGS_PER_USER_PER_HOUR`, 600) than readings that cost money (`EXTRACT_PER_USER_PER_HOUR`, 30), so a batch of dozens can be read. | Built |
+| BATCH-7 | Batch | Every invoice in a batch that is done and has an amount is saved to the history (HIST-1) like a one-invoice result, with its picture reference and how it was read, so it appears in the agent's list and totals (ROLE-5). A correction updates the same record (HIST-2). Removing an invoice from the batch also removes its record; Clear all only empties the screen and keeps the records. The screen says whether saving worked and offers Try again after a failure. | Built |
+| HIST-1 | History | Every invoice that reaches a valid final amount is saved automatically as one record: Debit, Credit, net, type (debit, credit or balanced), the time it was saved, how it was read (`ocr`, `claude`, `mock` or `manual`) and a reference to the picture (`imageRef`, the id of the picture that was read; empty if the amounts were typed with no picture). The server works out the net and type itself from the two amounts, never from the browser. Amounts are exact decimal strings in rupees. | Built |
+| HIST-2 | History | Corrections made on the final amount screen update the same record, never add a second. Saving the same picture twice is one record. A correction typed just before leaving the screen is still sent, and the History page waits for it. If saving fails, the screen says so and offers Try again; the result still works. | Built |
+| HIST-3 | History | A History page lists the signed-in user's saved invoices, newest first, 20 at a time with Show more. Each row shows the date and time, Net Debit, Net Credit or Balanced, the net amount and both amounts. | Built |
+| HIST-4 | History | Search and filter: text search over the amounts (commas, `₹` and spaces ignored) and the words debit, credit, balanced (also matches the reader); a Show filter for Net Debit, Net Credit or Balanced; From and To dates (whole local days, both included). Filters combine; a backwards date range is flagged, not searched; Clear search and filters resets them. | Built |
+| HIST-5 | History | Opening an entry shows the final amount and working exactly as on the result screen, the two amounts, when it was saved (and last changed), how it was read and the picture reference. The picture itself is not kept: it is deleted as soon as it is read (AI-4), so the reference only records where the amounts came from. The user can copy the result and delete the entry (after being asked). | Built |
+| HIST-6 | History | History is private: every route needs a signed-in user and only reaches that user's own records; another user's id answers 404 like an id that does not exist. History is kept in a file on the server (`HISTORY_FILE`) and survives restarts. | Built |
+| HIST-7 | History | The storage is one module (`server/src/history/store.js`) with a small interface (save, get, list, filter, update, remove). Records carry an optional `agentId` (empty for now, and not settable through the API) and are keyed by owner, so agent and superadmin roles can attach later without a second invoice store. | Built |
+| ROLE-1 | Roles | A phone number is one of two roles: superadmin (listed in `SUPERADMIN_PHONES`) or agent (added by a superadmin). Any other number cannot sign in: asking for a code is refused (403) before any text is sent, and so is checking a code. `GET /api/auth/me` returns `{ phone, name, role, expiresAt }`. | Built |
+| ROLE-2 | Roles | The role is looked up on every request. Removing an agent ends their open session at once (their next request is 401) and stops new sign-ins. | Built |
+| ROLE-3 | Roles | A superadmin adds an agent by name (1 to 60 characters) and mobile number (E.164). A number that is a superadmin or an active agent is refused (409). Adding a removed agent's number brings them back with their earlier list. | Built |
+| ROLE-4 | Roles | A superadmin removes an agent, after being asked. The agent's saved invoices stay on file and in the totals. | Built |
+| ROLE-5 | Roles | The Agents page (superadmin only) shows the overall total, then each agent's name, number, Debit total, Credit total, net (Net Debit, Net Credit or Balanced) and number of invoices; removed agents are listed apart. | Built |
+| ROLE-6 | Roles | A superadmin opens one agent to see that agent's totals and saved invoices, newest first, 50 at a time with Show more. Read only: the superadmin cannot change an agent's invoices. | Built |
+| ROLE-7 | Roles | Only agents process invoices: the upload, reading, calculate and History routes are agent-only (403 for a superadmin), and each agent reaches only their own records. An agent's History page shows their total (Debit, Credit, net, count) over every saved invoice, not just the page on screen. | Built |
+| ROLE-8 | Roles | Agents and superadmin are kept apart on screen: each role sees only its own navigation, and opening the other role's address goes to home. Both roles use the same responsive layout (phone to desktop), pink, green and white theme with dark mode, and rupees with lakh grouping. | Built |
 
 ## Calculation rules
 
@@ -120,7 +143,8 @@ A React web app talks to one Node API, and the API talks to an SMS provider and 
 ```
 React web app (Vite)  --JSON-->  Node API (Express)  --code-->   SMS provider (console | twilio)
                                    auth, invoices,   --image-->  Vision reader (ocr | claude | mock)
-                                   calculator, in-memory store
+                                   calculator, roles, agents (JSON file),
+                                   history (JSON file)
 ```
 
 - **Client:** React 18 with Vite, plain CSS, mobile first (touch-sized controls, numeric keypad, SMS code autofill). The product runs on web and mobile: the same responsive web app is wrapped with Capacitor 7 as an iOS and Android app (`client/ios`, `client/android`; app name Ledgerly, app id `com.ledgerly.app`).
@@ -149,14 +173,14 @@ The product is called **Ledgerly**. The logo is a ledger mark (a vertical rule, 
 
 ## API endpoints
 
-The Node server exposes JSON endpoints under `/api`; all except the two code calls (`request-otp`, `verify-otp`) need an `Authorization: Bearer <session token>` header.
+The Node server exposes JSON endpoints under `/api`; all except the two code calls (`request-otp`, `verify-otp`) need an `Authorization: Bearer <session token>` header. `request-otp` and `verify-otp` answer 403 `{ error }` for a number that is not a superadmin or an added agent. The invoice, calculate, history and `my-totals` routes are for agents; the `agents` routes are for the superadmin; the other role gets 403.
 
 | Method and path | Request | Response |
 | --- | --- | --- |
 | `POST /api/auth/request-otp` | `{ phone }` | `{ ok: true, resendAfterSeconds: 30 }` |
 | `POST /api/auth/verify-otp` | `{ phone, code }` | `{ token, expiresAt }` or 401 with `{ error }` |
 | `POST /api/auth/logout` | none | `{ ok: true }` |
-| `GET /api/auth/me` | none | `{ phone, expiresAt }`, used by the web app to check a stored session |
+| `GET /api/auth/me` | none | `{ phone, name, role, expiresAt }` (`role` is `agent` or `superadmin`), used by the web app to check a stored session and choose the screens |
 | `POST /api/invoices` | multipart form, field `image` | 201 `{ id, mimeType, size, createdAt, imageUrl }`; own pictures only |
 | `GET /api/invoices/:id` | none | the same details, or 404 |
 | `GET /api/invoices/:id/image` | none | the picture bytes, or 404 |
@@ -164,6 +188,18 @@ The Node server exposes JSON endpoints under `/api`; all except the two code cal
 | `GET /api/invoices/reading-methods` | none | `{ default, methods: [{ id, label, available, reason? }] }`, for the "Read with" switch (`ocr`, `claude`; `mock` alone in demo mode) |
 | `POST /api/invoices/:id/extract` | optional `{ method: "ocr" \| "claude" }` (the server default if omitted; unknown is 400, not set up is 409) | `{ invoiceId, provider, model, imageDeleted, debit, credit, currency, confidence, notes, warnings }`; amounts are decimal strings or null (no line items). Deletes the picture on success. The batch screen uses this endpoint (and the upload one) once per picture; free methods (`ocr`, `mock`) count against `FREE_READINGS_PER_USER_PER_HOUR`, the AI against `EXTRACT_PER_USER_PER_HOUR` |
 | `POST /api/invoices/calculate` | `{ debit, credit }` (text or null) | `{ debit, credit, net, netRounded, rounded, signedNet, type }`: all amounts are exact decimal strings in rupees, `debit` and `credit` are the two amounts, `net` is never negative and keeps every decimal (`"10.001"`), `netRounded` is the same rounded to 2 decimals for showing (`"10.00"`), `rounded` is true when those differ, `signedNet` is Debit minus Credit, and `type` is `debit`, `credit` or `balanced`. Needs a signed-in user. Amounts follow the rules above (any decimals up to 12, up to 15 whole digits); numbers instead of text, negatives, junk and amounts over the limits are refused (400) with a message |
+| `POST /api/history` | `{ debit, credit, imageRef?, method? }` (amounts as text; `method` is `ocr`, `claude`, `mock` or `manual`, default `manual`) | 201 with the saved entry, or 200 if that picture (`imageRef`) was already saved (its record is updated). Only the amounts, `imageRef` and `method` are read; the net, type, owner, id and agent are decided by the server |
+| `GET /api/history` | optional query: `q` (search text), `type` (`debit`, `credit`, `balanced`), `from` and `to` (a day `2026-11-19`, or a full time such as `2026-11-18T18:30:00.000Z`; both ends included), `limit` (default 50, at most 200), `offset` | `{ entries, total, limit, offset }`, newest first; `total` counts every match. A bad date, type or backwards range is 400 with `field` |
+| `GET /api/history/:id` | none | one entry, or 404 |
+| `PATCH /api/history/:id` | `{ debit, credit }` | the corrected entry (net and type follow), or 404; `createdAt` does not move |
+| `DELETE /api/history/:id` | none | `{ ok: true }`, or 404 |
+| `GET /api/my-totals` | none | An agent's own totals over every saved invoice: `{ count, debit, credit, net, signedNet, type }` (exact decimal strings; `net` never negative). Agents only |
+| `GET /api/agents` | none | Superadmin only. `{ agents: [agent], total }` where `agent` is `{ phone, name, active, addedAt, removedAt, count, debit, credit, net, signedNet, type }` and `total` is `{ count, debit, credit, net, signedNet, type }` over every agent, removed ones included |
+| `POST /api/agents` | `{ phone, name }` | Superadmin only. 201 `{ agent, restored: false }`; 200 `{ agent, restored: true }` for a removed agent added back; 400 for a bad number or name; 409 for a superadmin or an active agent |
+| `GET /api/agents/:phone` | optional `limit` (default 50, at most 200) and `offset` | Superadmin only (the `+` of the number is sent as `%2B`). `{ agent, entries, total, limit, offset }`: the agent's totals cover every invoice, `entries` is one page, newest first, as in `GET /api/history` without the owner. 404 for an unknown number |
+| `DELETE /api/agents/:phone` | none | Superadmin only. `{ agent }` with `active: false`; 409 if already removed; 404 if unknown |
+
+An entry is `{ id, agentId, createdAt, updatedAt, debit, credit, net, netRounded, type, imageRef, method }`: amounts are exact decimal strings, `net` is never negative, and the owner's phone number is never sent back.
 
 Errors use HTTP status codes (400 bad input, 401 not signed in, 404 not found or not yours, 413 file or request too large, 415 not a supported picture, 409 already being read, 422 picture or invoice could not be read, 429 too many requests or AI busy, 502 AI or SMS provider failed, 504 AI too slow) with a body of `{ error: "message" }`. A 429 from the auth calls also carries `retryAfterSeconds` and a `Retry-After` header. A wrong code is 401; after 5 wrong tries the code is locked and further tries get 429 until a new code is requested.
 
@@ -199,6 +235,9 @@ The prototype runs with no settings at all: codes print to the server log and am
 | `ANTHROPIC_FALLBACKS` | none | `default` lets the API retry a declined request on another model |
 | `EXTRACT_PER_USER_PER_HOUR` | 30 | Readings that cost money (AI) one user can start per hour |
 | `FREE_READINGS_PER_USER_PER_HOUR` | 600 | Free readings (local OCR, demo values) one user can start per hour; sized so a batch of dozens of invoices can be read |
+| `HISTORY_FILE` | `server/data/history.json` | The file where saved invoice history is kept (created on the first save, ignored by git). `memory` keeps history only until the server stops |
+| `SUPERADMIN_PHONES` | demo number `+919999900000` for a local demo, else none | Mobile numbers (comma separated, any spacing) that sign in as superadmin. The demo number is used only when this is unset, `NODE_ENV` is not `production` and `SMS_PROVIDER` is `console`, so real texts never go to it; the server prints it at start-up. Numbers that are not valid are listed in a start-up warning |
+| `AGENTS_FILE` | `server/data/agents.json` | The file the agents a superadmin adds are kept in (created on the first change, ignored by git). `memory` keeps them only until the server stops |
 | `CORS_ORIGINS` | none | Extra origins (comma separated) allowed to call the API from a browser. The iOS and Android app origins are always allowed; `*` is refused |
 
 ## Security and privacy
@@ -213,8 +252,11 @@ The prototype keeps invoice images only briefly (see AI-4) and stores codes only
 - API keys live in environment variables and never reach the browser, and never reach the log: provider errors are logged as one line (name, status, message) with every configured key and anything shaped like a key blanked out, never as raw objects, headers or stack traces.
 - Per-IP limits use the address the server sees. Behind a proxy `TRUST_PROXY` tells it how many proxies to trust; a forged `X-Forwarded-For` is ignored otherwise.
 - API answers are never cached and cannot be framed or type-sniffed (see API endpoints). Uploaded folders are tidied up: pictures older than 24 hours go, and so does the folder of a user who has none left.
+- Saved history holds the Debit, Credit and net of each invoice, the time, how it was read and the id of the picture that was read, in one JSON file on the server (`HISTORY_FILE`, written through a temporary file and a rename, mode 0600). It holds no picture and no phone number apart from the owner key; routes only reach the signed-in user's own records. The file is not encrypted, so keep the server's disk private; a database replaces it before real users.
 - Signing out (or the session ending, here or in another tab of the same browser) removes the sign-in token and the amounts and picture reference kept for the current tab.
 - Start-up warns when `NODE_ENV=production` is combined with console SMS (anyone who can read the log can sign in), demo-value readings (`VISION_PROVIDER=mock`, users would see made-up amounts) or no `AUTH_SECRET`.
+- Only superadmin numbers and added agents can sign in; the role is checked on every request, so removing an agent or a superadmin number takes effect at once. Asking for a code for an unregistered number is refused with a clear message (this tells a visitor whether a number is registered, which is accepted for a small closed group and is what lets the page say so; the per-number and per-IP limits still apply). A superadmin cannot read pictures or change an agent's invoices; an agent reaches only their own records.
+- The agents file and the history file are plain JSON on the server (mode 0600, not encrypted), written whole after every change by one server process; running two servers on the same files would lose changes.
 - Known gaps, not fixed in the prototype: the session token is in `localStorage` (script injection could read it); sessions, codes and rate-limit counters are in memory, so they reset on restart and are not shared between several server processes; there is no per-user limit on the calculate endpoint (it is cheap, and the request size is capped at 100 KB); `npm start` serves only the API, so hosting the built web app needs a static host or a small addition; a picture whose owner signs out stays on disk until it is read, removed or 24 hours pass.
 - Later, before real users: HTTPS everywhere, a persistent session store, audit logging, and a review of the AI provider's data retention terms.
 
@@ -222,9 +264,10 @@ The prototype keeps invoice images only briefly (see AI-4) and stores codes only
 
 These are candidate features after the prototype, unordered and undated until we pick them; each moves into the requirements table when chosen.
 
-- **Invoice history:** save each result with its image and date, and list past invoices per user.
+- **History extras:** keeping a small copy of the picture with each entry (today only a reference is kept, because pictures are deleted once read), export, and totals over a filtered range.
+- **Roles extras:** per-agent date filters and export for the superadmin, a superadmin who also processes invoices, more than one level of admin, and moving agents and history into a database so several servers can share them.
 - **Database and persistent sessions:** replace in-memory storage (for example PostgreSQL), so restarts keep users signed in.
-- **Running balance:** keep a running net position across sessions (a combined total of several invoices in one batch is built, see BATCH-1 to BATCH-6).
+- **Running balance:** keep a running net position across sessions (a combined total of several invoices in one batch is built, see BATCH-1 to BATCH-7).
 - **Export:** download results as CSV or PDF.
 - **Deployment:** host the app with HTTPS and a real SMS sender number.
 - **Mobile app stores:** the Capacitor wrapper and native camera exist (see Architecture). Still to do: choose the final app id, store accounts and listings, signed release builds, secure token storage and Android SMS autofill.
@@ -233,13 +276,15 @@ These are candidate features after the prototype, unordered and undated until we
 
 The build can start without these answers; each has a default assumed in brackets.
 
-- [ ] Is the superadmin and agent setup from the whiteboard part of this prototype, or the next phase? (Assumed: next phase; the prototype builds single-user upload and calculation first.)
-- [ ] On the whiteboard, what do the crossed-out and ticked amounts mean, and is the total per agent or across all agents?
+- [x] Is the superadmin and agent setup from the whiteboard part of this prototype, or the next phase? (Decided: build it now; see Roles.)
+- [ ] On the whiteboard, what do the crossed-out and ticked amounts mean? (Not built. The total is built both ways: per agent and across all agents. Agents can delete an invoice from their list; it then no longer counts.)
+- [ ] Should a superadmin also be able to process invoices, and should they be able to correct or delete an agent's invoice? (Assumed: no to both. Read only.)
 - [x] Which currency or currencies do the invoices use? (Decided: Indian rupees only, shown as ₹ with lakh grouping.)
 - [ ] Which SMS provider and which countries should codes go to? (Assumed: Twilio, any country.)
 - [ ] Is the net always Debit minus Credit, or can the invoice say which side wins? (Assumed: Debit minus Credit.)
 - [ ] Can you share 2 or 3 sample invoice photos so the AI can be tested against real layouts? (Assumed: test with generated samples.)
-- [ ] Should results be saved in the prototype, or only shown? (Assumed: only shown.)
+- [x] Should results be saved? (Decided: yes. Every invoice that reaches a final amount is saved to a per-user history; see HIST-1 to HIST-7.)
+- [ ] Should the picture be kept with each history entry? (Assumed: no. It is deleted after reading, as in AI-4, and the entry keeps only a reference.)
 
 ## Changelog
 
@@ -258,4 +303,6 @@ The build can start without these answers; each has a default assumed in bracket
 | 2026-11-16 | 0.11 | Any amount may be entered: the 2-decimal refusal is gone. Amounts keep up to 12 decimals and 15 whole digits (limits shown in the UI and API errors), the maths stays exact and never rounds, and the result screen shows the figure rounded to 2 decimals with a note giving the exact amount when it differs. API adds `netRounded` and `rounded`. AI: a plain number with extra decimals is kept, an ambiguous one (`12.345`) is still flagged. Ledgerly now works in Indian rupees only (₹, lakh grouping, `currency` is always INR, no other currency handling). `1e3`, `₹`, `Rs.` and `/-` are accepted when typing. |
 | 2026-11-16 | 0.12 | Free local OCR reading (OCR-1 to OCR-6): Tesseract (WebAssembly, offline, language data bundled), deskew, three clean-up passes, parsing of `Debit` and `Credit` with rupee and lakh formats, totals proved against the table lines, honest confidence, timeouts and a single shared worker. New "Read with" switch (Local OCR or AI) on the upload screen, `GET /api/invoices/reading-methods`, optional `method` in the extract request, result screen names the reader used. Default reader is now `ocr` when no key is set (was `mock`; `mock` stays for the automated tests). Optional AI back-up (`OCR_FALLBACK_TO_CLAUDE`). |
 | 2026-11-17 | 0.13 | Line items removed everywhere (no new features). The AI and OCR readers return only the Debit and Credit amounts (the model's JSON no longer has `line_items`, and an answer that still has them is rejected); OCR no longer reads table lines, so it can no longer prove a total by adding lines up: it now needs two agreeing readings, never reports High, and leaves a box empty when readings disagree. The calculate API takes only `{ debit, credit }` and no longer returns `lineCount` or accepts `items`. The shared maths drops `totalLines`. The review screen no longer shows a lines table. Invoices are plain numbers with no currency sign: the sample pictures were redrawn as just a Debit and a Credit in plain numbers, and OCR reads them, and degraded copies of them, exactly. |
-| 2026-11-23 | 0.14 | Batch upload (BATCH-1 to BATCH-6): choose or drop many invoice pictures, each read on its own (3 at a time) with its own editable Debit and Credit and status, and one combined total (all Debits, all Credits, net) that ignores failed invoices and says so. Failed invoices can be retried, typed by hand or removed. Shared maths gains `calculateTotals`. Free readings get their own hourly limit (`FREE_READINGS_PER_USER_PER_HOUR`, 600). No change to the one-invoice flow. |
+| 2026-11-19 | 0.14 | Saved invoice history (HIST-1 to HIST-7): every invoice that reaches the final amount is saved automatically and corrections update the same record; History page with search, Net Debit / Net Credit / Balanced filter and date range, entry page with copy and delete; `/api/history` endpoints; history kept in a JSON file (`HISTORY_FILE`) behind a small store interface with an optional `agentId`, ready for agent and superadmin roles. The picture is still deleted after reading, so entries keep a reference, not the picture. |
+| 2026-11-19 | 0.15 | Agent and superadmin roles (ROLE-1 to ROLE-8): sign-in is now only for superadmin numbers (`SUPERADMIN_PHONES`) and agents a superadmin adds; role on `/api/auth/me`, checked on every request; Agents page with the overall total, per-agent Debit, Credit and net, add and remove (removed agents keep their list and can be added back); one agent's list for the superadmin; agent-only invoice, calculate and history routes with the agent id set by the server; `GET /api/my-totals` and a totals card on the History page; `AGENTS_FILE` setting. The whiteboard section is now the Roles section. |
+| 2026-11-23 | 0.16 | Batch upload (BATCH-1 to BATCH-7): choose or drop many invoice pictures, each read on its own (3 at a time) with its own editable Debit and Credit and status, and one combined total (all Debits, all Credits, net) that ignores failed invoices and says so. Failed invoices can be retried, typed by hand or removed. Every finished invoice is saved to the history (so agent lists and totals include it). Shared maths gains `calculateTotals`. Free readings get their own hourly limit (`FREE_READINGS_PER_USER_PER_HOUR`, 600). No change to the one-invoice flow. |

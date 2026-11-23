@@ -14,6 +14,12 @@ vi.mock('../src/invoices/invoiceApi.js', () => ({
   extractInvoice: vi.fn(),
 }));
 
+vi.mock('../src/history/historyApi.js', () => ({
+  saveHistoryEntry: vi.fn(async () => ({ id: 'h1' })),
+  updateHistoryEntry: vi.fn(async () => ({ id: 'h1' })),
+  deleteHistoryEntry: vi.fn(async () => ({ ok: true })),
+}));
+
 const ID = 'a'.repeat(32);
 const ID2 = 'b'.repeat(32);
 const meta = (id = ID, size = 1234) => ({ id, size, mimeType: 'image/jpeg', createdAt: 'x' });

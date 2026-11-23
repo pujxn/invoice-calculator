@@ -5,6 +5,11 @@ import { AuthProvider } from '../src/auth/AuthContext.jsx';
 import RequireAuth from '../src/auth/RequireAuth.jsx';
 import LoginPage from '../src/pages/LoginPage.jsx';
 import HomePage from '../src/pages/HomePage.jsx';
+import RequireRole from '../src/roles/RequireRole.jsx';
+import AdminPage from '../src/roles/AdminPage.jsx';
+import AgentDetailPage from '../src/roles/AgentDetailPage.jsx';
+import HistoryPage from '../src/pages/HistoryPage.jsx';
+import HistoryEntryPage from '../src/pages/HistoryEntryPage.jsx';
 
 export const STORAGE_KEY = 'invoice-calculator.session';
 
@@ -12,12 +17,25 @@ export function jsonResponse(status, body) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };
 }
 
+export const HISTORY_ID = 'e'.repeat(32);
+
+function defaultHistory(key, init) {
+  if (key !== 'POST /history' && !key.startsWith('PATCH /history/')) return null;
+  const body = JSON.parse(init.body);
+  return () => [
+    key === 'POST /history' ? 201 : 200,
+    { id: HISTORY_ID, ...body, createdAt: 'x', updatedAt: 'x' },
+  ];
+}
+
 // Stubs fetch with a router: handlers is { 'METHOD /path': (body, headers) => [status, json] }.
 // Returns the mock so tests can inspect calls.
 export function stubApi(handlers) {
   const mock = vi.fn(async (url, init = {}) => {
     const key = `${init.method || 'GET'} ${url.replace(/^\/api/, '')}`;
-    const handler = handlers[key];
+    // Saving to the history happens by itself on the final amount screen, so unless a test
+    // brings its own handler, these answer like a working server.
+    const handler = handlers[key] ?? defaultHistory(key, init);
     if (!handler) throw new Error(`Unexpected request: ${key}`);
     const body = init.body ? JSON.parse(init.body) : undefined;
     const result = typeof handler === 'function' ? handler(body, init.headers || {}) : handler;
@@ -53,6 +71,14 @@ export function renderApp(route = '/') {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<RequireAuth />}>
             <Route path="/" element={<HomePage />} />
+            <Route element={<RequireRole role="agent" />}>
+              <Route path="/history" element={<HistoryPage />} />
+              <Route path="/history/:id" element={<HistoryEntryPage />} />
+            </Route>
+            <Route element={<RequireRole role="superadmin" />}>
+              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin/agents/:phone" element={<AgentDetailPage />} />
+            </Route>
           </Route>
         </Routes>
       </AuthProvider>

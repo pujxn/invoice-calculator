@@ -56,7 +56,7 @@ export function AuthProvider({ children }) {
     let cancelled = false;
     api('/auth/me', { token: stored.token })
       .then((me) => {
-        if (!cancelled) setSession({ ...stored, phone: me.phone });
+        if (!cancelled) setSession({ ...stored, phone: me.phone, name: me.name, role: me.role });
       })
       .catch((err) => {
         // Only a 401 means the token is dead; a network blip keeps the session.
@@ -81,7 +81,7 @@ export function AuthProvider({ children }) {
       body: { phone, code },
     });
     const me = await api('/auth/me', { token });
-    const next = { token, expiresAt, phone: me.phone };
+    const next = { token, expiresAt, phone: me.phone, name: me.name, role: me.role };
     store(next);
     setSession(next);
   }, []);
@@ -95,7 +95,11 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      user: session ? { phone: session.phone } : null,
+      // role is "agent" or "superadmin". A session saved before roles existed has none; the
+      // check with the server on load fills it in, and the server enforces the role anyway.
+      user: session
+        ? { phone: session.phone, name: session.name ?? '', role: session.role ?? 'agent' }
+        : null,
       token: session?.token ?? null,
       checking,
       requestCode,

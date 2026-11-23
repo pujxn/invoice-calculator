@@ -280,3 +280,27 @@ test('the upload screen offers the batch, and one picture still goes the single 
   await page.getByRole('button', { name: 'Several invoices at once' }).click();
   await expect(batchInput(page)).toBeAttached();
 });
+
+test('every invoice in a batch is saved to the history, corrections update it, Remove deletes it', async ({
+  page,
+}) => {
+  await startBatch(page, invoices(3));
+  await allFinished(page, 3);
+  await expect(page.getByTestId('history-status')).toContainText('Saved to your history');
+
+  // A correction updates the same record; it does not add a fourth.
+  await rows(page)
+    .first()
+    .getByLabel(/^Credit/)
+    .fill('7');
+  await expect(page.getByTestId('history-status')).toContainText('Saved to your history');
+  await rows(page)
+    .nth(2)
+    .getByRole('button', { name: /^Remove/ })
+    .click();
+  await expect(rows(page)).toHaveCount(2);
+
+  await page.getByRole('link', { name: 'View history' }).click();
+  await expect(page.getByTestId('history-count')).toHaveText('Showing 2 of 2 invoices');
+  await shot(page, 'batch-09-history');
+});

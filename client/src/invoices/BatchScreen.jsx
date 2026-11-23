@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { describeResult, formatAmount } from '@ledgerly/money';
 import { useAuth } from '../auth/AuthContext.jsx';
 import useFocusOnMount from '../useFocusOnMount.js';
 import { checkAmount } from './amounts.js';
-import { BUSY, canRetry, itemNet, needsCheck, summarize } from './batch.js';
+import { BUSY, canRetry, historyStatus, itemNet, needsCheck, summarize } from './batch.js';
 import ReadingMethod, { methodName, useReadingMethod } from './ReadingMethod.jsx';
 import useDropZone from './useDropZone.js';
 import { ACCEPT, MAX_LABEL, TYPE_LABEL, formatSize } from './validate.js';
@@ -219,6 +220,7 @@ export default function BatchScreen({ batch, onBack }) {
   const { items } = batch;
   const summary = summarize(items);
   const finished = summary.total - summary.pending;
+  const history = historyStatus(items);
 
   // The way of reading is chosen here but used whenever a picture's turn comes.
   const { setMethod } = batch;
@@ -285,7 +287,29 @@ export default function BatchScreen({ batch, onBack }) {
 
           <Total summary={summary} />
 
+          <p className="hint save-status" aria-live="polite" data-testid="history-status">
+            {history.failed > 0 ? (
+              <>
+                Could not save {history.failed} {history.failed === 1 ? 'invoice' : 'invoices'} to
+                your history.{' '}
+                <button type="button" className="link" onClick={batch.retrySave}>
+                  Try again
+                </button>
+              </>
+            ) : history.saving > 0 ? (
+              'Saving to history…'
+            ) : history.saved > 0 ? (
+              <>
+                Saved to your history. <Link to="/history">View history</Link>
+              </>
+            ) : null}
+          </p>
+
           <h3>Your invoices</h3>
+          <p className="hint">
+            Removing an invoice also removes it from your history. Clear all only empties this
+            screen; the invoices stay in your history.
+          </p>
           <ul className="batch-list">
             {items.map((item) => (
               <Row
